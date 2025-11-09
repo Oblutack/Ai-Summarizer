@@ -36,6 +36,7 @@ services:
       - ./go-api:/app
     environment:
       - DSN=host=postgres user=user password=REMOVED-PASSWORD dbname=summarizer_db port=5432 sslmode=disable
+      - SECRET=REMOVED-SECRET
     restart: unless-stopped
 
 volumes:
