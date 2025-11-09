@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: summarizer-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: summarizer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  python-ai-service:
+    container_name: python-ai-service
+    build:
+      context: ./python-ai-service
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./python-ai-service:/app
+    restart: unless-stopped
+
+  go-api:
+    container_name: go-api
+    build:
+      context: ./go-api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    volumes:
+      - ./go-api:/app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
