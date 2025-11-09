@@ -44,8 +44,9 @@ Follow these steps to get the complete application running on your local machine
 Before you begin, ensure you have the following tools installed:
 -   [Git](https://git-scm.com/)
 -   [Docker Desktop](https://www.docker.com/products/docker-desktop/)
--   [Go](https://golang.org/dl/) (v1.22+)
--   [Python](https://www.python.org/downloads/) (v3.11+)
+-   **[Ollama](https://ollama.com/)** (for running the local AI model)
+-   [Go](https://golang.org/dl/) (v1.24+)
+-   [Python](https://www.python.org/downloads/) (v3.12+)
 -   [Node.js](https://nodejs.org/) (v20+ LTS)
 
 ### Installation
@@ -56,16 +57,22 @@ Before you begin, ensure you have the following tools installed:
     cd ai-summarizer
     ```
 
-2.  **Run all services with Docker Compose:**
-    This command will build the Docker images and start the Go API, Python service, and PostgreSQL database.
+2.  **Download & Run the AI Model (Ollama):**
+    Open a new terminal and run the following command. The first time, it will download the Llama 3 model (approx. 4.7 GB). Leave this running in the background.
+    ```bash
+    ollama run llama3
+    ```
+
+3.  **Run Backend Services with Docker Compose:**
+    This command will build and start the Go API, Python service, and PostgreSQL database.
     ```bash
     docker compose up --build
     ```
 
-3.  **Access the services:**
-    -   **Go API Gateway** is available at: `http://localhost:8080`
-    -   **Python AI Service** is available at: `http://localhost:8001`
-    -   **PostgreSQL Database** is available on port: `5432`
+4.  **Access the services:**
+    -  **Go API Gateway** is available at: `http://localhost:8080`
+    -  **Python AI Service** is available at: `http://localhost:8001`
+    -  **PostgreSQL Database** is available on port: `5432`
 
 ---
 
