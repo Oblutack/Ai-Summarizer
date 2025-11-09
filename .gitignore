@@ -22,3 +22,5 @@ npm-debug.log
 # Mac / Windows
 .DS_Store
 Thumbs.db
+
+.log

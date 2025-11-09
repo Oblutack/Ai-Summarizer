@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: summarizer_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -34,6 +34,8 @@ services:
       - postgres
     volumes:
       - ./go-api:/app
+    environment:
+      - DSN=host=postgres user=user password=password dbname=summarizer_db port=5432 sslmode=disable
     restart: unless-stopped
 
 volumes:
