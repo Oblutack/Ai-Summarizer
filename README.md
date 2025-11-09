@@ -1,4 +1,4 @@
-# 🤖 AI Document Summarizer
+# AI Document Summarizer
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
@@ -12,7 +12,7 @@ ADD A SCREENSHOT OF THE APPLICATION UI HERE ONCE IT'S READY.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 -   **Instant Summarization:** Generate summaries from pasted text or uploaded PDF documents.
 -   **User Accounts:** Register to save your summary history and access enhanced features.
@@ -21,7 +21,7 @@ ADD A SCREENSHOT OF THE APPLICATION UI HERE ONCE IT'S READY.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 This project utilizes a modern microservice architecture, with each component built using the best tool for the job:
 
@@ -35,7 +35,7 @@ This project utilizes a modern microservice architecture, with each component bu
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 Follow these steps to get the complete application running on your local machine.
 
@@ -63,13 +63,13 @@ Before you begin, ensure you have the following tools installed:
     ```
 
 3.  **Access the services:**
-    -   🚀 **Go API Gateway** is available at: `http://localhost:8080`
-    -   🧠 **Python AI Service** is available at: `http://localhost:8001`
-    -   🐘 **PostgreSQL Database** is available on port: `5432`
+    -   **Go API Gateway** is available at: `http://localhost:8080`
+    -   **Python AI Service** is available at: `http://localhost:8001`
+    -   **PostgreSQL Database** is available on port: `5432`
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 The project is organized as a monorepo with a clear separation of concerns:
 
