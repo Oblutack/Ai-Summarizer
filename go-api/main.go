@@ -2,14 +2,27 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 
+	"ai-summarizer/go-api/controllers"
+	"ai-summarizer/go-api/initializers"
+	"ai-summarizer/go-api/models"
+
 	"github.com/gin-gonic/gin"
 )
 
+func init() {
+	initializers.ConnectToDB() 
+}
+
 func main() {
+	
+	initializers.DB.AutoMigrate(&models.User{})
+    fmt.Println("Database migration completed!")
+	
 	r := gin.Default()
 
 	r.GET("/", func(c *gin.Context) {
@@ -65,6 +78,8 @@ func main() {
 
 		c.DataFromReader(resp.StatusCode, resp.ContentLength, resp.Header.Get("Content-Type"), resp.Body, nil)
 	})
+
+	r.POST("/signup", controllers.Signup)
 
 	r.Run(":8080")
 }
