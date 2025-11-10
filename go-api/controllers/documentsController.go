@@ -12,16 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func CreateSummary(c *gin.Context) {
+// Mala pomoćna funkcija da ne dupliramo kod
+func getSummaryFromPythonService(c *gin.Context) (*http.Response, []byte, error) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
-		return
+		return nil, nil, err
 	}
 	src, err := file.Open()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
-		return
+		return nil, nil, err
 	}
 	defer src.Close()
 	var requestBody bytes.Buffer
@@ -35,18 +34,37 @@ func CreateSummary(c *gin.Context) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI service is unavailable"})
+		return nil, nil, err
+	}
+	responseBody, err := io.ReadAll(resp.Body)
+	return resp, responseBody, err
+}
+
+func PublicSummarize(c *gin.Context) {
+	resp, body, err := getSummaryFromPythonService(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process summary request"})
 		return
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read AI service response"})
+	if resp.StatusCode != http.StatusOK {
+		c.JSON(resp.StatusCode, gin.H{"error": "AI service returned an error", "details": string(body)})
 		return
 	}
+	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
+}
+
+func CreateSummary(c *gin.Context) {
+	resp, body, err := getSummaryFromPythonService(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process summary request"})
+		return
+	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		c.JSON(resp.StatusCode, gin.H{"error": "AI service returned an error", "details": string(responseBody)})
+		c.JSON(resp.StatusCode, gin.H{"error": "AI service returned an error", "details": string(body)})
 		return
 	}
 
@@ -54,30 +72,16 @@ func CreateSummary(c *gin.Context) {
 		Filename string `json:"filename"`
 		Summary  string `json:"summary"`
 	}
-	json.Unmarshal(responseBody, &summaryResponse)
-
-	userInterface, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusOK, summaryResponse)
-		return
-	}
-
-	user, ok := userInterface.(models.User)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to identify user"})
-		return
-	}
+	json.Unmarshal(body, &summaryResponse)
+	userInterface, _ := c.Get("user")
+	user := userInterface.(models.User)
 
 	document := models.Document{
 		Filename: summaryResponse.Filename,
 		Summary:  summaryResponse.Summary,
-		UserID:   user.ID, 
+		UserID:   user.ID,
 	}
-	result := initializers.DB.Create(&document)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save document to database"})
-		return
-	}
+	initializers.DB.Create(&document)
 
 	c.JSON(http.StatusOK, summaryResponse)
 }

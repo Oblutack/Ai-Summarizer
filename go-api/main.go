@@ -34,6 +34,7 @@ func main() {
 	})
 	r.POST("/signup", controllers.Signup)
 	r.POST("/login", controllers.Login)
+	r.POST("/public/summarize", controllers.PublicSummarize)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)
