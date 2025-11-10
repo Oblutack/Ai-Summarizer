@@ -3,12 +3,14 @@
 import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,8 +22,7 @@ export default function LoginPage() {
         password: password,
       });
 
-      // TODO: Sačuvati token koji smo dobili (response.data.token)
-      console.log("Login successful, token:", response.data.token);
+      login(response.data.token);
 
       router.push("/dashboard");
     } catch (err) {
