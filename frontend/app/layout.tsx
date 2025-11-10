@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "../components/Navbar";
-import { AuthProvider } from "../contexts/AuthContext"; 
-
-const inter = Inter({ subsets: ["latin"] });
+import { AuthProvider } from "../contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "AI Summarizer",
-  description: "Summarize your documents with AI",
 };
 
 export default function RootLayout({
@@ -18,13 +14,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <AuthProvider> {}
+      {/* Primjenjujemo naše custom klase, uključujući font */}
+
+      <body className="font-bebas bg-canvas text-ink">
+        <AuthProvider>
           <Navbar />
-          <main className="container mx-auto p-4">
-            {children}
-          </main>
-        </AuthProvider> {}
+          <main>{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );

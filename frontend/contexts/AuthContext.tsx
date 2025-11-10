@@ -7,7 +7,6 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-//import axios from 'axios';
 
 interface User {
   id: number;
@@ -32,7 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const token = localStorage.getItem("token");
         if (token) {
-          // TODO: Kasnije ćemo ovde dodati logiku za validaciju tokena na backendu
+          // TODO: Kasnije ćemo ovdje dodati logiku za validaciju tokena na backendu
           setUser({ id: 1, email: "user@example.com" });
         }
       } catch (error) {

@@ -35,12 +35,14 @@ func main() {
 	r.POST("/signup", controllers.Signup)
 	r.POST("/login", controllers.Login)
 	r.POST("/public/summarize", controllers.PublicSummarize)
+	r.POST("/public/summarize-text", controllers.PublicSummarizeText)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)
 	{
 		authorized.POST("/summarize", controllers.CreateSummary)
 		authorized.GET("/documents", controllers.ListDocuments)
+		authorized.POST("/summarize-text", controllers.CreateSummaryText)
 	}
 
 	r.Run(":8080")
