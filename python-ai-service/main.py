@@ -1,16 +1,20 @@
 import os
 import tempfile
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 from langchain_openai import ChatOpenAI
 from langchain.document_loaders import PyPDFLoader
-from langchain.chains.summarize import load_summarize_chain
+from langchain.docstore.document import Document as LangchainDocument
+
 
 load_dotenv()
 
 app = FastAPI(title="AI Summarizer Service")
 
+class TextPayload(BaseModel):
+    text: str
 
 llm = ChatOpenAI(
     model="llama3",  
@@ -18,14 +22,12 @@ llm = ChatOpenAI(
     api_key="NA"
 )
 
-
 @app.get("/")
 def read_root():
     return {"message": "Python AI Service is running"}
 
 @app.post("/summarize")
-async def summarize_file(file: UploadFile = File(...)):
-
+async def summarize_file(file: UploadFile = File(...), word_count: int = Form(150)):
     temp_pdf_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
@@ -36,9 +38,12 @@ async def summarize_file(file: UploadFile = File(...)):
         loader = PyPDFLoader(temp_pdf_path)
         docs = loader.load()
         
-        chain = load_summarize_chain(llm, chain_type="stuff")
+        full_document_text = "\n".join([doc.page_content for doc in docs])
+
+        prompt = f"Provide a summary of the following document in about {word_count} words:\n\n---\n\n{full_document_text}"
         
-        summary = chain.run(docs)
+        response = llm.invoke(prompt)
+        summary = response.content
 
         return {"filename": file.filename, "summary": summary}
     
@@ -48,3 +53,17 @@ async def summarize_file(file: UploadFile = File(...)):
     finally:
         if temp_pdf_path and os.path.exists(temp_pdf_path):
             os.unlink(temp_pdf_path)
+
+
+@app.post("/summarize-text")
+async def summarize_text(payload: TextPayload, word_count: int = Query(150)):
+    try:
+
+        prompt = f"Provide a summary of the following text in about {word_count} words:\n\n---\n\n{payload.text}"
+        
+        response = llm.invoke(prompt)
+        summary = response.content
+
+        return {"summary": summary}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
