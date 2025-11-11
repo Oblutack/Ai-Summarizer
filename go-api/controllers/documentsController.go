@@ -19,7 +19,9 @@ type TextPayload struct {
 
 // Mala pomoćna funkcija da ne dupliramo kod
 func getSummaryFromPythonService(c *gin.Context) (*http.Response, []byte, error) {
-	wordCount := c.PostForm("wordCount") // Čita wordCount iz forme
+	wordCount := c.PostForm("wordCount")
+	pageLimit := c.PostForm("pageLimit") // Čita wordCount iz forme
+
 	file, err := c.FormFile("file")
 	if err != nil {
 		return nil, nil, err
@@ -32,6 +34,8 @@ func getSummaryFromPythonService(c *gin.Context) (*http.Response, []byte, error)
 
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
+	writer.WriteField("word_count", wordCount)
+	writer.WriteField("page_limit", pageLimit)
 
 	if err := writer.WriteField("word_count", wordCount); err != nil {
 		return nil, nil, err
@@ -71,12 +75,13 @@ func getSummaryFromPythonServiceForText(c *gin.Context) (*http.Response, []byte,
 		return nil, nil, err
 	}
 	
-	wordCount := c.Query("wordCount") // Čita wordCount iz URL query parametra
+	wordCount := c.Query("wordCount")
+	pageLimit := c.Query("pageLimit")  // Čita wordCount iz URL query parametra
 
 	jsonBody, _ := json.Marshal(payload)
 
 	// Dodajemo word_count u URL
-	pythonServiceURL := fmt.Sprintf("http://python-ai-service:8000/summarize-text?word_count=%s", wordCount)
+	pythonServiceURL := fmt.Sprintf("http://python-ai-service:8000/summarize-text?word_count=%s&page_limit=%s", wordCount, pageLimit)
 
 	req, _ := http.NewRequest("POST", pythonServiceURL, bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
