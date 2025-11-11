@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import axios from "axios";
+import { jsPDF } from "jspdf";
 
 interface EInkFormProps {
   endpoint: string;
@@ -118,6 +119,29 @@ export default function EInkForm({
   // Provjera da li je dugme za slanje onemogućeno
   const isSubmitDisabled = isLoading || (!file && !inputText);
 
+  const handleDownloadPDF = () => {
+    if (!summary) return; // Osiguranje da sažetak postoji
+
+    // 1. Kreiraj novi jsPDF dokument
+    const doc = new jsPDF();
+
+    // 2. Postavi osnovna podešavanja (font, veličina)
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(12);
+
+    // 3. Pripremi tekst
+    // splitTextToSize automatski prelama dugačak tekst u više linija
+    // 180 je širina teksta u mm na A4 stranici (210mm - 15mm leva margina - 15mm desna)
+    const splitText = doc.splitTextToSize(summary, 180);
+
+    // 4. Dodaj tekst na stranicu
+    // (15 je x pozicija, 20 je y pozicija)
+    doc.text(splitText, 15, 20);
+
+    // 5. Pokreni download
+    doc.save("ai-summary.pdf");
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -206,7 +230,18 @@ export default function EInkForm({
           )}
         </div>
       </div>
-
+      {/*DUGME ZA EXPORT*/}
+      {summary && !isLoading && (
+        <div className="mt-4">
+          <button
+            type="button" // Važno: type="button" da ne bi pokrenulo submit forme
+            onClick={handleDownloadPDF}
+            className="bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
+          >
+            Save as PDF
+          </button>
+        </div>
+      )}
       {/* --- Dugme --- */}
       <button
         type="submit"

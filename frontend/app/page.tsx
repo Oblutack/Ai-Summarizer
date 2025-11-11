@@ -1,4 +1,5 @@
 import EInkForm from "../components/EInkForm";
+import DownloadButton from "../components/DownloadButton";
 
 export default function Home() {
   return (
