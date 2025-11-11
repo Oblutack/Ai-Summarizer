@@ -36,6 +36,7 @@ func main() {
 	r.POST("/login", controllers.Login)
 	r.POST("/public/summarize", controllers.PublicSummarize)
 	r.POST("/public/summarize-text", controllers.PublicSummarizeText)
+	r.POST("/auth/google", controllers.GoogleLogin)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)

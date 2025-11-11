@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "../components/Navbar";
-import { AuthProvider } from "../contexts/AuthContext";
+import Providers from "../components/Providers";
 
 export const metadata: Metadata = {
   title: "AI Summarizer",
+  description: "Summarize your documents with AI",
 };
 
 export default function RootLayout({
@@ -14,13 +15,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* Primjenjujemo naše custom klase, uključujući font */}
-
       <body className="font-bebas bg-canvas text-ink">
-        <AuthProvider>
+        <div className="fixed top-0 left-0 w-full h-full bg-[url('/noise.png')] opacity-10 pointer-events-none z-[-1]"></div>
+
+        <Providers>
+          {" "}
+          {/* "Oblažemo" sve sa našom klijentskom komponentom */}
           <Navbar />
           <main>{children}</main>
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

@@ -37,6 +37,7 @@ services:
     environment:
       - DSN=host=postgres user=user password=password dbname=summarizer_db port=5432 sslmode=disable
       - SECRET=dq0Fd8!mL&(}{5~.WARq7K#Kiuir0V
+      - GOOGLE_CLIENT_ID=949915567137-hqhniqehv7dj50dsm8hntpasn0vfrac1.apps.googleusercontent.com
     restart: unless-stopped
 
 volumes:
