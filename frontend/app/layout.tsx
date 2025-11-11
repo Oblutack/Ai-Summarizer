@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-bebas bg-canvas text-ink">
-        <div className="fixed top-0 left-0 w-full h-full bg-[url('/noise.png')] opacity-10 pointer-events-none z-[-1]"></div>
+        <div className="fixed top-0 left-0 w-full h-full bg-[url('/noise.png')] opacity-10 pointer-events-none z-[-1] texture-div-for-pdf-export"></div>
 
         <Providers>
           {" "}

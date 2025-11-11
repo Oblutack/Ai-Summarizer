@@ -5,8 +5,13 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import type { Document } from "../../types";
-import EInkForm from "../../components/EInkForm";
-import DownloadButton from "../../components/DownloadButton";
+import DocumentCard from "../../components/DocumentCard";
+import dynamic from 'next/dynamic';
+
+const EInkForm = dynamic(() => import('../../components/EInkForm'), { 
+  ssr: false,
+  loading: () => <p>Loading form...</p>
+});
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -69,29 +74,7 @@ export default function DashboardPage() {
         </h2>
         <div className="space-y-6">
           {documents.length > 0 ? (
-            documents.map((doc) => (
-              <div
-                key={doc.ID}
-                className="bg-canvas border-2 border-ink p-6 rounded-md"
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <h3 className="font-bold text-2xl tracking-wider">
-                    {doc.Filename}
-                  </h3>
-                  <DownloadButton
-                    summaryText={doc.Summary}
-                    fileName={doc.Filename}
-                  />
-                </div>
-                <p className="text-ink/70 text-lg">
-                  Created on: {new Date(doc.CreatedAt).toLocaleDateString()}
-                </p>
-                <hr className="border-t border-dashed border-ink/50 my-3" />
-                <p className="mt-2 text-xl whitespace-pre-wrap">
-                  {doc.Summary}
-                </p>
-              </div>
-            ))
+            documents.map((doc) => <DocumentCard key={doc.ID} doc={doc} />)
           ) : (
             <p className="text-center text-xl text-ink/60">
               You have no saved documents yet.
