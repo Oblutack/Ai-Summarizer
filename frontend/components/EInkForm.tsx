@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useRef } from "react";
+import axios, { CancelTokenSource } from "axios";
 import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
 
@@ -21,6 +21,7 @@ export default function EInkForm({
   const [isLoading, setIsLoading] = useState(false);
   const [showPageLimit, setShowPageLimit] = useState(false);
   const [pageLimit, setPageLimit] = useState("");
+  const cancelTokenSourceRef = useRef<CancelTokenSource | null>(null);
 
   useEffect(() => {
     const textWordCount = inputText.trim().split(/\s+/).length;
@@ -48,79 +49,72 @@ export default function EInkForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!file && !inputText) {
       setError("Please attach a PDF or paste some text.");
       return;
     }
 
+    console.log("--- handleSubmit START ---");
+
     setError("");
     setSummary("");
     setIsLoading(true);
 
-    if (file) {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("wordCount", String(wordCount));
-      formData.append("pageLimit", pageLimit);
+    // Kreiramo novi kontroler i čuvamo ga u ref
+    cancelTokenSourceRef.current = axios.CancelToken.source();
+    console.log(
+      "1. CREATED new AbortController:",
+      cancelTokenSourceRef.current
+    );
 
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.post(endpoint, formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-        });
+    try {
+      const token = localStorage.getItem("token");
+      const headers: { [key: string]: string } = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      let response;
+      const config = {
+        headers: headers,
+        cancelToken: cancelTokenSourceRef.current.token, // Koristimo CancelToken
+      };
+
+      if (file) {
+        headers["Content-Type"] = "multipart/form-data";
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("wordCount", String(wordCount));
+        formData.append("pageLimit", pageLimit);
+        response = await axios.post(endpoint, formData, config);
+      } else if (inputText) {
+        headers["Content-Type"] = "application/json";
+        const textEndpoint = `${endpoint.replace(
+          "summarize",
+          "summarize-text"
+        )}?wordCount=${wordCount}&pageLimit=${pageLimit}`;
+        response = await axios.post(textEndpoint, { text: inputText }, config);
+      }
+
+      if (response) {
         setSummary(response.data.summary);
         if (onSummaryCreated) onSummaryCreated();
-      } catch (err) {
-        if (axios.isAxiosError(err) && err.response) {
-          setError(
-            err.response.data?.details ||
-              err.response.data?.error ||
-              "An error occurred while summarizing."
-          );
-        } else {
-          setError("An unexpected error occurred.");
-        }
-      } finally {
-        setIsLoading(false);
       }
-    } else if (inputText) {
-      const textEndpoint = `${endpoint.replace(
-        "summarize",
-        "summarize-text"
-      )}?wordCount=${wordCount}&pageLimit=${pageLimit}`;
-
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.post(
-          textEndpoint,
-          { text: inputText },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...(token && { Authorization: `Bearer ${token}` }),
-            },
-          }
+    } catch (err) {
+      if (axios.isCancel(err)) {
+        setError("Summarization was cancelled.");
+      } else if (axios.isAxiosError(err) && err.response) {
+        setError(
+          err.response.data?.details ||
+            err.response.data?.error ||
+            "An error occurred."
         );
-
-        setSummary(response.data.summary);
-        if (onSummaryCreated) onSummaryCreated();
-      } catch (err) {
-        if (axios.isAxiosError(err) && err.response) {
-          setError(
-            err.response.data?.details ||
-              err.response.data?.error ||
-              "An error occurred while summarizing text."
-          );
-        } else {
-          setError("An unexpected error occurred.");
-        }
-      } finally {
-        setIsLoading(false);
+      } else {
+        setError("An unexpected error occurred.");
       }
+    } finally {
+      setIsLoading(false);
+      cancelTokenSourceRef.current = null;
     }
   };
 
@@ -175,6 +169,13 @@ export default function EInkForm({
       setPageLimit(String(currentValue - 1));
     }
   };
+
+  const handleCancel = () => {
+    if (cancelTokenSourceRef.current) {
+      cancelTokenSourceRef.current.cancel("Operation canceled by the user.");
+    }
+  };
+
   return (
     <div className="flex w-full space-x-8">
       <div className="flex-grow">
@@ -311,26 +312,39 @@ export default function EInkForm({
             </div>
           </div>
           {/*DUGME ZA EXPORT*/}
-          {summary && !isLoading && (
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
-              >
-                Save as PDF
-              </button>
-            </div>
+          {!isLoading && (
+            <button
+              type="submit"
+              disabled={isSubmitDisabled}
+              className="bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Summarize
+            </button>
           )}
-          {/* --- Dugme --- */}
-          <button
-            type="submit"
-            disabled={isSubmitDisabled}
-            className="bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? "WORKING..." : "Summarize"}
-          </button>
         </form>
+        {isLoading && (
+          <div className="w-full flex justify-center mt-6">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="bg-red-600 text-white text-3xl uppercase font-bold py-3 px-12 rounded-md hover:bg-red-700"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {summary && !isLoading && (
+          <div className="mt-4 w-full flex justify-center">
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              className="bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
+            >
+              Save as PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* --- DESNA STRANA: NOVI BLOK ZA PAGE LIMITER --- */}
