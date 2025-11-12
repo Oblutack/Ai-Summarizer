@@ -5,7 +5,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import type { Document } from "../../types";
-import DocumentCard from "../../components/DocumentCard";
+import DocumentCard from '../../components/DocumentCard';
 import dynamic from "next/dynamic";
 
 const EInkForm = dynamic(() => import("../../components/EInkForm"), {
@@ -17,6 +17,10 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
+  const DocumentCard = dynamic(() => import('../../components/DocumentCard'), {
+    ssr: false,
+    loading: () => <p>Loading document...</p> // Opciona poruka
+});
 
   const fetchDocuments = async () => {
     const token = localStorage.getItem("token");
