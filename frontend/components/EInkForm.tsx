@@ -22,6 +22,8 @@ export default function EInkForm({
   const [showPageLimit, setShowPageLimit] = useState(false);
   const [pageLimit, setPageLimit] = useState("");
   const cancelTokenSourceRef = useRef<CancelTokenSource | null>(null);
+  const [progress, setProgress] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const textWordCount = inputText.trim().split(/\s+/).length;
@@ -58,7 +60,21 @@ export default function EInkForm({
 
     setError("");
     setSummary("");
+    setProgress(0);
     setIsLoading(true);
+
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) {
+          clearInterval(interval); // Zaustavi se na 95%
+          return 95;
+        }
+        // Raste brzo na početku, a usporava kako se približava 95%
+        return prev + (100 - prev) / 20;
+      });
+    }, 800);
+
+    abortControllerRef.current = new AbortController();
 
     // Kreiramo novi kontroler i čuvamo ga u ref
     cancelTokenSourceRef.current = axios.CancelToken.source();
@@ -113,8 +129,11 @@ export default function EInkForm({
         setError("An unexpected error occurred.");
       }
     } finally {
+      clearInterval(interval);
+      setProgress(100);
       setIsLoading(false);
       cancelTokenSourceRef.current = null;
+      abortControllerRef.current = null;
     }
   };
 
@@ -267,9 +286,26 @@ export default function EInkForm({
             {/* Unutrašnji div sada ima ID i skrolovanje */}
             <div className="w-full h-full p-4 border border-dashed border-ink/50 rounded-sm overflow-y-auto">
               {isLoading ? (
-                <p className="text-3xl text-ink/70 tracking-wider text-center pt-16">
-                  Summarizing...
-                </p>
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <p className="text-3xl text-ink/70 tracking-widest uppercase">
+                    Summarizing...
+                  </p>
+                  <p className="font-bebas text-5xl text-ink font-bold my-4 tracking-wider">
+                    {Math.round(progress)}%
+                  </p>
+                  {/* --- NOVI, STILIZOVANI PROGRESS BAR --- */}
+                  {/* Spoljni kontejner sa punim okvirom */}
+                  <div className="w-full max-w-md p-1 border-2 border-ink rounded-md">
+                    {/* Unutrašnji div sa isprekidanim okvirom */}
+                    <div className="w-full h-8 border border-dashed border-ink/50 p-1">
+                      {/* Traka koja se puni */}
+                      <div
+                        className="bg-ink h-full"
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div
                   id="summary-output-content"
