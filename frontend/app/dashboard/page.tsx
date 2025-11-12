@@ -5,7 +5,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import type { Document } from "../../types";
-import DocumentCard from '../../components/DocumentCard';
+import DocumentCard from "../../components/DocumentCard";
 import dynamic from "next/dynamic";
 
 const EInkForm = dynamic(() => import("../../components/EInkForm"), {
@@ -17,10 +17,10 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
-  const DocumentCard = dynamic(() => import('../../components/DocumentCard'), {
+  const DocumentCard = dynamic(() => import("../../components/DocumentCard"), {
     ssr: false,
-    loading: () => <p>Loading document...</p> // Opciona poruka
-});
+    loading: () => <p>Loading document...</p>, // Opciona poruka
+  });
 
   const fetchDocuments = async () => {
     const token = localStorage.getItem("token");
@@ -38,6 +38,27 @@ export default function DashboardPage() {
       );
     } catch (error) {
       console.error("Failed to fetch documents", error);
+    }
+  };
+  const handleDeleteDocument = async (id: number) => {
+    // Pitamo korisnika da potvrdi
+    if (!window.confirm("Are you sure you want to delete this summary?")) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      await axios.delete(`http://localhost:8080/documents/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Ukloni dokument iz lokalnog stanja za trenutan odziv UI-ja
+      setDocuments(documents.filter((doc) => doc.ID !== id));
+    } catch (error) {
+      console.error("Failed to delete document", error);
+      // Opciono: Prikazati grešku korisniku
     }
   };
 
@@ -78,7 +99,13 @@ export default function DashboardPage() {
         </h2>
         <div className="space-y-6">
           {documents.length > 0 ? (
-            documents.map((doc) => <DocumentCard key={doc.ID} doc={doc} />)
+            documents.map((doc) => (
+              <DocumentCard
+                key={doc.ID}
+                doc={doc}
+                onDelete={handleDeleteDocument}
+              />
+            ))
           ) : (
             <p className="text-center text-xl text-ink/60">
               You have no saved documents yet.
