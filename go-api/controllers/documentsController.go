@@ -183,3 +183,34 @@ func ListDocuments(c *gin.Context) {
 
 	c.JSON(http.StatusOK, documents)
 }
+// documentsController.go - DODAJTE OVU FUNKCIJU
+
+func DeleteDocument(c *gin.Context) {
+    // 1. Dobijamo ID dokumenta iz URL-a
+    id := c.Param("id")
+
+    // 2. Dobijamo ulogovanog korisnika iz konteksta (postavio ga je middleware)
+    userInterface, _ := c.Get("user")
+    user := userInterface.(models.User)
+
+    // 3. Pronalazimo dokument u bazi
+    var document models.Document
+    result := initializers.DB.First(&document, id)
+
+    if result.Error != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Document not found"})
+        return
+    }
+
+    // 4. BEZBEDNOSNA PROVERA: Da li je ulogovani korisnik vlasnik ovog dokumenta?
+    if document.UserID != user.ID {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to delete this document"})
+        return
+    }
+
+    // 5. Ako je sve u redu, brišemo dokument
+    initializers.DB.Delete(&document)
+
+    // 6. Vraćamo poruku o uspehu
+    c.Status(http.StatusOK)
+}

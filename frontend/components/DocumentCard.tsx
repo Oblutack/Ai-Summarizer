@@ -1,14 +1,15 @@
 "use client";
 import type { Document } from "../types";
-import { DownloadIcon } from "./Icon";
+import { DownloadIcon, TrashIcon } from "./Icon";
 import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
 
 interface DocumentCardProps {
   doc: Document;
+  onDelete: (id: number) => void;
 }
 
-export default function DocumentCard({ doc }: DocumentCardProps) {
+export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
   const handleDownloadPDF = () => {
     const element = document.getElementById(`doc-content-${doc.ID}`);
     if (!element) return;
@@ -32,16 +33,32 @@ export default function DocumentCard({ doc }: DocumentCardProps) {
 
   return (
     <div className="bg-canvas border-2 border-ink p-6 rounded-md">
-      <div className="flex justify-between items-center mb-1">
-        <h3 className="font-bold text-2xl tracking-wider">{doc.Filename}</h3>
-        <button
-          onClick={handleDownloadPDF}
-          title="Save as PDF"
-          className="text-ink hover:opacity-70"
-        >
-          <DownloadIcon className="w-8 h-8" />
-        </button>
+      <div className="flex justify-between items-start">
+        <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">
+          {doc.Filename}
+        </h3>
+
+        {/* --- NOVI KONTEJNER ZA DUGMAD --- */}
+        <div className="flex-shrink-0 flex items-center space-x-4">
+          <button
+            onClick={handleDownloadPDF}
+            title="Save as PDF"
+            className="text-ink hover:opacity-70"
+          >
+            <DownloadIcon className="w-8 h-8" />
+          </button>
+
+          <button
+            onClick={() => onDelete(doc.ID)}
+            title="Delete Summary"
+            className="text-red-600 hover:opacity-70"
+          >
+            <TrashIcon className="w-7 h-7" />
+          </button>
+        </div>
+        {/* --- KRAJ NOVOG KONTEJNERA --- */}
       </div>
+
       <p className="text-ink/70 text-lg">
         Created on: {new Date(doc.CreatedAt).toLocaleDateString()}
       </p>

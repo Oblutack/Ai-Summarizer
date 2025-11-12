@@ -44,6 +44,7 @@ func main() {
 		authorized.POST("/summarize", controllers.CreateSummary)
 		authorized.GET("/documents", controllers.ListDocuments)
 		authorized.POST("/summarize-text", controllers.CreateSummaryText)
+		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
 	}
 
 	r.Run(":8080")
