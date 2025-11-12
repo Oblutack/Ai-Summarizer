@@ -56,18 +56,17 @@ export default function DocumentCard({ doc }: DocumentCardProps) {
                 h1: { props: { className: "text-3xl font-bold my-4" } },
                 h2: { props: { className: "text-2xl font-bold my-3" } },
 
-                // --- PROMENA JE OVDE ---
-                p: { props: { className: "mb-4 text-2xl" } }, // Povećano
+                p: { props: { className: "mb-4 text-2xl" } },
                 ul: {
                   props: {
                     className: "list-disc list-inside mb-4 ml-4 text-2xl",
                   },
-                }, // Povećano
+                },
                 ol: {
                   props: {
                     className: "list-decimal list-inside mb-4 ml-4 text-2xl",
                   },
-                }, // Povećano
+                },
 
                 strong: { props: { className: "text-ink" } },
               },

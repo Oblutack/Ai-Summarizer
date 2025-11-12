@@ -25,8 +25,6 @@ export default function EInkForm({
   useEffect(() => {
     const textWordCount = inputText.trim().split(/\s+/).length;
 
-    // Prikaži opciju ako je uneto više od npr. 1000 reči ILI ako je fajl uploadovan
-    // (Pretpostavljamo da su fajlovi uglavnom duži)
     if (textWordCount > 1000 || file) {
       setShowPageLimit(true);
     } else {
@@ -37,19 +35,17 @@ export default function EInkForm({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
-      setInputText(""); // Resetujemo tekst ako je fajl izabran
+      setInputText("");
       setError("");
     }
   };
 
-  // Hendler za promenu teksta u textarea
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
-    setFile(null); // Resetujemo fajl ako korisnik unosi tekst
+    setFile(null);
     setError("");
   };
 
-  // Hendler za slanje forme
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -62,7 +58,6 @@ export default function EInkForm({
     setSummary("");
     setIsLoading(true);
 
-    // Logika za slanje fajla
     if (file) {
       const formData = new FormData();
       formData.append("file", file);
@@ -92,10 +87,7 @@ export default function EInkForm({
       } finally {
         setIsLoading(false);
       }
-    }
-    // Logika za slanje teksta (privremeno)
-    else if (inputText) {
-      // Konstruišemo ispravan endpoint za tekst
+    } else if (inputText) {
       const textEndpoint = `${endpoint.replace(
         "summarize",
         "summarize-text"
@@ -105,7 +97,7 @@ export default function EInkForm({
         const token = localStorage.getItem("token");
         const response = await axios.post(
           textEndpoint,
-          { text: inputText }, // Šaljemo JSON
+          { text: inputText },
           {
             headers: {
               "Content-Type": "application/json",
@@ -132,23 +124,19 @@ export default function EInkForm({
     }
   };
 
-  // Provjera da li je dugme za slanje onemogućeno
   const isSubmitDisabled = isLoading || (!file && !inputText);
 
   const handleDownloadPDF = () => {
-    // 1. Pronalazimo element sa JEDINSTVENIM ID-jem.
     const element = document.getElementById("summary-output-content");
     if (!element) {
       console.error("Could not find element to export.");
       return;
     }
 
-    // 2. Kreiramo ime fajla
     const pdfFileName =
       (file ? file.name.replace(/\.[^/.]+$/, "") : "pasted-text") +
       "-summary.pdf";
 
-    // 3. Podešavanja za html2pdf biblioteku
     const opt = {
       margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
       filename: pdfFileName,
@@ -158,7 +146,6 @@ export default function EInkForm({
         useCORS: true,
         backgroundColor: "#F5F0E6",
         onclone: (document: Document) => {
-          // Skrivamo teksturu iz PDF-a
           const textureDiv = document.querySelector(
             ".texture-div-for-pdf-export"
           );
@@ -174,36 +161,48 @@ export default function EInkForm({
       },
     };
 
-    // 4. Pozivamo biblioteku da generiše PDF
     html2pdf().from(element).set(opt).save();
   };
+  const incrementPageLimit = () => {
+    // Pretvara string u broj, dodaje 1, i vraća nazad u string
+    setPageLimit(String(Number(pageLimit || 0) + 1));
+  };
 
+  const decrementPageLimit = () => {
+    // Smanjuje samo ako je broj veći od 1
+    const currentValue = Number(pageLimit || 0);
+    if (currentValue > 1) {
+      setPageLimit(String(currentValue - 1));
+    }
+  };
   return (
-    // --- POČETAK PROMENA: Glavni Flex Kontejner ---
-    // Ovaj novi div će držati formu levo i page limiter desno
     <div className="flex w-full space-x-8">
-      {/* --- LEVA STRANA: VAŠA POSTOJEĆA FORMA --- */}
-      {/* Samo smo kopirali vašu postojeću <form> unutar ovog div-a */}
       <div className="flex-grow">
         <form
           onSubmit={handleSubmit}
           className="w-full flex flex-col items-center space-y-6 text-2xl font-bebas"
         >
-          {/* --- Slider za broj reči --- */}
+          {/* --- Slider za broj riječi --- */}
           <div className="w-full flex justify-center items-center space-x-4">
-            <label htmlFor="word-count" className="uppercase tracking-widest">
+            <label
+              htmlFor="word-count"
+              className={`uppercase tracking-widest ${
+                showPageLimit && "opacity-50"
+              }`}
+            >
               Summary Word Count:
             </label>
             <div className="flex flex-col">
               <input
                 id="word-count"
                 type="range"
+                disabled={showPageLimit}
                 min="50"
                 max="500"
                 step="10"
                 value={wordCount}
                 onChange={(e) => setWordCount(Number(e.target.value))}
-                className="w-60"
+                className="w-60 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <div className="w-60 flex justify-between px-1 -mt-1 text-ink opacity-40 text-xs">
                 <span>|</span>
@@ -219,7 +218,11 @@ export default function EInkForm({
                 <span>|</span>
               </div>
             </div>
-            <span className="w-28 text-center tracking-widest">
+            <span
+              className={`w-28 text-center tracking-widest ${
+                showPageLimit && "opacity-50"
+              }`}
+            >
               {wordCount} Words
             </span>
           </div>
@@ -286,18 +289,18 @@ export default function EInkForm({
                               "text-2xl font-bold my-3 break-after-avoid'",
                           },
                         },
-                        p: { props: { className: "mb-4" } }, // Povećan razmak
+                        p: { props: { className: "mb-4" } },
                         ul: {
                           props: {
                             className: "list-disc list-inside mb-4 ml-4",
                           },
-                        }, // Dodat ml
+                        },
                         ol: {
                           props: {
                             className: "list-decimal list-inside mb-4 ml-4",
                           },
                         },
-                        strong: { props: { className: "text-ink" } }, // Podebljan tekst je tamniji
+                        strong: { props: { className: "text-ink" } },
                       },
                     }}
                   >
@@ -337,20 +340,48 @@ export default function EInkForm({
           <h3 className="uppercase tracking-widest text-center mb-2">
             Page Limit
           </h3>
-          <div className="p-1 border-2 border-ink rounded-md">
-            <input
-              type="number"
-              value={pageLimit}
-              onChange={(e) => setPageLimit(e.target.value)}
-              placeholder="e.g. 5"
-              className="w-full p-2 bg-canvas border-2 border-ink rounded-md focus:outline-none text-center"
-            />
+          <div className="relative p-1 border-2 border-ink rounded-md">
+            <div className="border border-dashed border-ink/50 rounded-sm">
+              <input
+                type="number"
+                value={pageLimit}
+                onChange={(e) => setPageLimit(e.target.value)}
+                placeholder="e.g. 5"
+                className="w-full p-2 bg-transparent focus:outline-none text-center"
+              />
+            </div>
+            {/* --- DUGMIĆI ZA KONTROLU --- */}
+            {/* Kontejner za dugmiće, pozicioniran apsolutno sa desne strane */}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col space-y-1">
+              {/* Dugme GORE */}
+              <button
+                type="button"
+                onClick={incrementPageLimit}
+                className="text-ink h-4 w-4 flex items-center justify-center hover:opacity-70"
+              >
+                {/* SVG trougao koji gleda gore */}
+                <svg viewBox="0 0 10 10" className="w-full h-full fill-current">
+                  <polygon points="5 2, 8 8, 2 8" />
+                </svg>
+              </button>
+              {/* Dugme DOLE */}
+              <button
+                type="button"
+                onClick={decrementPageLimit}
+                className="text-ink h-4 w-4 flex items-center justify-center hover:opacity-70"
+              >
+                {/* SVG trougao koji gleda dole */}
+                <svg viewBox="0 0 10 10" className="w-full h-full fill-current">
+                  <polygon points="5 8, 2 2, 8 2" />
+                </svg>
+              </button>
+            </div>
           </div>
           <p className="text-center text-base mt-2 text-ink/70">
             (Approx. 250 words per page)
           </p>
         </div>
       )}
-    </div> // --- KRAJ GLAVNOG FLEX KONTEJNERA ---
+    </div>
   );
 }

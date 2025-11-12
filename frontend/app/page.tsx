@@ -1,9 +1,8 @@
-import dynamic from 'next/dynamic';
+import dynamic from "next/dynamic";
 
-// Dinamički importujemo komponentu sa isključenim SSR-om
-const EInkForm = dynamic(() => import('../components/EInkForm'), { 
+const EInkForm = dynamic(() => import("../components/EInkForm"), {
   ssr: false,
-  loading: () => <p>Loading form...</p> // Opciono: poruka dok se komponenta učitava
+  loading: () => <p>Loading form...</p>,
 });
 
 export default function Home() {
