@@ -17,7 +17,6 @@ type TextPayload struct {
 	Text string `json:"text"`
 }
 
-// Mala pomoćna funkcija da ne dupliramo kod
 func getSummaryFromPythonService(c *gin.Context) (*http.Response, []byte, error) {
 	wordCount := c.PostForm("wordCount")
 	pageLimit := c.PostForm("pageLimit") // Čita wordCount iz forme
@@ -76,11 +75,10 @@ func getSummaryFromPythonServiceForText(c *gin.Context) (*http.Response, []byte,
 	}
 	
 	wordCount := c.Query("wordCount")
-	pageLimit := c.Query("pageLimit")  // Čita wordCount iz URL query parametra
+	pageLimit := c.Query("pageLimit")  
 
 	jsonBody, _ := json.Marshal(payload)
 
-	// Dodajemo word_count u URL
 	pythonServiceURL := fmt.Sprintf("http://python-ai-service:8000/summarize-text?word_count=%s&page_limit=%s", wordCount, pageLimit)
 
 	req, _ := http.NewRequest("POST", pythonServiceURL, bytes.NewBuffer(jsonBody))

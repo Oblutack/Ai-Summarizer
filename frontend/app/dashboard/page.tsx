@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import type { Document } from "../../types";
 import DocumentCard from "../../components/DocumentCard";
-import dynamic from 'next/dynamic';
+import dynamic from "next/dynamic";
 
-const EInkForm = dynamic(() => import('../../components/EInkForm'), { 
+const EInkForm = dynamic(() => import("../../components/EInkForm"), {
   ssr: false,
-  loading: () => <p>Loading form...</p>
+  loading: () => <p>Loading form...</p>,
 });
 
 export default function DashboardPage() {
