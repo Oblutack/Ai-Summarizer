@@ -256,7 +256,7 @@ export default function EInkForm({
             <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
               {/* Uslovno renderovanje sadržaja */}
               {!inputText && !file ? (
-                // STANJE 1: Nema unosa
+                // STANJE 1: Nema unosa (ostaje isto)
                 <div className="flex flex-col justify-center items-center h-full space-y-4">
                   <p className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl">
                     PASTE TEXT OR ATTACH PDF DOCUMENT...
@@ -273,26 +273,43 @@ export default function EInkForm({
                 // STANJE 2: Ima unosa
                 <>
                   {file ? (
-                    <div className="flex justify-center items-center h-full">
-                      <p className="text-2xl tracking-wider p-2 border border-ink/50 rounded-md">
+                    // --- POČETAK PROMENE ---
+                    // NOVI BLOK: Prikaz imena fajla IZNAD dugmeta, sve centrirano
+                    <div className="flex flex-col justify-center items-center h-full space-y-4">
+                      <p className="text-xl md:text-2xl tracking-wider p-2 border border-ink/50 rounded-md text-center">
                         {file.name}
                       </p>
+                      <label
+                        htmlFor="pdf-upload"
+                        className="cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                      >
+                        <span className="text-2xl">📎</span>
+                        <span className="text-xl tracking-wider">
+                          CHANGE FILE
+                        </span>
+                      </label>
                     </div>
                   ) : (
-                    <textarea
-                      value={inputText}
-                      onChange={handleTextChange}
-                      className="w-full h-full bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
-                    />
+                    // --- KRAJ PROMENE ---
+                    // Prikaz textarea (ostaje isto)
+                    <>
+                      <textarea
+                        value={inputText}
+                        onChange={handleTextChange}
+                        className="w-full h-full bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
+                      />
+                      {/* Dugme za promenu fajla je uvek vidljivo u donjem levom uglu kada se kuca tekst */}
+                      <label
+                        htmlFor="pdf-upload"
+                        className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                      >
+                        <span className="text-2xl">📎</span>
+                        <span className="text-xl tracking-wider">
+                          ATTACH PDF
+                        </span>
+                      </label>
+                    </>
                   )}
-                  {/* Dugme za promenu fajla je uvek vidljivo u ovom stanju */}
-                  <label
-                    htmlFor="pdf-upload"
-                    className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
-                  >
-                    <span className="text-2xl">📎</span>
-                    <span className="text-xl tracking-wider">CHANGE FILE</span>
-                  </label>
                 </>
               )}
 
