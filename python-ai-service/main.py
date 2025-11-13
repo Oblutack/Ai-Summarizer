@@ -18,10 +18,9 @@ class TextPayload(BaseModel):
     text: str
 
 llm = ChatOpenAI(
-    model="llama3",  
-    base_url="http://host.docker.internal:11434/v1",
-    api_key="NA",
-    temperature=0,
+    model="llama3-8b-8192", 
+    api_key=os.getenv("GROQ_API_KEY"), 
+    base_url="https://api.groq.com/openai/v1"
 )
 
 @app.get("/")

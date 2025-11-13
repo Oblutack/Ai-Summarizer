@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -51,7 +52,7 @@ func getSummaryFromPythonService(c *gin.Context) (*http.Response, []byte, error)
 	
 	writer.Close() // Zatvaramo writer pre slanja
 
-	pythonServiceURL := "http://python-ai-service:8000/summarize"
+	pythonServiceURL := os.Getenv("AI_SERVICE_URL") + "/summarize"
 	req, err := http.NewRequest("POST", pythonServiceURL, &requestBody)
 	if err != nil {
 		return nil, nil, err
@@ -79,9 +80,14 @@ func getSummaryFromPythonServiceForText(c *gin.Context) (*http.Response, []byte,
 
 	jsonBody, _ := json.Marshal(payload)
 
-	pythonServiceURL := fmt.Sprintf("http://python-ai-service:8000/summarize-text?word_count=%s&page_limit=%s", wordCount, pageLimit)
+	baseURL := os.Getenv("AI_SERVICE_URL")
 
-	req, _ := http.NewRequest("POST", pythonServiceURL, bytes.NewBuffer(jsonBody))
+	fullURL := fmt.Sprintf("%s/summarize-text?word_count=%s&page_limit=%s", baseURL, wordCount, pageLimit)
+
+	req, err := http.NewRequest("POST", fullURL, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, nil, err
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}

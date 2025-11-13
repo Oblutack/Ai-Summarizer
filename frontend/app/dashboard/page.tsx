@@ -38,7 +38,7 @@ export default function DashboardPage() {
     if (!token) return;
 
     try {
-      const response = await axios.get("http://localhost:8080/documents", {
+      const response = await axios.get("process.env.NEXT_PUBLIC_API_URL/documents", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setDocuments(
@@ -61,7 +61,7 @@ export default function DashboardPage() {
     if (!token) return;
 
     try {
-      await axios.delete(`http://localhost:8080/documents/${id}`, {
+      await axios.delete(`process.env.NEXT_PUBLIC_API_URL/documents/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -98,7 +98,7 @@ export default function DashboardPage() {
       {/* Sekcija za novu formu */}
       <div className="mb-12 border-2 border-ink rounded-lg p-6">
         <EInkForm
-          endpoint="http://localhost:8080/summarize"
+          endpoint="process.env.NEXT_PUBLIC_API_URL/summarize"
           onSummaryCreated={fetchDocuments}
         />
       </div>
