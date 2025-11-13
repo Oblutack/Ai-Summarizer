@@ -39,7 +39,7 @@ export default function DashboardPage() {
 
     try {
       const response = await axios.get(
-        "process.env.NEXT_PUBLIC_API_URL/documents",
+        `${process.env.NEXT_PUBLIC_API_URL}/documents`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
