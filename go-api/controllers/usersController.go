@@ -10,8 +10,6 @@ import (
 
 	"context"
 
-	"crypto/tls"
-
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -104,13 +102,7 @@ func GoogleLogin(c *gin.Context) {
 
 	// UPOZORENJE: Ovo je haos za produkciju! Koristi se samo za rješavanje
 	// problema sa TLS sertifikatima u lokalnom Docker okruženju.
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-
-
-	oauth2Service, err := oauth2.NewService(context.Background(), option.WithHTTPClient(client))
+	oauth2Service, err := oauth2.NewService(context.Background(), option.WithoutAuthentication())
 	if err != nil {
 		fmt.Println("!!! ERROR creating Google service:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init Google service"})
