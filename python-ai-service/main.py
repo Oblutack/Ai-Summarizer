@@ -18,7 +18,7 @@ class TextPayload(BaseModel):
     text: str
 
 llm = ChatOpenAI(
-    model="llama3-70b-8192", 
+    model="gemma-7b-it", 
     api_key=os.getenv("GROQ_API_KEY"), 
     base_url="https://api.groq.com/openai/v1"
 )
