@@ -23,7 +23,7 @@ func main() {
 	r := gin.Default()
 
     config := cors.DefaultConfig()
-    config.AllowOrigins = []string{"http://localhost:3000"} 
+    config.AllowOrigins = []string{"http://localhost:3000", "https://ai-summarizer-ten-tan.vercel.app"} 
     config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"} 
     config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"} 
     r.Use(cors.New(config))
