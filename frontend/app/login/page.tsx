@@ -29,7 +29,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await axios.post("http://localhost:8080/login", {
+      const response = await axios.post("process.env.NEXT_PUBLIC_API_URL/login", {
         email: email,
         password: password,
       });
@@ -56,7 +56,7 @@ export default function LoginPage() {
 
     try {
       // Pozivamo naš NOVI backend endpoint
-      const response = await axios.post("http://localhost:8080/auth/google", {
+      const response = await axios.post("process.env.NEXT_PUBLIC_API_URL/auth/google", {
         token: idToken,
       });
 
