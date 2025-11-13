@@ -253,44 +253,65 @@ export default function EInkForm({
 
           {/* --- Input Polje --- */}
           <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
-            <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4 flex flex-col justify-center items-center">
-              {/* Textarea je uvek u pozadini */}
-              <textarea
-                value={inputText}
-                onChange={handleTextChange}
-                placeholder={file ? "" : "PASTE TEXT OR ATTACH PDF DOCUMENT..."}
-                className="absolute top-0 left-0 w-full h-full p-4 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
-              />
-
-              {/* Ako fajl NIJE izabran, a tekst NIJE unet, prikaži placeholder */}
-              {!file && !inputText && (
-                <div className="text-center">
-                  <p className="text-3xl tracking-wider text-ink/50 md:text-2xl">
+            <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
+              {/* Uslovno renderovanje sadržaja */}
+              {!inputText && !file ? (
+                // STANJE 1: Nema unosa (placeholder i dugme)
+                <div className="flex flex-col justify-center items-center h-full space-y-4">
+                  <p
+                    className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl cursor-text w-full h-full flex justify-center items-center"
+                    onClick={() => {
+                      const textarea = document.getElementById(
+                        "main-textarea"
+                      ) as HTMLTextAreaElement;
+                      if (textarea) textarea.focus();
+                    }}
+                  >
                     PASTE TEXT OR ATTACH PDF DOCUMENT...
                   </p>
+                  <label
+                    htmlFor="pdf-upload"
+                    className="cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                  >
+                    <span className="text-2xl">📎</span>
+                    <span className="text-xl tracking-wider">ATTACH PDF</span>
+                  </label>
                 </div>
-              )}
-
-              {/* Ako JE fajl izabran, prikaži ime fajla */}
-              {file && (
-                <div className="text-center">
-                  <p className="text-xl md:text-2xl tracking-wider p-2 border border-ink/50 rounded-md">
+              ) : file ? (
+                // STANJE 2: Fajl je izabran
+                <div className="flex flex-col md:flex-row justify-center items-center h-full space-y-4 md:space-y-0 md:space-x-4">
+                  <p className="text-xl md:text-2xl tracking-wider p-2 border border-ink/50 rounded-md text-center">
                     {file.name}
                   </p>
+                  <label
+                    htmlFor="pdf-upload"
+                    className="cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                  >
+                    <span className="text-2xl">📎</span>
+                    <span className="text-xl tracking-wider">CHANGE FILE</span>
+                  </label>
                 </div>
+              ) : (
+                // STANJE 3: Tekst se unosi
+                <>
+                  <textarea
+                    id="main-textarea" // Dodajemo ID za fokusiranje
+                    value={inputText}
+                    onChange={handleTextChange}
+                    className="w-full h-full bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
+                    autoFocus
+                  />
+                  <label
+                    htmlFor="pdf-upload"
+                    className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                  >
+                    <span className="text-2xl">📎</span>
+                    <span className="text-xl tracking-wider">ATTACH PDF</span>
+                  </label>
+                </>
               )}
 
-              {/* Labela za upload je uvek tu */}
-              <label
-                htmlFor="pdf-upload"
-                className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
-              >
-                <span className="text-2xl">📎</span>
-                <span className="text-xl tracking-wider">
-                  {file ? "CHANGE FILE" : "ATTACH PDF"}
-                </span>
-              </label>
-
+              {/* Sakriveni input za fajl, uvek dostupan */}
               <input
                 id="pdf-upload"
                 type="file"
@@ -298,6 +319,14 @@ export default function EInkForm({
                 onChange={handleFileChange}
                 accept=".pdf"
               />
+              {/* Nevidljivi textarea za fokus (samo u početnom stanju) */}
+              {!file && !inputText && (
+                <textarea
+                  id="main-textarea"
+                  onChange={handleTextChange}
+                  className="opacity-0 absolute w-0 h-0"
+                ></textarea>
+              )}
             </div>
           </div>
 
