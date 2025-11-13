@@ -29,10 +29,13 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await axios.post("process.env.NEXT_PUBLIC_API_URL/login", {
-        email: email,
-        password: password,
-      });
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/login`,
+        {
+          email: email,
+          password: password,
+        }
+      );
 
       login(response.data.token);
 
@@ -56,9 +59,12 @@ export default function LoginPage() {
 
     try {
       // Pozivamo naš NOVI backend endpoint
-      const response = await axios.post("process.env.NEXT_PUBLIC_API_URL/auth/google", {
-        token: idToken,
-      });
+      const response = await axios.post(
+        "process.env.NEXT_PUBLIC_API_URL/auth/google",
+        {
+          token: idToken,
+        }
+      );
 
       // Ostatak je isti kao i kod običnog logina
       login(response.data.token);
