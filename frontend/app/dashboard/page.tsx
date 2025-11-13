@@ -38,9 +38,12 @@ export default function DashboardPage() {
     if (!token) return;
 
     try {
-      const response = await axios.get("process.env.NEXT_PUBLIC_API_URL/documents", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get(
+        "process.env.NEXT_PUBLIC_API_URL/documents",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setDocuments(
         response.data.sort(
           (a: Document, b: Document) =>
@@ -98,7 +101,7 @@ export default function DashboardPage() {
       {/* Sekcija za novu formu */}
       <div className="mb-12 border-2 border-ink rounded-lg p-6">
         <EInkForm
-          endpoint="process.env.NEXT_PUBLIC_API_URL/summarize"
+          endpoint={`${process.env.NEXT_PUBLIC_API_URL}/summarize`}
           onSummaryCreated={fetchDocuments}
         />
       </div>
