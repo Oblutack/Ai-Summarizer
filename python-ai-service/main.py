@@ -108,6 +108,6 @@ async def process_summary(text: str, word_count: int, page_limit: int) -> str:
         summary = response.content
 
     if not summary or not summary.strip():
-        return "Could not generate a summary. The provided text might be too short, unclear, or contain unsupported content."
+        raise ValueError("The model returned an empty or invalid summary.")
         
     return summary

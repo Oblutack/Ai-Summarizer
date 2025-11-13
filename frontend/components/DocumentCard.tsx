@@ -3,11 +3,17 @@ import type { Document } from "../types";
 import { DownloadIcon, TrashIcon } from "./Icon";
 import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
+import { motion } from "framer-motion";
 
 interface DocumentCardProps {
   doc: Document;
   onDelete: (id: number) => void;
 }
+
+const cardVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { y: 0, opacity: 1 },
+};
 
 export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
   const handleDownloadPDF = () => {
@@ -32,7 +38,13 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
   };
 
   return (
-    <div className="bg-canvas border-2 border-ink p-6 rounded-md">
+    <motion.div
+      layout // Ova magična reč kaže Frameru da animira promenu pozicije
+      initial={{ opacity: 0, y: 50, scale: 0.8 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }} // Animacija za nestajanje
+      className="bg-canvas border-2 border-ink p-6 rounded-md"
+    >
       <div className="flex justify-between items-start">
         <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">
           {doc.Filename}
@@ -93,6 +105,6 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
           </Markdown>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

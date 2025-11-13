@@ -7,11 +7,22 @@ import axios from "axios";
 import type { Document } from "../../types";
 import DocumentCard from "../../components/DocumentCard";
 import dynamic from "next/dynamic";
+import { motion, AnimatePresence } from "framer-motion";
 
 const EInkForm = dynamic(() => import("../../components/EInkForm"), {
   ssr: false,
   loading: () => <p>Loading form...</p>,
 });
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1, // Razmak od 0.1s između svake kartice
+    },
+  },
+};
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -98,19 +109,21 @@ export default function DashboardPage() {
           Saved Summaries
         </h2>
         <div className="space-y-6">
-          {documents.length > 0 ? (
-            documents.map((doc) => (
-              <DocumentCard
-                key={doc.ID}
-                doc={doc}
-                onDelete={handleDeleteDocument}
-              />
-            ))
-          ) : (
-            <p className="text-center text-xl text-ink/60">
-              You have no saved documents yet.
-            </p>
-          )}
+          <AnimatePresence>
+            {documents.length > 0 ? (
+              documents.map((doc) => (
+                <DocumentCard
+                  key={doc.ID}
+                  doc={doc}
+                  onDelete={handleDeleteDocument}
+                />
+              ))
+            ) : (
+              <p className="text-center text-xl text-ink/60">
+                You have no saved documents yet.
+              </p>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

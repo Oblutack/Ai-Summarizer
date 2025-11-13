@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import axios, { CancelTokenSource } from "axios";
 import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
+import { motion } from "framer-motion";
 
 interface EInkFormProps {
   endpoint: string;
@@ -349,13 +350,15 @@ export default function EInkForm({
           </div>
           {/*DUGME ZA EXPORT*/}
           {!isLoading && (
-            <button
+            <motion.button
               type="submit"
               disabled={isSubmitDisabled}
               className="bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.03 }}
             >
               Summarize
-            </button>
+            </motion.button>
           )}
         </form>
         {isLoading && (
