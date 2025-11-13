@@ -16,7 +16,7 @@ export default function SignupPage() {
     setError("");
 
     try {
-      await axios.post("http://localhost:8080/signup", {
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/signup`, {
         email: email,
         password: password,
       });
