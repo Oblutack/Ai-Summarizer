@@ -197,11 +197,11 @@ export default function EInkForm({
   };
 
   return (
-    <div className="flex w-full space-x-8">
+    <div className="flex w-full flex-col lg:flex-row lg:space-x-8">
       <div className="flex-grow">
         <form
           onSubmit={handleSubmit}
-          className="w-full flex flex-col items-center space-y-6 text-2xl font-bebas"
+          className="w-full flex flex-col items-center space-y-6 text-xl md:text-2xl font-bebas"
         >
           {/* --- Slider za broj riječi --- */}
           <div className="w-full flex justify-center items-center space-x-4">
@@ -258,7 +258,7 @@ export default function EInkForm({
                 value={inputText}
                 onChange={handleTextChange}
                 placeholder="PASTE TEXT OR ATTACH PDF DOCUMENT..."
-                className="w-full h-full p-4 bg-transparent focus:outline-none resize-none text-2xl tracking-wider text-center scrollbar-hide ms-overflow-style-none"
+                className="w-full h-full p-4 bg-transparent focus:outline-none resize-none text-xl md:text-2xl tracking-wider text-center scrollbar-hide ms-overflow-style-none"
               />
               <label
                 htmlFor="pdf-upload"
@@ -288,7 +288,7 @@ export default function EInkForm({
             <div className="w-full h-full p-4 border border-dashed border-ink/50 rounded-sm overflow-y-auto">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <p className="text-3xl text-ink/70 tracking-widest uppercase">
+                  <p className="text-2xl md:text-3xl text-ink/70 tracking-widest uppercase">
                     Summarizing...
                   </p>
                   <p className="font-bebas text-5xl text-ink font-bold my-4 tracking-wider">
@@ -310,7 +310,7 @@ export default function EInkForm({
               ) : (
                 <div
                   id="summary-output-content"
-                  className="text-2xl text-ink/70 tracking-wider whitespace-pre-wrap text-left"
+                  className="text-xl md:text-2xl text-ink/70 tracking-wider whitespace-pre-wrap text-left"
                 >
                   <Markdown
                     options={{
@@ -318,13 +318,13 @@ export default function EInkForm({
                         h1: {
                           props: {
                             className:
-                              "text-3xl font-bold my-4 break-after-avoid'",
+                              "text-2xl md:text-3xl font-bold my-4 break-after-avoid'",
                           },
                         },
                         h2: {
                           props: {
                             className:
-                              "text-2xl font-bold my-3 break-after-avoid'",
+                              "text-xl md:text-2xl font-bold my-3 break-after-avoid'",
                           },
                         },
                         p: { props: { className: "mb-4" } },
@@ -353,7 +353,7 @@ export default function EInkForm({
             <motion.button
               type="submit"
               disabled={isSubmitDisabled}
-              className="bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-ink text-canvas text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               whileTap={{ scale: 0.97 }}
               whileHover={{ scale: 1.03 }}
             >
@@ -366,7 +366,7 @@ export default function EInkForm({
             <button
               type="button"
               onClick={handleCancel}
-              className="bg-red-600 text-white text-3xl uppercase font-bold py-3 px-12 rounded-md hover:bg-red-700"
+              className="bg-red-600 text-white text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md hover:bg-red-700"
             >
               Cancel
             </button>
@@ -389,7 +389,7 @@ export default function EInkForm({
       {/* --- DESNA STRANA: NOVI BLOK ZA PAGE LIMITER --- */}
       {/* Ovaj div će se prikazati samo ako je showPageLimit === true */}
       {showPageLimit && (
-        <div className="w-48 flex-shrink-0 pt-24 text-2xl font-bebas">
+        <div className="w-full lg:w-48 flex-shrink-0 mt-8 lg:mt-0 lg:pt-24 text-xl md:text-2xl font-bebas">
           <h3 className="uppercase tracking-widest text-center mb-2">
             Page Limit
           </h3>
