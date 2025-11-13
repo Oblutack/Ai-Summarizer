@@ -64,7 +64,7 @@ export default function DashboardPage() {
     if (!token) return;
 
     try {
-      await axios.delete(`process.env.NEXT_PUBLIC_API_URL/documents/${id}`, {
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/documents/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
