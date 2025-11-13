@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.docstore.document import Document as LangchainDocument
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains.summarize import load_summarize_chain
 
 load_dotenv()
 
@@ -63,48 +64,46 @@ async def summarize_text(payload: TextPayload, word_count: int = Query(150), pag
 
 
 async def process_summary(text: str, word_count: int, page_limit: int) -> str:
+
+    docs = [LangchainDocument(page_content=text)]
+    
     summary = ""
 
     if page_limit > 0:
+
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-        chunks = text_splitter.create_documents([text])
-        
-        map_prompt = "Summarize the following text concisely, focusing on the key points:\n\n---\n\n{text}"
-        
-        tasks = []
-        for chunk in chunks:
-            prompt = map_prompt.format(text=chunk.page_content)
-            tasks.append(llm.ainvoke(prompt))
-            
-        intermediate_summaries = await asyncio.gather(*tasks)
-        
-        combined_summaries = "\n\n".join([res.content for res in intermediate_summaries if res.content])
+        chunks = text_splitter.split_documents(docs)
 
-        if not combined_summaries:
-            raise ValueError("Failed to generate intermediate summaries from the document.")
+        chain = load_summarize_chain(llm, chain_type="refine")
+        
+        chain.refine_prompt.template = (
+            "Your job is to produce a final summary\n"
+            "We have provided an existing summary up to a certain point: {existing_answer}\n"
+            "We have the opportunity to refine the existing summary"
+            "(only if needed) with some more context below.\n"
+            "------------\n"
+            "{text}\n"
+            "------------\n"
+            "Given the new context, refine the original summary."
+            "The final summary should be **formatted strictly as Markdown**, using headings, bullet points, and bold text."
+        )
 
-        target_words = page_limit * 250
-        reduce_prompt = f"""Condense and combine the following summaries into a single, well-structured text of about {target_words} words.
-        **Format the entire output strictly as Markdown.**
-        Use headings (#, ##), bullet points (*), and bold text (**) to organize the information clearly and improve readability.
-        
-        ---
-        
-        {combined_summaries}"""
-        
-        final_response = await llm.ainvoke(reduce_prompt)
-        summary = final_response.content
+        summary_result = await chain.ainvoke(chunks)
+        summary = summary_result.get('output_text', '')
 
     else:
-        prompt = f"""Provide a summary of the following text in about {word_count} words.
-        **Format the output strictly as Markdown.**
-        Use headings, bullet points, and bold text where appropriate to structure the key information.
         
-        ---
+        chain = load_summarize_chain(llm, chain_type="stuff")
         
-        {text}"""
-        response = await llm.ainvoke(prompt)
-        summary = response.content
+        chain.llm_chain.prompt.template = (
+            f"Provide a summary of the following text in about {word_count} words.\n"
+            "**Format the output strictly as Markdown**, using headings, bullet points, and bold text where appropriate.\n\n"
+            "---\n\n"
+            "{text}"
+        )
+
+        summary_result = await chain.ainvoke(docs)
+        summary = summary_result.get('output_text', '')
 
     if not summary or not summary.strip():
         raise ValueError("The model returned an empty or invalid summary.")
