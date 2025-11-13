@@ -254,28 +254,33 @@ export default function EInkForm({
           {/* --- Input Polje --- */}
           <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
             <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4 flex flex-col justify-center items-center">
-              {/* Textarea je UVEK tu, ali je nekad nevidljiva */}
+              {/* Textarea je uvek u pozadini */}
               <textarea
                 value={inputText}
                 onChange={handleTextChange}
-                // Placeholder se prikazuje samo ako nema fajla
                 placeholder={file ? "" : "PASTE TEXT OR ATTACH PDF DOCUMENT..."}
-                // Ako je fajl izabran, textarea je skrivena ali i dalje funkcionalna
-                className={`w-full h-full bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none ${
-                  file ? "opacity-0" : "text-center"
-                }`}
+                className="absolute top-0 left-0 w-full h-full p-4 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
               />
 
-              {/* Prikaz imena fajla se pojavljuje IZNAD textarea */}
+              {/* Ako fajl NIJE izabran, a tekst NIJE unet, prikaži placeholder */}
+              {!file && !inputText && (
+                <div className="text-center">
+                  <p className="text-3xl tracking-wider text-ink/50 md:text-2xl">
+                    PASTE TEXT OR ATTACH PDF DOCUMENT...
+                  </p>
+                </div>
+              )}
+
+              {/* Ako JE fajl izabran, prikaži ime fajla */}
               {file && (
-                <div className="absolute top-0 left-0 w-full h-full flex flex-col justify-center items-center space-y-4">
-                  <p className="text-xl md:text-2xl tracking-wider p-2 border border-ink/50 rounded-md text-center">
+                <div className="text-center">
+                  <p className="text-xl md:text-2xl tracking-wider p-2 border border-ink/50 rounded-md">
                     {file.name}
                   </p>
                 </div>
               )}
 
-              {/* Labela za upload je uvek u donjem levom uglu */}
+              {/* Labela za upload je uvek tu */}
               <label
                 htmlFor="pdf-upload"
                 className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
@@ -286,7 +291,6 @@ export default function EInkForm({
                 </span>
               </label>
 
-              {/* Input za fajl je uvek tu, ali sakriven */}
               <input
                 id="pdf-upload"
                 type="file"
