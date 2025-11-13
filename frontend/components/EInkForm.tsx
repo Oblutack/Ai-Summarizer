@@ -204,7 +204,7 @@ export default function EInkForm({
           className="w-full flex flex-col items-center space-y-6 text-xl md:text-2xl font-bebas"
         >
           {/* --- Slider za broj riječi --- */}
-          <div className="w-full flex justify-center items-center space-x-4">
+          <div className="w-full flex flex-col md:flex-row justify-center items-center md:space-x-4">
             <label
               htmlFor="word-count"
               className={`uppercase tracking-widest ${
@@ -213,7 +213,7 @@ export default function EInkForm({
             >
               Summary Word Count:
             </label>
-            <div className="flex flex-col">
+            <div className="flex flex-col items-center my-2 md:my-0">
               <input
                 id="word-count"
                 type="range"

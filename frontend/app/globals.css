@@ -39,25 +39,30 @@ input[type="range"]:focus {
 
 /* === POČETAK IZMENA === */
 
-/* Stil za "točkić" (thumb) - Chrome, Safari, Edge */
+/* Stil za "točkič" (thumb) - Chrome, Safari, Edge */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  margin-top: -8px; /* Ažurirano za centriranje kruga */
+  /* Uklonili smo margin-top, koristimo transform */
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
   height: 15px;
   width: 15px;
-  background-color: #f5f0e6; /* Boja pozadine stranice ('canvas') */
-  border-radius: 9999px; /* Pravi krug */
-  border: 3px solid #222222; /* Okvir u 'ink' boji */
+  background-color: #f5f0e6;
+  border-radius: 9999px;
+  border: 3px solid #222222;
 }
 
-/* Stil za "točkić" (thumb) - Firefox */
+/* Stil za "točkič" (thumb) - Firefox */
 input[type="range"]::-moz-range-thumb {
+  /* Firefox ne treba transform, on se dobro centrira po defaultu */
   height: 15px;
   width: 15px;
-  background-color: #f5f0e6; /* Boja pozadine stranice ('canvas') */
+  background-color: #f5f0e6;
   border-radius: 9999px;
-  border: 3px solid #222222; /* Okvir u 'ink' boji */
+  border: 3px solid #222222;
+  border-color: #222222; /* Dupla provera za Firefox */
 }
 
 /* === KRAJ IZMENA === */
