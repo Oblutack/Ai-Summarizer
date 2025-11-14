@@ -5,9 +5,12 @@
   </a>
 </p>
 
+    
 <p align="center">
-  <img src="LINK_DO_VAŠEG_GIF-a" alt="Application Demo" width="800"/>
+  <img src="https://github.com/user-attachments/assets/90c61360-bc65-4457-bbb4-0d645fb76b33" alt="Application Demo" width="800"/>
 </p>
+
+  
 <p align="center">
   An intelligent web application for generating concise summaries from PDF documents and text-based content. Built with a modern, scalable microservice architecture and a unique E-Ink inspired design.
 </p>
