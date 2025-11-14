@@ -1,5 +1,13 @@
  # AI Document Summarizer
+<p align="center">
+  <a href="https://ai-summarizer-ten-tan.vercel.app" target="_blank">
+    <img src="https://img.shields.io/badge/Live_Demo-Visit_Now-brightgreen?style=for-the-badge" alt="Live Demo" />
+  </a>
+</p>
 
+<p align="center">
+  <img src="LINK_DO_VAŠEG_GIF-a" alt="Application Demo" width="800"/>
+</p>
 <p align="center">
   An intelligent web application for generating concise summaries from PDF documents and text-based content. Built with a modern, scalable microservice architecture and a unique E-Ink inspired design.
 </p>
@@ -118,8 +126,8 @@ Follow these steps to get the complete application running on your local machine
 -   [x] Google OAuth Integration
 -   [x] Customizable Summaries (Word Count & Page Limit)
 -   [x] PDF Export
--   [ ] **Enhanced UX with Animations**: Implement subtle transitions and micro-interactions using Framer Motion.
--   [ ] **Deployment Configuration**: Prepare the application for live deployment on services like Vercel and Render.
+-   [x] **Enhanced UX with Animations**: Implement subtle transitions and micro-interactions using Framer Motion.
+-   [x] **Deployment Configuration**: Prepare the application for live deployment on services like Vercel and Render.
 
 ---
 
