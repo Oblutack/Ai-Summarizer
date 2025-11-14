@@ -282,25 +282,27 @@ export default function EInkForm({
                   </label>
                 </div>
               ) : file ? (
-                <div className="flex flex-col md:flex-row justify-center items-center h-full space-y-4 md:space-y-0 md:space-x-4">
-                  {/* Kontejner za ime fajla i X dugme */}
-                  <div className="relative flex items-center p-2 border border-ink/50 rounded-md">
-                    <p className="text-xl md:text-2xl tracking-wider text-center pr-8">
+                <div className="flex flex-col justify-center items-center h-full w-full space-y-4">
+                  {/* --- POČETAK PROMENE --- */}
+                  {/* Novi kontejner za ime fajla i X dugme */}
+                  <div className="flex items-center space-x-4 border-2 border-dashed border-ink/50 p-3 rounded-md w-auto max-w-full">
+                    <p className="text-xl md:text-2xl tracking-wider text-center truncate">
                       {file.name}
                     </p>
-                    {/* 'X' dugme */}
                     <button
                       type="button"
                       onClick={handleClearFile}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 text-ink/50 hover:text-red-600 font-sans text-2xl"
+                      className="text-ink/50 hover:text-red-600 text-3xl leading-none"
                       title="Clear file"
                     >
                       &times;
                     </button>
                   </div>
-                  {/* Dugme za promenu fajla */}
+                  {/* --- KRAJ PROMENE --- */}
+
+                  {/* Dugme za promenu fajla ostaje isto */}
                   <label htmlFor="pdf-upload" className="cursor-pointer ...">
-                    {/* ... (sadržaj ostaje isti) */}
+                    {/* ... (sadržaj label-a ostaje isti) */}
                   </label>
                 </div>
               ) : (
