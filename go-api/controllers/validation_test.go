@@ -37,15 +37,21 @@ func TestValidatePassword(t *testing.T) {
 }
 
 func TestParseSummaryParams(t *testing.T) {
-	if w, p, err := parseSummaryParams("", ""); err != nil || w != defaultWords || p != 0 {
-		t.Errorf("defaults = %d, %d, %v", w, p, err)
+	opts, err := parseSummaryParams("", "", "", "")
+	if err != nil || opts != (summaryOptions{Words: defaultWords, Style: defaultStyle, Language: defaultLanguage}) {
+		t.Errorf("defaults = %+v, %v", opts, err)
 	}
-	if w, p, err := parseSummaryParams("300", "5"); err != nil || w != 300 || p != 5 {
-		t.Errorf("valid = %d, %d, %v", w, p, err)
+	opts, err = parseSummaryParams("300", "5", "bullets", "Serbian")
+	if err != nil || opts != (summaryOptions{Words: 300, Pages: 5, Style: "bullets", Language: "Serbian"}) {
+		t.Errorf("valid = %+v, %v", opts, err)
 	}
-	for _, c := range [][2]string{{"abc", ""}, {"10", ""}, {"5000", ""}, {"", "-1"}, {"", "99"}, {"", "x"}} {
-		if _, _, err := parseSummaryParams(c[0], c[1]); err == nil {
-			t.Errorf("parseSummaryParams(%q, %q) should fail", c[0], c[1])
+	for _, c := range [][4]string{
+		{"abc", "", "", ""}, {"10", "", "", ""}, {"5000", "", "", ""},
+		{"", "-1", "", ""}, {"", "99", "", ""}, {"", "x", "", ""},
+		{"", "", "poem", ""}, {"", "", "", "Klingon"},
+	} {
+		if _, err := parseSummaryParams(c[0], c[1], c[2], c[3]); err == nil {
+			t.Errorf("parseSummaryParams%q should fail", c)
 		}
 	}
 }
