@@ -34,22 +34,29 @@ func main() {
 	summarizeLimit := middleware.RateLimit(middleware.NewRateLimiter(6, 3))
 	authLimit := middleware.RateLimit(middleware.NewRateLimiter(20, 10))
 	fileBody := middleware.MaxBody(controllers.MaxPDFBytes + 1<<20)
+	multiBody := middleware.MaxBody(controllers.MaxMultiBytes + 1<<20)
 	textBody := middleware.MaxBody(controllers.MaxTextBytes)
+	chatBody := middleware.MaxBody(controllers.MaxTextBytes)
+	chatLimit := middleware.RateLimit(middleware.NewRateLimiter(20, 10))
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from Go API Gateway"})
 	})
+	r.GET("/options", controllers.Options)
 	r.POST("/signup", authLimit, controllers.Signup)
 	r.POST("/login", authLimit, controllers.Login)
 	r.POST("/auth/google", authLimit, controllers.GoogleLogin)
 	r.POST("/public/summarize", summarizeLimit, fileBody, controllers.PublicSummarize)
+	r.POST("/public/summarize-multiple", summarizeLimit, multiBody, controllers.PublicSummarizeMultiple)
 	r.POST("/public/summarize-text", summarizeLimit, textBody, controllers.PublicSummarizeText)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)
 	{
 		authorized.POST("/summarize", summarizeLimit, fileBody, controllers.CreateSummary)
+		authorized.POST("/summarize-multiple", summarizeLimit, multiBody, controllers.CreateSummaryMultiple)
 		authorized.POST("/summarize-text", summarizeLimit, textBody, controllers.CreateSummaryText)
+		authorized.POST("/documents/:id/chat", chatLimit, chatBody, controllers.ChatWithDocument)
 		authorized.GET("/documents", controllers.ListDocuments)
 		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
 	}
