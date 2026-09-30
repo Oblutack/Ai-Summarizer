@@ -5,7 +5,7 @@ import (
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/middleware"
 	"ai-summarizer/go-api/models"
-	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -17,35 +17,44 @@ func init() {
 }
 
 func main() {
-	initializers.DB.AutoMigrate(&models.User{}, &models.Document{})
-	fmt.Println("✅ Database migration completed!")
+	if err := initializers.DB.AutoMigrate(&models.User{}, &models.Document{}); err != nil {
+		log.Fatalf("database migration failed: %v", err)
+	}
+	log.Println("database migration completed")
 
 	r := gin.Default()
 
-    config := cors.DefaultConfig()
-    config.AllowOrigins = []string{"http://localhost:3000", "https://ai-summarizer-ten-tan.vercel.app"} 
-    config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"} 
-    config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"} 
-    r.Use(cors.New(config))
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:3000", "https://ai-summarizer-ten-tan.vercel.app"}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
+	r.Use(cors.New(config))
 
+	// Summaries are expensive LLM calls, so they get a tighter budget than auth.
+	summarizeLimit := middleware.RateLimit(middleware.NewRateLimiter(6, 3))
+	authLimit := middleware.RateLimit(middleware.NewRateLimiter(20, 10))
+	fileBody := middleware.MaxBody(controllers.MaxPDFBytes + 1<<20)
+	textBody := middleware.MaxBody(controllers.MaxTextBytes)
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from Go API Gateway"})
 	})
-	r.POST("/signup", controllers.Signup)
-	r.POST("/login", controllers.Login)
-	r.POST("/public/summarize", controllers.PublicSummarize)
-	r.POST("/public/summarize-text", controllers.PublicSummarizeText)
-	r.POST("/auth/google", controllers.GoogleLogin)
+	r.POST("/signup", authLimit, controllers.Signup)
+	r.POST("/login", authLimit, controllers.Login)
+	r.POST("/auth/google", authLimit, controllers.GoogleLogin)
+	r.POST("/public/summarize", summarizeLimit, fileBody, controllers.PublicSummarize)
+	r.POST("/public/summarize-text", summarizeLimit, textBody, controllers.PublicSummarizeText)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)
 	{
-		authorized.POST("/summarize", controllers.CreateSummary)
+		authorized.POST("/summarize", summarizeLimit, fileBody, controllers.CreateSummary)
+		authorized.POST("/summarize-text", summarizeLimit, textBody, controllers.CreateSummaryText)
 		authorized.GET("/documents", controllers.ListDocuments)
-		authorized.POST("/summarize-text", controllers.CreateSummaryText)
 		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
 	}
 
-	r.Run(":8080")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatal(err)
+	}
 }
