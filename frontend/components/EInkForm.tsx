@@ -4,6 +4,7 @@ import axios, { CancelTokenSource } from "axios";
 import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
 import { motion } from "framer-motion";
+import { LANGUAGES, MAX_FILES, SUMMARY_STYLES } from "../lib/summaryOptions";
 
 interface EInkFormProps {
   endpoint: string;
@@ -15,7 +16,9 @@ export default function EInkForm({
   endpoint,
 }: EInkFormProps) {
   const [wordCount, setWordCount] = useState(150);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [style, setStyle] = useState("default");
+  const [language, setLanguage] = useState("English");
   const [inputText, setInputText] = useState("");
   const [summary, setSummary] = useState("");
   const [error, setError] = useState("");
@@ -29,34 +32,50 @@ export default function EInkForm({
   useEffect(() => {
     const textWordCount = inputText.trim().split(/\s+/).length;
 
-    if (textWordCount > 1000 || file) {
+    if (textWordCount > 1000 || files.length > 0) {
       setShowPageLimit(true);
     } else {
       setShowPageLimit(false);
     }
-  }, [inputText, file]);
+  }, [inputText, files]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setInputText("");
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow picking the same file again after removing it
+    if (picked.length === 0) return;
+
+    const pdfs = picked.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+    const merged = [...files];
+    for (const f of pdfs) {
+      if (!merged.some((m) => m.name === f.name && m.size === f.size)) {
+        merged.push(f);
+      }
+    }
+
+    if (pdfs.length < picked.length) {
+      setError("Only PDF files are supported.");
+    } else if (merged.length > MAX_FILES) {
+      setError(`You can attach up to ${MAX_FILES} PDFs at once.`);
+    } else {
       setError("");
     }
+    setFiles(merged.slice(0, MAX_FILES));
+    setInputText("");
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
-    setFile(null);
+    setFiles([]);
     setError("");
   };
 
-  const handleClearFile = () => {
-    setFile(null);
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file && !inputText) {
+    if (files.length === 0 && !inputText) {
       setError("Please attach a PDF or paste some text.");
       return;
     }
@@ -101,19 +120,31 @@ export default function EInkForm({
         cancelToken: cancelTokenSourceRef.current.token, // Koristimo CancelToken
       };
 
-      if (file) {
+      if (files.length > 0) {
         headers["Content-Type"] = "multipart/form-data";
         const formData = new FormData();
-        formData.append("file", file);
+        const multiple = files.length > 1;
+        files.forEach((f) => formData.append(multiple ? "files" : "file", f));
         formData.append("wordCount", String(wordCount));
         formData.append("pageLimit", pageLimit);
-        response = await axios.post(endpoint, formData, config);
+        formData.append("style", style);
+        formData.append("language", language);
+        const fileEndpoint = multiple
+          ? endpoint.replace("summarize", "summarize-multiple")
+          : endpoint;
+        response = await axios.post(fileEndpoint, formData, config);
       } else if (inputText) {
         headers["Content-Type"] = "application/json";
+        const query = new URLSearchParams({
+          wordCount: String(wordCount),
+          pageLimit,
+          style,
+          language,
+        });
         const textEndpoint = `${endpoint.replace(
           "summarize",
           "summarize-text"
-        )}?wordCount=${wordCount}&pageLimit=${pageLimit}`;
+        )}?${query.toString()}`;
         response = await axios.post(textEndpoint, { text: inputText }, config);
       }
 
@@ -142,7 +173,7 @@ export default function EInkForm({
     }
   };
 
-  const isSubmitDisabled = isLoading || (!file && !inputText);
+  const isSubmitDisabled = isLoading || (files.length === 0 && !inputText);
 
   const handleDownloadPDF = () => {
     const element = document.getElementById("summary-output-content");
@@ -151,9 +182,13 @@ export default function EInkForm({
       return;
     }
 
-    const pdfFileName =
-      (file ? file.name.replace(/\.[^/.]+$/, "") : "pasted-text") +
-      "-summary.pdf";
+    const baseName =
+      files.length === 1
+        ? files[0].name.replace(/\.[^/.]+$/, "")
+        : files.length > 1
+        ? "combined-documents"
+        : "pasted-text";
+    const pdfFileName = baseName + "-summary.pdf";
 
     const opt = {
       margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
@@ -252,6 +287,38 @@ export default function EInkForm({
             </span>
           </div>
 
+          {/* --- Stil i jezik --- */}
+          <div className="w-full flex flex-col md:flex-row justify-center items-center gap-4 md:gap-8">
+            <label className="flex items-center gap-3 uppercase tracking-widest">
+              Style
+              <select
+                value={style}
+                onChange={(e) => setStyle(e.target.value)}
+                className="bg-canvas border-2 border-ink rounded-md px-3 py-1 focus:outline-none cursor-pointer"
+              >
+                {SUMMARY_STYLES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-3 uppercase tracking-widest">
+              Language
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="bg-canvas border-2 border-ink rounded-md px-3 py-1 focus:outline-none cursor-pointer"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           {/* --- Separator --- */}
           <hr className="w-full border-t-2 border-ink" />
 
@@ -259,7 +326,7 @@ export default function EInkForm({
           <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
             <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
               {/* Uslovno renderovanje sadržaja */}
-              {!inputText && !file ? (
+              {!inputText && files.length === 0 ? (
                 // STANJE 1: Nema unosa (placeholder i dugme)
                 <div className="flex flex-col justify-center items-center h-full space-y-4">
                   <p
@@ -271,39 +338,44 @@ export default function EInkForm({
                       if (textarea) textarea.focus();
                     }}
                   >
-                    PASTE TEXT OR ATTACH PDF DOCUMENT...
+                    PASTE TEXT OR ATTACH PDF DOCUMENTS...
                   </p>
                   <label
                     htmlFor="pdf-upload"
                     className="cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
                   >
                     <span className="text-2xl">📎</span>
-                    <span className="text-xl tracking-wider">ATTACH PDF</span>
+                    <span className="text-xl tracking-wider">ATTACH PDFS</span>
                   </label>
                 </div>
-              ) : file ? (
-                <div className="flex flex-col justify-center items-center h-full w-full space-y-4">
-                  {/* --- POČETAK PROMENE --- */}
-                  {/* Novi kontejner za ime fajla i X dugme */}
-                  <div className="flex items-center justify-between space-x-4 border-2 border-dashed border-ink/50 p-3 rounded-md w-auto max-w-full">
-                    <p className="text-xl md:text-2xl tracking-wider text-center truncate">
-                      {file.name}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleClearFile}
-                      className="text-ink/50 hover:text-red-600 text-3xl leading-none flex-shrink-0"
-                      title="Clear file"
+              ) : files.length > 0 ? (
+                <div className="flex flex-col justify-center items-center h-full w-full space-y-3 overflow-y-auto">
+                  {files.map((f, i) => (
+                    <div
+                      key={`${f.name}-${f.size}`}
+                      className="flex items-center justify-between space-x-4 border-2 border-dashed border-ink/50 px-3 py-1 rounded-md w-auto max-w-full"
                     >
-                      &times;
-                    </button>
-                  </div>
-                  {/* --- KRAJ PROMENE --- */}
-
-                  {/* Dugme za promenu fajla ostaje isto */}
-                  <label htmlFor="pdf-upload" className="cursor-pointer ...">
-                    {/* ... (sadržaj label-a ostaje isti) */}
-                  </label>
+                      <p className="text-lg md:text-xl tracking-wider text-center truncate">
+                        {f.name}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFile(i)}
+                        className="text-ink/50 hover:text-red-600 text-3xl leading-none flex-shrink-0"
+                        title="Remove file"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                  {files.length < MAX_FILES && (
+                    <label
+                      htmlFor="pdf-upload"
+                      className="cursor-pointer border-2 border-ink px-4 py-1 rounded-md bg-canvas hover:bg-ink hover:text-canvas text-xl tracking-wider"
+                    >
+                      + ADD MORE PDFS
+                    </label>
+                  )}
                 </div>
               ) : (
                 // STANJE 3: Tekst se unosi
@@ -320,7 +392,7 @@ export default function EInkForm({
                     className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
                   >
                     <span className="text-2xl">📎</span>
-                    <span className="text-xl tracking-wider">ATTACH PDF</span>
+                    <span className="text-xl tracking-wider">ATTACH PDFS</span>
                   </label>
                 </>
               )}
@@ -332,9 +404,10 @@ export default function EInkForm({
                 className="hidden"
                 onChange={handleFileChange}
                 accept=".pdf"
+                multiple
               />
               {/* Nevidljivi textarea za fokus (samo u početnom stanju) */}
-              {!file && !inputText && (
+              {files.length === 0 && !inputText && (
                 <textarea
                   id="main-textarea"
                   onChange={handleTextChange}

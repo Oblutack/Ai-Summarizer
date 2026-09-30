@@ -4,6 +4,8 @@ import { DownloadIcon, TrashIcon } from "./Icon";
 import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
 import { motion } from "framer-motion";
+import { useState } from "react";
+import DocumentChat from "./DocumentChat";
 
 interface DocumentCardProps {
   doc: Document;
@@ -16,6 +18,8 @@ const cardVariants = {
 };
 
 export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
+  const [chatOpen, setChatOpen] = useState(false);
+
   const handleDownloadPDF = () => {
     const element = document.getElementById(`doc-content-${doc.ID}`);
     if (!element) return;
@@ -105,6 +109,19 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
           </Markdown>
         </div>
       </div>
+
+      {doc.hasContent && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setChatOpen((open) => !open)}
+            className="bg-canvas text-ink text-xl uppercase font-bold py-1 px-5 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
+          >
+            {chatOpen ? "Close Chat" : "Chat With Document"}
+          </button>
+          {chatOpen && <DocumentChat documentId={doc.ID} />}
+        </div>
+      )}
     </motion.div>
   );
 }
