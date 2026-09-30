@@ -54,7 +54,7 @@ This project is built with a decoupled architecture, ensuring each component is 
 | **AI Service**    | ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![LangChain](https://img.shields.io/badge/LangChain-FFFFFF?style=flat-square&logo=langchain&logoColor=black) | A dedicated microservice for AI logic and summarization. |
 | **Database**      | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat-square&logo=postgresql&logoColor=white)                                                                                         | Stores all user and document data.                 |
 | **Orchestration** | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)                                                                                                     | Manages the local development environment.         |
-| **Local AI**      | ![Ollama](https://img.shields.io/badge/Ollama-232323?style=flat-square&logo=ollama&logoColor=white)                                                                                                       | Powers local, offline model inference during development. |
+| **LLM**           | ![Groq](https://img.shields.io/badge/Groq-F55036?style=flat-square)                                                                                                                                     | Llama 3.1 8B served through Groq's OpenAI-compatible API. |
 
 ---
 
@@ -76,7 +76,7 @@ Follow these steps to get the complete application running on your local machine
 
 -   Git
 -   Docker Desktop
--   Ollama
+-   A [Groq](https://console.groq.com) API key
 -   Go (v1.24+)
 -   Python (v3.12+)
 -   Node.js (v20+ LTS) with `pnpm` (`npm install -g pnpm`)
@@ -90,19 +90,14 @@ Follow these steps to get the complete application running on your local machine
     ```
 
 2.  **Configure Environment Variables**
-    -   In the `frontend/` directory, create a `.env.local` file and add your Google Client ID:
+    -   Copy `.env.example` to `.env` in the project root and fill in the database password, a JWT `SECRET` (e.g. `openssl rand -base64 48`), your `GOOGLE_CLIENT_ID` and your `GROQ_API_KEY`. `docker compose` refuses to start if any are missing, and `.env` is gitignored.
+    -   In `frontend/`, create `.env.local`:
         ```
+        NEXT_PUBLIC_API_URL="http://localhost:8080"
         NEXT_PUBLIC_GOOGLE_CLIENT_ID="YOUR_GOOGLE_CLIENT_ID"
         ```
-    -   In the root `docker-compose.yml`, update the `environment` section for the `go-api` service with your JWT `SECRET` and `GOOGLE_CLIENT_ID`.
 
-3.  **Run the AI Model**
-    Open a new terminal and run the following command to download and serve the Llama 3 model. Leave this running.
-    ```bash
-    ollama run llama3
-    ```
-
-4.  **Launch the Application Stack**
+3.  **Launch the Application Stack**
     In two separate terminals at the project root:
     ```bash
     # Terminal 1: Start the backend services
@@ -113,6 +108,18 @@ Follow these steps to get the complete application running on your local machine
     pnpm install
     pnpm dev
     ```
+
+### Running the tests
+
+```bash
+cd go-api && go test ./...
+cd python-ai-service && pip install -r requirements.txt -r requirements-dev.txt && pytest
+cd frontend && pnpm lint
+```
+
+### Limits
+
+Summarization endpoints are rate limited per IP, PDFs are capped at 10 MB and pasted text at 200,000 characters. Passwords must be 8-72 characters.
 
 ---
 
