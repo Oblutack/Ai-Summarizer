@@ -18,9 +18,10 @@ npm-debug.log
 # Environment variables
 .env
 .env*.local
+!.env.example
 
 # Mac / Windows
 .DS_Store
 Thumbs.db
 
-.log
+*.log
