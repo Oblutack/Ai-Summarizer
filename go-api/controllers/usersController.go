@@ -3,42 +3,70 @@ package controllers
 import (
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/models"
-	"fmt"
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"log"
 	"net/http"
 	"os"
 	"time"
-
-	"context"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
+	"gorm.io/gorm"
 )
 
-func Signup(c *gin.Context) {
-	var body struct {
-		Email    string
-		Password string
-	}
+const tokenLifetime = 7 * 24 * time.Hour
 
-	if c.Bind(&body) != nil {
+type credentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func issueToken(userID uint) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": userID,
+		"exp": time.Now().Add(tokenLifetime).Unix(),
+	})
+	return token.SignedString([]byte(os.Getenv("SECRET")))
+}
+
+func Signup(c *gin.Context) {
+	var body credentials
+	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
+	email, err := normalizeEmail(body.Email)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to hash password"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validatePassword(body.Password); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user := models.User{Email: body.Email, Password: string(hash)}
-	result := initializers.DB.Create(&user)
+	var existing int64
+	initializers.DB.Model(&models.User{}).Where("lower(email) = ?", email).Count(&existing)
+	if existing > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "An account with this email already exists."})
+		return
+	}
 
-	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create user"})
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	user := models.User{Email: email, Password: string(hash)}
+	if err := initializers.DB.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
@@ -46,118 +74,99 @@ func Signup(c *gin.Context) {
 }
 
 func Login(c *gin.Context) {
-	var body struct {
-		Email    string
-		Password string
-	}
-
-	if c.Bind(&body) != nil {
+	var body credentials
+	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
 		return
 	}
 
 	var user models.User
-	initializers.DB.First(&user, "email = ?", body.Email)
-
-	if user.ID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
+	err := initializers.DB.First(&user, "lower(email) = ?", normalizeLoose(body.Email)).Error
+	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)) != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password))
+	tokenString, err := issueToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
 		return
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,
-		"exp": time.Now().Add(time.Hour * 24 * 30).Unix(), 
-	})
-
-	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
-	})
+	c.JSON(http.StatusOK, gin.H{"token": tokenString})
 }
 
 func GoogleLogin(c *gin.Context) {
 	var body struct {
 		Token string `json:"token"`
 	}
-
-	if err := c.BindJSON(&body); err != nil {
-		fmt.Println("!!! ERROR binding JSON:", err)
+	if err := c.ShouldBindJSON(&body); err != nil || body.Token == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
 		return
 	}
 
-	fmt.Println("--- Received Google Token from frontend ---")
-
-
-	// UPOZORENJE: Ovo je haos za produkciju! Koristi se samo za rješavanje
-	// problema sa TLS sertifikatima u lokalnom Docker okruženju.
 	oauth2Service, err := oauth2.NewService(context.Background(), option.WithoutAuthentication())
 	if err != nil {
-		fmt.Println("!!! ERROR creating Google service:", err)
+		log.Printf("google login: init service: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init Google service"})
 		return
 	}
-	
+
 	tokenInfo, err := oauth2Service.Tokeninfo().IdToken(body.Token).Do()
 	if err != nil {
-		fmt.Println("!!! ERROR validating token with Google:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Google token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Google token"})
+		return
+	}
+	if tokenInfo.Audience != os.Getenv("GOOGLE_CLIENT_ID") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is not for this app"})
+		return
+	}
+	if !tokenInfo.VerifiedEmail {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Google account email is not verified"})
 		return
 	}
 
-	fmt.Println("--- Google Token is Valid, Email:", tokenInfo.Email, "---")
-
-	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
-	if tokenInfo.Audience != googleClientID {
-		fmt.Println("!!! ERROR token audience mismatch.")
-		fmt.Println("   > Token Audience from Google:", tokenInfo.Audience)
-		fmt.Println("   > Expected Audience from .env:", googleClientID)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Token is not for this app"})
+	email, err := normalizeEmail(tokenInfo.Email)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	var user models.User
-	initializers.DB.First(&user, "email = ?", tokenInfo.Email)
-
-	if user.ID == 0 {
-		fmt.Println("--- User not found, creating new user... ---")
-		randomPassword := time.Now().String() 
-		hash, _ := bcrypt.GenerateFromPassword([]byte(randomPassword), 10) 
-		
-		user = models.User{Email: tokenInfo.Email, Password: string(hash)}
-		result := initializers.DB.Create(&user)
-		if result.Error != nil {
-			fmt.Println("!!! ERROR creating user in DB:", result.Error)
+	err = initializers.DB.First(&user, "lower(email) = ?", email).Error
+	if err == gorm.ErrRecordNotFound {
+		// Google users never use a password; store an unguessable one.
+		hash, herr := randomPasswordHash()
+		if herr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 			return
 		}
-	}
-
-	fmt.Println("--- User found or created, ID:", user.ID, "---")
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,
-		"exp": time.Now().Add(time.Hour * 24 * 30).Unix(),
-	})
-
-	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
-	if err != nil {
-		fmt.Println("!!! ERROR creating local JWT:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create token"})
+		user = models.User{Email: email, Password: hash}
+		if err := initializers.DB.Create(&user).Error; err != nil {
+			log.Printf("google login: create user: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+			return
+		}
+	} else if err != nil {
+		log.Printf("google login: lookup user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to look up user"})
 		return
 	}
 
-	fmt.Println("--- Successfully created and sent local JWT ---")
+	tokenString, err := issueToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+}
+
+func randomPasswordHash() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(base64.RawURLEncoding.EncodeToString(raw)[:48]), bcrypt.DefaultCost)
+	return string(hash), err
 }

@@ -1,5 +1,3 @@
-// go-api/middleware/requireAuth.go - SA BEARER PARSIRANJEM
-
 package middleware
 
 import (
@@ -9,62 +7,47 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 func RequireAuth(c *gin.Context) {
-	authHeader := c.GetHeader("Authorization")
-
-	if authHeader == "" {
+	scheme, tokenString, ok := strings.Cut(c.GetHeader("Authorization"), " ")
+	if !ok || scheme != "Bearer" || tokenString == "" {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	
-	
-	tokenString := parts[1]
-
-	
+	// jwt.Parse also validates the exp claim.
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(os.Getenv("SECRET")), nil
-	})
-
-	if err != nil {
+	}, jwt.WithExpirationRequired())
+	if err != nil || !token.Valid {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if float64(time.Now().Unix()) > claims["exp"].(float64) {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		var user models.User
-		initializers.DB.First(&user, claims["sub"])
-
-		if user.ID == 0 {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		c.Set("user", user)
-
-		c.Next()
-
-	} else {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	sub, ok := claims["sub"].(float64)
+	if !ok {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	var user models.User
+	if err := initializers.DB.First(&user, uint(sub)).Error; err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	c.Set("user", user)
+	c.Next()
 }
