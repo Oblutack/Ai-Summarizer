@@ -32,6 +32,10 @@
 ## Key Features
 
 -   **Dual Input Modes**: Summarize content by either uploading a PDF document or directly pasting text.
+-   **Multi-Document Summaries**: Attach up to 5 PDFs and get one combined summary that notes overlaps and differences between them.
+-   **Summary Styles**: Standard, bullet points, executive brief, "explain simply", or takeaways with action items.
+-   **Output Language**: Get the summary in any of 15 languages, whatever language the source is in.
+-   **Chat With Your Documents**: Registered users can ask questions about any saved summary from the dashboard. Long documents are searched with BM25 so only the relevant passages reach the model.
 -   **Advanced Summarization Control**: 
     -   **Word Count Slider**: For short summaries, precisely control the desired length.
     -   **Page Limit Input**: For long documents, request a detailed summary of a specific page length.
@@ -119,7 +123,9 @@ cd frontend && pnpm lint
 
 ### Limits
 
-Summarization endpoints are rate limited per IP, PDFs are capped at 10 MB and pasted text at 200,000 characters. Passwords must be 8-72 characters.
+Summarization and chat endpoints are rate limited per IP. PDFs are capped at 10 MB each (5 files and 25 MB per multi-document request) and pasted text at 200,000 characters. Chat questions are capped at 1,000 characters. Passwords must be 8-72 characters.
+
+Documents saved before the chat feature existed have no stored source text, so chat is only offered for documents summarized after it was added.
 
 ---
 
