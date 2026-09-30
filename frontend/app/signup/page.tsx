@@ -66,8 +66,11 @@ export default function SignupPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            maxLength={72}
             required
           />
+          <p className="mt-1 text-base opacity-70">At least 8 characters.</p>
         </div>
 
         {error && <p className="text-red-500 text-lg">{error}</p>}
