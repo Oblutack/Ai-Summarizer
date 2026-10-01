@@ -65,7 +65,8 @@ export default function EInkForm({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
-    setFiles([]);
+    // Keep the same array when already empty so typing doesn't re-render for nothing.
+    setFiles((prev) => (prev.length === 0 ? prev : []));
     setError("");
   };
 
@@ -325,30 +326,7 @@ export default function EInkForm({
           {/* --- Input Polje --- */}
           <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
             <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
-              {/* Uslovno renderovanje sadržaja */}
-              {!inputText && files.length === 0 ? (
-                // STANJE 1: Nema unosa (placeholder i dugme)
-                <div className="flex flex-col justify-center items-center h-full space-y-4">
-                  <p
-                    className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl cursor-text w-full h-full flex justify-center items-center"
-                    onClick={() => {
-                      const textarea = document.getElementById(
-                        "main-textarea"
-                      ) as HTMLTextAreaElement;
-                      if (textarea) textarea.focus();
-                    }}
-                  >
-                    PASTE TEXT OR ATTACH PDF DOCUMENTS...
-                  </p>
-                  <label
-                    htmlFor="pdf-upload"
-                    className="cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
-                  >
-                    <span className="text-2xl">📎</span>
-                    <span className="text-xl tracking-wider">ATTACH PDFS</span>
-                  </label>
-                </div>
-              ) : files.length > 0 ? (
+              {files.length > 0 ? (
                 <div className="flex flex-col justify-center items-center h-full w-full space-y-3 overflow-y-auto">
                   {files.map((f, i) => (
                     <div
@@ -378,22 +356,38 @@ export default function EInkForm({
                   )}
                 </div>
               ) : (
-                // STANJE 3: Tekst se unosi
                 <>
+                  {/* One textarea stays mounted for the whole typing session, so focus and the
+                      first keystroke are never lost to a swap between elements. */}
                   <textarea
-                    id="main-textarea" // Dodajemo ID za fokusiranje
+                    id="main-textarea"
                     value={inputText}
                     onChange={handleTextChange}
-                    className="w-full h-full bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
-                    autoFocus
+                    aria-label="Text to summarize"
+                    className="w-full h-full pb-12 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
                   />
-                  <label
-                    htmlFor="pdf-upload"
-                    className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
-                  >
-                    <span className="text-2xl">📎</span>
-                    <span className="text-xl tracking-wider">ATTACH PDFS</span>
-                  </label>
+                  {inputText ? (
+                    <label
+                      htmlFor="pdf-upload"
+                      className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                    >
+                      <span className="text-2xl">📎</span>
+                      <span className="text-xl tracking-wider">ATTACH PDFS</span>
+                    </label>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col justify-center items-center space-y-4 pointer-events-none">
+                      <p className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl">
+                        PASTE TEXT OR ATTACH PDF DOCUMENTS...
+                      </p>
+                      <label
+                        htmlFor="pdf-upload"
+                        className="pointer-events-auto cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
+                      >
+                        <span className="text-2xl">📎</span>
+                        <span className="text-xl tracking-wider">ATTACH PDFS</span>
+                      </label>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -406,14 +400,6 @@ export default function EInkForm({
                 accept=".pdf"
                 multiple
               />
-              {/* Nevidljivi textarea za fokus (samo u početnom stanju) */}
-              {files.length === 0 && !inputText && (
-                <textarea
-                  id="main-textarea"
-                  onChange={handleTextChange}
-                  className="opacity-0 absolute w-0 h-0"
-                ></textarea>
-              )}
             </div>
           </div>
 
