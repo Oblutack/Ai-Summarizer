@@ -7,6 +7,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import axios from "axios";
 
 interface User {
   id: number;
@@ -20,6 +21,18 @@ interface AuthContextType {
   loading: boolean;
 }
 
+// Reads the exp claim without verifying the signature; the server still validates every request.
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(
+      atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+    );
+    return typeof payload.exp === "number" && payload.exp * 1000 <= Date.now();
+  } catch {
+    return true; // not a readable JWT
+  }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -30,7 +43,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const checkUserStatus = () => {
       try {
         const token = localStorage.getItem("token");
-        if (token) {
+        if (token && isTokenExpired(token)) {
+          localStorage.removeItem("token");
+        } else if (token) {
           // TODO: Kasnije ćemo ovdje dodati logiku za validaciju tokena na backendu
           setUser({ id: 1, email: "user@example.com" });
         }
@@ -42,6 +57,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     checkUserStatus();
+  }, []);
+
+  // If the server rejects our token (expired, or the account is gone), end the session so
+  // protected pages send the user back to login instead of failing with a generic error.
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (
+          axios.isAxiosError(error) &&
+          error.response?.status === 401 &&
+          error.config?.headers?.Authorization
+        ) {
+          localStorage.removeItem("token");
+          setUser(null);
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(id);
   }, []);
 
   const login = (token: string) => {
