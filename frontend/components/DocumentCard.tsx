@@ -101,6 +101,21 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
                   },
                 },
 
+                table: {
+                  props: { className: "border-collapse my-4 text-lg" },
+                },
+                th: {
+                  props: {
+                    className:
+                      "border border-ink/40 px-2 py-1 text-left align-top",
+                  },
+                },
+                td: {
+                  props: {
+                    className:
+                      "border border-ink/40 px-2 py-1 text-left align-top",
+                  },
+                },
                 strong: { props: { className: "text-ink" } },
               },
             }}

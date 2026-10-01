@@ -327,7 +327,9 @@ export default function EInkForm({
           <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
             <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
               {files.length > 0 ? (
-                <div className="flex flex-col justify-center items-center h-full w-full space-y-3 overflow-y-auto">
+                // auto margins on the first/last child center the list when it fits, but unlike
+                // justify-center they don't clip the top rows when it overflows and scrolls.
+                <div className="flex flex-col items-center h-full w-full gap-3 overflow-y-auto [&>:first-child]:mt-auto [&>:last-child]:mb-auto">
                   {files.map((f, i) => (
                     <div
                       key={`${f.name}-${f.size}`}
@@ -460,6 +462,21 @@ export default function EInkForm({
                         ol: {
                           props: {
                             className: "list-decimal list-inside mb-4 ml-4",
+                          },
+                        },
+                        table: {
+                          props: { className: "border-collapse my-4 text-lg" },
+                        },
+                        th: {
+                          props: {
+                            className:
+                              "border border-ink/40 px-2 py-1 text-left align-top",
+                          },
+                        },
+                        td: {
+                          props: {
+                            className:
+                              "border border-ink/40 px-2 py-1 text-left align-top",
                           },
                         },
                         strong: { props: { className: "text-ink" } },
