@@ -37,6 +37,9 @@ func (r *chatRequest) validate() *apiError {
 	if utf8.RuneCountInString(r.Question) > maxQuestionChars {
 		return &apiError{http.StatusBadRequest, "Question is too long (max 1000 characters)."}
 	}
+	if r.History == nil {
+		r.History = []chatMessage{} // marshal as [] rather than null
+	}
 	if len(r.History) > maxHistoryMessages {
 		r.History = r.History[len(r.History)-maxHistoryMessages:]
 	}

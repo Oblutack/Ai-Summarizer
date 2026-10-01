@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,6 +24,17 @@ func TestChatRequestValidate(t *testing.T) {
 		if err := r.validate(); err == nil || err.Status != http.StatusBadRequest {
 			t.Errorf("%s should be a 400, got %v", name, err)
 		}
+	}
+}
+
+func TestChatRequestNilHistoryMarshalsAsEmptyArray(t *testing.T) {
+	r := chatRequest{Question: "q"}
+	if err := r.validate(); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := json.Marshal(r.History)
+	if string(out) != "[]" {
+		t.Fatalf("history marshals as %s, want []", out)
 	}
 }
 
