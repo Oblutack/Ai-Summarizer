@@ -207,6 +207,12 @@ def test_chat_answers_with_question_and_history(client, monkeypatch):
     assert "ignore previous instructions" not in prompt
 
 
+@pytest.mark.parametrize("history", [None, []])
+def test_chat_accepts_missing_or_empty_history(client, llm, history):
+    body = {"text": "doc", "question": "q?", "history": history}
+    assert client.post("/chat", json=body).status_code == 200
+
+
 def test_chat_limits_history_length(client, monkeypatch):
     fake = FakeLLM()
     monkeypatch.setattr(main, "get_llm", lambda: fake)

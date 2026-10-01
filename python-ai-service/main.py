@@ -3,6 +3,7 @@ import logging
 import os
 import tempfile
 from functools import lru_cache
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -44,6 +45,11 @@ CHUNK_OVERLAP = 200
 REDUCE_MAX_CHARS = 24_000
 # Cap parallel LLM calls so long documents don't trip the provider's rate limit.
 MAX_CONCURRENT_LLM_CALLS = 3
+DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"  # override with LLM_MODEL; Groq retires models over time
+# gpt-oss models "think" before answering and those hidden tokens count against the output cap.
+# Low effort plus a generous cap keeps them from exhausting it and returning empty content.
+LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
+LLM_MAX_OUTPUT_TOKENS = 8192
 LLM_TIMEOUT_SECONDS = 60
 LLM_MAX_RETRIES = 5  # the OpenAI client backs off exponentially on 429/5xx
 
@@ -71,7 +77,7 @@ class ChatMessage(BaseModel):
 class ChatPayload(BaseModel):
     text: str
     question: str
-    history: list[ChatMessage] = []
+    history: Optional[list[ChatMessage]] = None
 
 
 @lru_cache(maxsize=1)
@@ -79,12 +85,16 @@ def get_llm() -> ChatOpenAI:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set")
+    model = os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
+    extra = {"reasoning_effort": LLM_REASONING_EFFORT} if "gpt-oss" in model else {}
     return ChatOpenAI(
-        model="llama-3.1-8b-instant",
+        model=model,
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1",
         timeout=LLM_TIMEOUT_SECONDS,
         max_retries=LLM_MAX_RETRIES,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS,
+        model_kwargs=extra,
     )
 
 
@@ -220,7 +230,7 @@ async def chat(payload: ChatPayload):
 
     history = [
         {"role": m.role, "content": m.content.strip()[:MAX_HISTORY_MESSAGE_CHARS]}
-        for m in payload.history[-MAX_HISTORY_MESSAGES:]
+        for m in (payload.history or [])[-MAX_HISTORY_MESSAGES:]
         if m.role in ("user", "assistant") and m.content.strip()
     ]
 
