@@ -18,9 +18,9 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 
 <br>
 
-<img src="docs/demo.gif" alt="Demo: logging in, summarizing two PDFs with a live streamed result, then chatting with the saved document" width="860">
+<img src="docs/demo.gif" alt="Demo: summarizing pasted text in Spanish, signing up and logging in, streaming a two-PDF executive brief, chatting with the saved document, and the account page" width="900">
 
-<sub>Logging in, attaching two PDFs, streaming an executive brief, and asking the saved document a question.</sub>
+<sub>A full walkthrough: public summary in another language, sign-up and login, two PDFs combined with live progress, saved history, document chat, and the account page.</sub>
 
 </div>
 
