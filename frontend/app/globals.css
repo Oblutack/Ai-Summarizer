@@ -37,13 +37,11 @@ input[type="range"]:focus {
   outline: none;
 }
 
-/* === POČETAK IZMENA === */
-
-/* Stil za "točkič" (thumb) - Chrome, Safari, Edge */
+/* Slider thumb - Chrome, Safari, Edge */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  /* Uklonili smo margin-top, koristimo transform */
+  /* centered with a transform rather than a margin-top */
   position: relative;
   top: 50%;
   transform: translateY(-50%);
@@ -54,27 +52,24 @@ input[type="range"]::-webkit-slider-thumb {
   border: 3px solid #222222;
 }
 
-/* Stil za "točkič" (thumb) - Firefox */
+/* Slider thumb - Firefox */
 input[type="range"]::-moz-range-thumb {
-  /* Firefox ne treba transform, on se dobro centrira po defaultu */
+  /* Firefox centers the thumb by default, so no transform is needed */
   height: 15px;
   width: 15px;
   background-color: #f5f0e6;
   border-radius: 9999px;
   border: 3px solid #222222;
-  border-color: #222222; /* Dupla provera za Firefox */
 }
 
-/* === KRAJ IZMENA === */
-
-/* Stil za "traku" (track) - Chrome, Safari, Edge */
+/* Slider track - Chrome, Safari, Edge */
 input[type="range"]::-webkit-slider-runnable-track {
   background-color: #222222; /* Naša 'ink' boja */
   border-radius: 0.5rem;
   height: 4px;
 }
 
-/* Stil za "traku" (track) - Firefox */
+/* Slider track - Firefox */
 input[type="range"]::-moz-range-track {
   background-color: #222222; /* Naša 'ink' boja */
   border-radius: 0.5rem;

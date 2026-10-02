@@ -19,7 +19,7 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1, // Razmak od 0.1s između svake kartice
+      staggerChildren: 0.1, // delay between each card
     },
   },
 };
@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const DocumentCard = dynamic(() => import("../../components/DocumentCard"), {
     ssr: false,
-    loading: () => <p>Loading document...</p>, // Opciona poruka
+    loading: () => <p>Loading document...</p>,
   });
 
   const fetchDocuments = async () => {
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     }
   };
   const handleDeleteDocument = async (id: number) => {
-    // Pitamo korisnika da potvrdi
+    // Ask the user to confirm
     if (!window.confirm("Are you sure you want to delete this summary?")) {
       return;
     }
@@ -68,11 +68,11 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Ukloni dokument iz lokalnog stanja za trenutan odziv UI-ja
+      // Remove the document locally so the UI responds immediately
       setDocuments(documents.filter((doc) => doc.ID !== id));
     } catch (error) {
       console.error("Failed to delete document", error);
-      // Opciono: Prikazati grešku korisniku
+      // TODO: show the error to the user
     }
   };
 
@@ -98,7 +98,7 @@ export default function DashboardPage() {
         Your Dashboard
       </h1>
 
-      {/* Sekcija za novu formu */}
+      {/* New summary form */}
       <div className="mb-12 border-2 border-ink rounded-lg p-6">
         <EInkForm
           endpoint={`${process.env.NEXT_PUBLIC_API_URL}/summarize`}
@@ -106,7 +106,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Sekcija za historiju */}
+      {/* Saved summaries */}
       <div>
         <h2 className="text-3xl uppercase tracking-widest text-center mb-6">
           Saved Summaries

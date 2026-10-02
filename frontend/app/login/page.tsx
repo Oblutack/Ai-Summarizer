@@ -58,7 +58,7 @@ export default function LoginPage() {
     }
 
     try {
-      // Pozivamo naš NOVI backend endpoint
+      // Exchange the Google credential for our own token
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/auth/google`,
         {
@@ -66,7 +66,7 @@ export default function LoginPage() {
         }
       );
 
-      // Ostatak je isti kao i kod običnog logina
+      // The rest is the same as a regular login
       login(response.data.token);
       router.push("/dashboard");
     } catch (err) {
@@ -76,7 +76,7 @@ export default function LoginPage() {
 
   return (
     <FormContainer title="Login">
-      {/* Forma za Email/Lozinku */}
+      {/* Email / password form */}
       <form
         onSubmit={handleSubmit}
         className="w-full flex flex-col items-center space-y-6 text-2xl"
@@ -129,9 +129,9 @@ export default function LoginPage() {
         Or
       </div>
 
-      {/* --- POČETAK PROMENA ZA GOOGLE DUGME --- */}
+      {/* Google sign-in */}
       <div className="w-full flex justify-center">
-        {/* Naše custom, stilizovano dugme */}
+        {/* Our styled button */}
         <button
           type="button"
           onClick={handleCustomGoogleClick}
@@ -160,7 +160,7 @@ export default function LoginPage() {
         </button>
       </div>
 
-      {/* Nevidljivo, pravo Google dugme */}
+      {/* The real Google button, invisible and layered on top so clicks reach it */}
       <div
         ref={googleLoginButtonRef}
         className="opacity-0 absolute top-0 left-0 -z-10"
@@ -172,7 +172,6 @@ export default function LoginPage() {
           }}
         />
       </div>
-      {/* --- KRAJ PROMENA --- */}
     </FormContainer>
   );
 }

@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (token && isTokenExpired(token)) {
           localStorage.removeItem("token");
         } else if (token) {
-          // TODO: Kasnije ćemo ovdje dodati logiku za validaciju tokena na backendu
+          // TODO: validate the token with the backend and load the real user
           setUser({ id: 1, email: "user@example.com" });
         }
       } catch (error) {
@@ -96,7 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// Kreiramo custom "hook" da bismo lakše koristili kontekst
+// Convenience hook for reading the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
