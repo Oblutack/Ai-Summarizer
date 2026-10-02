@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import { API_URL } from "../lib/api";
 
 const EInkForm = dynamic(() => import("../components/EInkForm"), {
   ssr: false,
@@ -10,7 +11,7 @@ export default function Home() {
     <main>
       <div className="max-w-5xl mx-auto mt-12 border-2 border-ink rounded-lg p-8">
         <EInkForm
-          endpoint={`${process.env.NEXT_PUBLIC_API_URL}/public/summarize`}
+          endpoint={`${API_URL}/public/summarize`}
         />
       </div>
     </main>

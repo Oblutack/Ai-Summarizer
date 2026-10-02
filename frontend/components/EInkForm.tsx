@@ -1,11 +1,14 @@
 "use client";
 import { motion } from "framer-motion";
+import { useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import { useSummarizer } from "../hooks/useSummarizer";
 import { saveElementAsPdf } from "../lib/pdfExport";
 import InputArea from "./summarizer/InputArea";
 import OutputPanel from "./summarizer/OutputPanel";
 import PageLimitPanel from "./summarizer/PageLimitPanel";
 import SummaryOptions from "./summarizer/SummaryOptions";
+import TurnstileWidget, { turnstileEnabled } from "./Turnstile";
 
 interface EInkFormProps {
   endpoint: string;
@@ -13,7 +16,27 @@ interface EInkFormProps {
 }
 
 export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) {
-  const s = useSummarizer({ endpoint, onSummaryCreated });
+  const { user } = useAuth();
+
+  // Anonymous visitors prove they're human (when the site has Turnstile configured); signed-in
+  // users are identified by their session instead.
+  const needsHumanCheck = turnstileEnabled && !user;
+  const [humanToken, setHumanToken] = useState("");
+  const [humanReset, setHumanReset] = useState(0);
+
+  const s = useSummarizer({
+    endpoint,
+    onSummaryCreated,
+    humanCheck: needsHumanCheck
+      ? {
+          token: humanToken,
+          reset: () => {
+            setHumanToken("");
+            setHumanReset((n) => n + 1);
+          },
+        }
+      : undefined,
+  });
 
   const handleDownloadPDF = () => {
     const element = document.getElementById("summary-output-content");
@@ -50,6 +73,8 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
             onRemoveFile={s.removeFile}
           />
 
+          {needsHumanCheck && <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />}
+
           {s.error && <p className="text-red-500 text-lg">{s.error}</p>}
 
           <OutputPanel
@@ -62,7 +87,7 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
           {!s.isLoading && (
             <motion.button
               type="submit"
-              disabled={!s.canSubmit}
+              disabled={!s.canSubmit || (needsHumanCheck && !humanToken)}
               className="bg-ink text-canvas text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               whileTap={{ scale: 0.97 }}
               whileHover={{ scale: 1.03 }}

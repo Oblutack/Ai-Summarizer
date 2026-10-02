@@ -7,8 +7,8 @@ export default function Navbar() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 
@@ -25,6 +25,9 @@ export default function Navbar() {
             <>
               <Link href="/dashboard" className="hover:opacity-70">
                 Dashboard
+              </Link>
+              <Link href="/account" className="hover:opacity-70">
+                Account
               </Link>
               <button onClick={handleLogout} className="hover:opacity-70">
                 Logout

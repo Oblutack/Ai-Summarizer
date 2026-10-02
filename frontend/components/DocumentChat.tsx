@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import Markdown from "markdown-to-jsx";
 import type { ChatMessage } from "../types";
+import { API_URL, apiError } from "../lib/api";
 
 const MAX_QUESTION_CHARS = 1000;
 const HISTORY_SENT = 10;
@@ -27,12 +28,6 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
     const text = question.trim();
     if (!text || isSending) return;
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Please log in again to chat.");
-      return;
-    }
-
     const history = messages.slice(-HISTORY_SENT);
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setQuestion("");
@@ -40,21 +35,16 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
     setIsSending(true);
 
     try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/documents/${documentId}/chat`,
-        { question: text, history },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await axios.post(`${API_URL}/documents/${documentId}/chat`, {
+        question: text,
+        history,
+      });
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: response.data.answer },
       ]);
     } catch (err) {
-      setError(
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : "Something went wrong. Please try again."
-      );
+      setError(apiError(err, "Something went wrong. Please try again."));
     } finally {
       setIsSending(false);
     }

@@ -5,6 +5,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import type { Document } from "../../types";
+import { API_URL } from "../../lib/api";
 import dynamic from "next/dynamic";
 import { AnimatePresence } from "framer-motion";
 
@@ -32,15 +33,9 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState("");
 
   const requestPage = useCallback(async (before?: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
-
     const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
     if (before) query.set("before", before);
-    const response = await axios.get<Document[]>(
-      `${process.env.NEXT_PUBLIC_API_URL}/documents?${query.toString()}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    const response = await axios.get<Document[]>(`${API_URL}/documents?${query.toString()}`);
     return { docs: response.data, next: (response.headers["x-next-cursor"] as string) || "" };
   }, []);
 
@@ -85,13 +80,8 @@ export default function DashboardPage() {
       return;
     }
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     try {
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/documents/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.delete(`${API_URL}/documents/${id}`);
 
       // Remove the document locally so the UI responds immediately
       setDocuments((prev) => prev.filter((doc) => doc.ID !== id));
@@ -126,7 +116,7 @@ export default function DashboardPage() {
       {/* New summary form */}
       <div className="mb-12 border-2 border-ink rounded-lg p-6">
         <EInkForm
-          endpoint={`${process.env.NEXT_PUBLIC_API_URL}/summarize`}
+          endpoint={`${API_URL}/summarize`}
           onSummaryCreated={fetchDocuments}
         />
       </div>

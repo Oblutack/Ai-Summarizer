@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { TURNSTILE_HEADER } from "../lib/api";
 import { readSummaryEvents, type SummaryEvent } from "../lib/sse";
 import { MAX_FILES } from "../lib/summaryOptions";
 
@@ -14,10 +15,13 @@ export type Stage = "idle" | "preparing" | "summarizing" | "writing";
 interface UseSummarizerOptions {
   endpoint: string;
   onSummaryCreated?: () => void;
+  // The human-check token for anonymous requests, and a function that asks for a fresh one (a
+  // token works once).
+  humanCheck?: { token: string; reset: () => void };
 }
 
-export function useSummarizer({ endpoint, onSummaryCreated }: UseSummarizerOptions) {
-  const { logout } = useAuth();
+export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSummarizerOptions) {
+  const { refresh } = useAuth();
 
   const [wordCount, setWordCount] = useState(150);
   const [pageLimit, setPageLimit] = useState("");
@@ -167,13 +171,16 @@ export function useSummarizer({ endpoint, onSummaryCreated }: UseSummarizerOptio
     abortRef.current = controller;
 
     try {
-      const token = localStorage.getItem("token");
-      const { url, init } = buildRequest(token ? { Authorization: `Bearer ${token}` } : {});
-      const response = await fetch(url, { ...init, signal: controller.signal });
+      const headers: Record<string, string> = {};
+      if (humanCheck?.token) headers[TURNSTILE_HEADER] = humanCheck.token;
+      const { url, init } = buildRequest(headers);
+      // credentials: "include" sends the session cookie to the API.
+      const response = await fetch(url, { ...init, credentials: "include", signal: controller.signal });
 
       if (!response.ok) {
-        if (response.status === 401 && token) logout();
         const body = await response.json().catch(() => null);
+        // A rejected session means we were signed out elsewhere: re-check, which clears the user.
+        if (response.status === 401 && body?.code === "unauthenticated") refresh();
         setError(body?.error || "An error occurred.");
         return;
       }
@@ -197,6 +204,7 @@ export function useSummarizer({ endpoint, onSummaryCreated }: UseSummarizerOptio
         setError("An unexpected error occurred.");
       }
     } finally {
+      humanCheck?.reset();
       setStage("idle");
       setIsLoading(false);
       abortRef.current = null;

@@ -5,7 +5,9 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import FormContainer from "../../components/FormContainer";
+import Link from "next/link";
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import { API_URL, apiError } from "../../lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -29,23 +31,11 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/login`,
-        {
-          email: email,
-          password: password,
-        }
-      );
-
-      login(response.data.token);
-
+      const response = await axios.post(`${API_URL}/login`, { email, password });
+      login(response.data.user);
       router.push("/dashboard");
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response) {
-        setError(err.response.data.error || "Login failed.");
-      } else {
-        setError("Login failed.");
-      }
+      setError(apiError(err, "Login failed."));
     }
   };
   const handleGoogleLoginSuccess = async (
@@ -59,18 +49,13 @@ export default function LoginPage() {
 
     try {
       // Exchange the Google credential for our own token
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/google`,
-        {
-          token: idToken,
-        }
-      );
+      const response = await axios.post(`${API_URL}/auth/google`, { token: idToken });
 
       // The rest is the same as a regular login
-      login(response.data.token);
+      login(response.data.user);
       router.push("/dashboard");
     } catch (err) {
-      setError("Failed to log in with Google.");
+      setError(apiError(err, "Failed to log in with Google."));
     }
   };
 
@@ -110,8 +95,14 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
             required
           />
+          <p className="mt-2 text-base">
+            <Link href="/forgot-password" className="underline hover:opacity-70">
+              Forgot your password?
+            </Link>
+          </p>
         </div>
 
         {error && <p className="text-red-500 text-lg">{error}</p>}
