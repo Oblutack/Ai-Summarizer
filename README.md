@@ -40,7 +40,7 @@
     -   **Word Count Slider**: For short summaries, precisely control the desired length.
     -   **Page Limit Input**: For long documents, request a detailed summary of a specific page length.
 -   **Dynamic Summarization Strategy**: Automatically switches between a simple summarization method for short texts and a powerful **MapReduce** strategy for long documents.
--   **Secure User Authentication**: Full registration and login system with both email/password (hashed with bcrypt) and **Google OAuth 2.0**.
+-   **Secure User Authentication**: Registration and login with email/password (bcrypt) and **Google OAuth 2.0**, server-side sessions in httpOnly cookies that can be revoked, email confirmation, password reset, a device list with remote sign-out, data export and account deletion.
 -   **Persistent History**: Registered users can save, view, and re-download their summarization history.
 -   **Professional PDF Export**: Generate beautifully formatted PDF documents from summaries, featuring custom fonts and proper pagination.
 -   **Unique E-Ink UI**: A custom-designed, minimalist interface inspired by e-ink displays for enhanced readability and focus.
@@ -94,7 +94,7 @@ Follow these steps to get the complete application running on your local machine
     ```
 
 2.  **Configure Environment Variables**
-    -   Copy `.env.example` to `.env` in the project root and fill in the database password, a JWT `SECRET` (e.g. `openssl rand -base64 48`), your `GOOGLE_CLIENT_ID` and your `GROQ_API_KEY`. `docker compose` refuses to start if any are missing, and `.env` is gitignored.
+    -   Copy `.env.example` to `.env` in the project root and fill in the database password, your `GOOGLE_CLIENT_ID` and your `GROQ_API_KEY`. `docker compose` refuses to start if any are missing, and `.env` is gitignored.
     -   In `frontend/`, create `.env.local`:
         ```
         NEXT_PUBLIC_API_URL="http://localhost:8080"
@@ -126,6 +126,16 @@ cd frontend && pnpm lint
 Summarization and chat endpoints are rate limited per IP. PDFs are capped at 10 MB each (5 files and 25 MB per multi-document request) and pasted text at 200,000 characters. Chat questions are capped at 1,000 characters. Passwords must be 8-72 characters.
 
 Documents saved before the chat feature existed have no stored source text, so chat is only offered for documents summarized after it was added.
+
+### Accounts and security
+
+- **Sessions:** an opaque random token in an `httpOnly` cookie (the database stores only its hash). Logging out, changing or resetting the password, or deleting the account revokes sessions immediately, so a copied cookie stops working. Sessions last 30 days when used, with a 90-day hard limit. Scripts and tools can send the same token as `Authorization: Bearer`.
+- **CSRF:** state-changing requests must come from an origin listed in `CORS_ALLOWED_ORIGINS` (checked on the `Origin` header), on top of `SameSite` cookies.
+- **Email:** verification and password-reset links are sent through `MAIL_PROVIDER` (`log`, `brevo` or `resend`). `log` prints the link to the API log, so everything works locally without an account. Set `REQUIRE_EMAIL_VERIFICATION=true` to require a confirmed address before summarizing.
+- **Abuse limits:** per-IP limits for anonymous use, per-user limits and daily quotas (`QUOTA_SUMMARIES_PER_DAY`, `QUOTA_CHAT_PER_DAY`; failed work is refunded) for signed-in users, a per-account login throttle, and optional [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) on anonymous summaries, signup and password reset (`TURNSTILE_SECRET` and `NEXT_PUBLIC_TURNSTILE_SITE_KEY`).
+- **Headers:** the API sends a strict CSP, `nosniff`, no-store and HSTS (over https); the frontend sets a nonce-based Content-Security-Policy per request plus the usual hardening headers.
+
+**Deploying with the frontend and API on different sites** (for example `vercel.app` and `onrender.com`): set `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, `CORS_ALLOWED_ORIGINS=<your frontend origin>`, `FRONTEND_URL=<your frontend origin>` and `TRUSTED_PROXIES` (the proxy's CIDRs) on the API. Browsers that block third-party cookies (Safari, Firefox) will not keep the login across two unrelated sites, so for a production launch put both under one domain (`app.example.com` and `api.example.com`, with `COOKIE_SAMESITE=lax` and `COOKIE_DOMAIN=.example.com`).
 
 ### Operations
 
