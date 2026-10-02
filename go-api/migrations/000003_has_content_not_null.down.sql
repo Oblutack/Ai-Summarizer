@@ -1,0 +1,2 @@
+ALTER TABLE documents ALTER COLUMN has_content DROP NOT NULL;
+ALTER TABLE documents ALTER COLUMN has_content DROP DEFAULT;
