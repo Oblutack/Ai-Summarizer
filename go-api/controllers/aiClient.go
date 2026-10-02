@@ -134,16 +134,22 @@ func callAIService(req *http.Request) ([]byte, *apiError) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		var detail struct {
-			Detail string `json:"detail"`
-		}
-		_ = json.Unmarshal(body, &detail)
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 && detail.Detail != "" {
-			return nil, &apiError{resp.StatusCode, detail.Detail}
-		}
-		return nil, &apiError{http.StatusBadGateway, "The AI service failed to produce a response."}
+		return nil, upstreamError(resp.StatusCode, body)
 	}
 	return body, nil
+}
+
+// upstreamError maps a failed AI service reply to a client-safe error: its own 4xx messages are
+// passed through, anything else becomes a generic 502 so internals never leak.
+func upstreamError(status int, body []byte) *apiError {
+	var detail struct {
+		Detail string `json:"detail"`
+	}
+	_ = json.Unmarshal(body, &detail)
+	if status >= 400 && status < 500 && detail.Detail != "" {
+		return &apiError{status, detail.Detail}
+	}
+	return &apiError{http.StatusBadGateway, "The AI service failed to produce a response."}
 }
 
 func callForSummary(req *http.Request) (*aiSummary, *apiError) {
@@ -196,7 +202,49 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 	return req, nil
 }
 
-func summarizeFile(c *gin.Context) (*aiSummary, *apiError) {
+// aiRequest is a prepared call to the AI service. sourceText is set when the caller already
+// holds the source text (pasted text); for PDFs the AI service returns it.
+type aiRequest struct {
+	req        *http.Request
+	sourceText string
+}
+
+// summaryBuilder validates a client request and prepares the matching AI service call.
+// With stream set, the AI service replies with server-sent events instead of one JSON body.
+type summaryBuilder func(c *gin.Context, stream bool) (*aiRequest, *apiError)
+
+func withStream(path string, stream bool) string {
+	if stream {
+		return path + "?stream=true"
+	}
+	return path
+}
+
+// buffered runs a builder and waits for the complete summary.
+func buffered(build summaryBuilder) func(*gin.Context) (*aiSummary, *apiError) {
+	return func(c *gin.Context) (*aiSummary, *apiError) {
+		ar, apiErr := build(c, false)
+		if apiErr != nil {
+			return nil, apiErr
+		}
+		result, apiErr := callForSummary(ar.req)
+		if apiErr != nil {
+			return nil, apiErr
+		}
+		if ar.sourceText != "" {
+			result.Text = ar.sourceText
+		}
+		return result, nil
+	}
+}
+
+var (
+	summarizeFile  = buffered(buildFileRequest)
+	summarizeFiles = buffered(buildFilesRequest)
+	summarizeText  = buffered(buildTextRequest)
+)
+
+func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	opts, perr := parseSummaryParams(c.PostForm("wordCount"), c.PostForm("pageLimit"), c.PostForm("style"), c.PostForm("language"))
 	if perr != nil {
 		return nil, perr
@@ -210,14 +258,14 @@ func summarizeFile(c *gin.Context) (*aiSummary, *apiError) {
 		return nil, &apiError{http.StatusBadRequest, "Only PDF files are supported."}
 	}
 
-	req, apiErr := multipartRequest(c, "/summarize", opts.fields(), "file", []*multipart.FileHeader{file})
+	req, apiErr := multipartRequest(c, withStream("/summarize", stream), opts.fields(), "file", []*multipart.FileHeader{file})
 	if apiErr != nil {
 		return nil, apiErr
 	}
-	return callForSummary(req)
+	return &aiRequest{req: req}, nil
 }
 
-func summarizeFiles(c *gin.Context) (*aiSummary, *apiError) {
+func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	opts, perr := parseSummaryParams(c.PostForm("wordCount"), c.PostForm("pageLimit"), c.PostForm("style"), c.PostForm("language"))
 	if perr != nil {
 		return nil, perr
@@ -245,14 +293,14 @@ func summarizeFiles(c *gin.Context) (*aiSummary, *apiError) {
 		return nil, &apiError{http.StatusRequestEntityTooLarge, "The files are too large together (max 25 MB)."}
 	}
 
-	req, apiErr := multipartRequest(c, "/summarize-multiple", opts.fields(), "files", files)
+	req, apiErr := multipartRequest(c, withStream("/summarize-multiple", stream), opts.fields(), "files", files)
 	if apiErr != nil {
 		return nil, apiErr
 	}
-	return callForSummary(req)
+	return &aiRequest{req: req}, nil
 }
 
-func summarizeText(c *gin.Context) (*aiSummary, *apiError) {
+func buildTextRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	opts, perr := parseSummaryParams(c.Query("wordCount"), c.Query("pageLimit"), c.Query("style"), c.Query("language"))
 	if perr != nil {
 		return nil, perr
@@ -277,16 +325,13 @@ func summarizeText(c *gin.Context) (*aiSummary, *apiError) {
 	for k, v := range opts.fields() {
 		q.Set(k, v)
 	}
+	if stream {
+		q.Set("stream", "true")
+	}
 	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, aiServiceURL("/summarize-text?"+q.Encode()), bytes.NewReader(body))
 	if err != nil {
 		return nil, &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
 	}
 	req.Header.Set("Content-Type", "application/json")
-
-	result, apiErr := callForSummary(req)
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	result.Text = payload.Text
-	return result, nil
+	return &aiRequest{req: req, sourceText: payload.Text}, nil
 }

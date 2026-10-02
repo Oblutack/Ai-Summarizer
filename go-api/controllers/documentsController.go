@@ -9,12 +9,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type summarizer func(*gin.Context) (*aiSummary, *apiError)
-
-// respond runs a summarizer and writes its result. When save is set, the summary and its
+// respond runs a summary request and writes the result. When save is set, the summary and its
 // source text are stored for the signed-in user; label overrides the stored title if non-empty.
-func respond(c *gin.Context, summarize summarizer, save bool, label string) {
-	result, apiErr := summarize(c)
+// With ?stream=true the summary is streamed as server-sent events instead of returned in one piece.
+func respond(c *gin.Context, build summaryBuilder, save bool, label string) {
+	if wantsStream(c) {
+		ar, apiErr := build(c, true)
+		if apiErr != nil {
+			apiErr.send(c)
+			return
+		}
+		streamSummary(c, ar, save, label)
+		return
+	}
+
+	result, apiErr := buffered(build)(c)
 	if apiErr != nil {
 		apiErr.send(c)
 		return
@@ -29,12 +38,12 @@ func respond(c *gin.Context, summarize summarizer, save bool, label string) {
 	c.JSON(http.StatusOK, result.response())
 }
 
-func PublicSummarize(c *gin.Context)         { respond(c, summarizeFile, false, "") }
-func PublicSummarizeMultiple(c *gin.Context) { respond(c, summarizeFiles, false, "") }
-func PublicSummarizeText(c *gin.Context)     { respond(c, summarizeText, false, "") }
-func CreateSummary(c *gin.Context)           { respond(c, summarizeFile, true, "") }
-func CreateSummaryMultiple(c *gin.Context)   { respond(c, summarizeFiles, true, "") }
-func CreateSummaryText(c *gin.Context)       { respond(c, summarizeText, true, "Pasted Text") }
+func PublicSummarize(c *gin.Context)         { respond(c, buildFileRequest, false, "") }
+func PublicSummarizeMultiple(c *gin.Context) { respond(c, buildFilesRequest, false, "") }
+func PublicSummarizeText(c *gin.Context)     { respond(c, buildTextRequest, false, "") }
+func CreateSummary(c *gin.Context)           { respond(c, buildFileRequest, true, "") }
+func CreateSummaryMultiple(c *gin.Context)   { respond(c, buildFilesRequest, true, "") }
+func CreateSummaryText(c *gin.Context)       { respond(c, buildTextRequest, true, "Pasted Text") }
 
 // saveDocument stores the summary for the authenticated user. The summary is still
 // returned to the client if saving fails, so a DB hiccup doesn't waste the LLM call.

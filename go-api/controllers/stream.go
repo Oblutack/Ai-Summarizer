@@ -1,0 +1,121 @@
+package controllers
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+// wantsStream reports whether the client asked for a server-sent-events response.
+func wantsStream(c *gin.Context) bool {
+	return c.Query("stream") == "true"
+}
+
+// writeEvent sends one server-sent event and flushes it so the client sees it immediately.
+func writeEvent(c *gin.Context, event map[string]any) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+	c.Writer.Flush()
+}
+
+// streamSummary forwards the AI service's event stream to the client.
+//
+// The stream carries the summary as "delta" events and ends with a "done" event. The done event
+// also includes the extracted source text; that is stripped before it reaches the client and, for
+// signed-in users, stored with the summary so the document can be chatted with later.
+//
+// Errors before the first byte are ordinary JSON error responses. Once streaming has begun the
+// status line is already sent, so failures are reported as a final "error" event instead.
+func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
+	resp, err := aiHTTPClient.Do(ar.req)
+	if err != nil {
+		(&apiError{http.StatusGatewayTimeout, "The AI service is unavailable or took too long to respond."}).send(c)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		upstreamError(resp.StatusCode, body).send(c)
+		return
+	}
+
+	h := c.Writer.Header()
+	h.Set("Content-Type", "text/event-stream; charset=utf-8")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("X-Accel-Buffering", "no") // ask reverse proxies not to buffer the stream
+	c.Status(http.StatusOK)
+	c.Writer.Flush()
+
+	var summary strings.Builder
+	finished := false
+
+	reader := bufio.NewReader(resp.Body)
+	for {
+		// ReadBytes rather than a Scanner: the done event can carry hundreds of KB of source text.
+		raw, readErr := reader.ReadBytes('\n')
+
+		if payload, ok := strings.CutPrefix(strings.TrimSpace(string(raw)), "data: "); ok {
+			var event map[string]json.RawMessage
+			if json.Unmarshal([]byte(payload), &event) == nil {
+				var kind string
+				_ = json.Unmarshal(event["type"], &kind)
+
+				if kind == "done" {
+					var filename, source string
+					_ = json.Unmarshal(event["filename"], &filename)
+					_ = json.Unmarshal(event["text"], &source)
+					if source == "" {
+						source = ar.sourceText
+					}
+					finished = true
+
+					if save && strings.TrimSpace(summary.String()) != "" {
+						title := filename
+						if label != "" {
+							title = label
+						}
+						saveDocument(c, title, &aiSummary{Filename: filename, Summary: summary.String(), Text: source})
+					}
+
+					// The client gets the filename but never the source text.
+					out := map[string]any{"type": "done"}
+					if filename != "" {
+						out["filename"] = filename
+					}
+					writeEvent(c, out)
+					return
+				}
+
+				if kind == "delta" {
+					var text string
+					_ = json.Unmarshal(event["text"], &text)
+					summary.WriteString(text)
+				}
+
+				// status, delta and error events pass through unchanged.
+				fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+				c.Writer.Flush()
+				if kind == "error" {
+					return
+				}
+			}
+		}
+
+		if readErr != nil {
+			break
+		}
+	}
+
+	if !finished && c.Request.Context().Err() == nil {
+		writeEvent(c, map[string]any{"type": "error", "status": http.StatusBadGateway, "message": "The summary stream ended unexpectedly. Please try again."})
+	}
+}
