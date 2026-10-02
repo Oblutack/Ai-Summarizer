@@ -96,6 +96,7 @@ func ChatWithDocument(c *gin.Context) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	propagateRequestID(c, req)
 
 	respBody, apiErr := callAIService(req)
 	if apiErr != nil {

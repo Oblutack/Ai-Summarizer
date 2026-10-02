@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"ai-summarizer/go-api/middleware"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -114,6 +115,13 @@ func (o summaryOptions) fields() map[string]string {
 	}
 }
 
+// propagateRequestID forwards the request id so the AI service's logs can be matched to ours.
+func propagateRequestID(c *gin.Context, req *http.Request) {
+	if id := middleware.RequestIDFrom(c); id != "" {
+		req.Header.Set(middleware.RequestIDHeader, id)
+	}
+}
+
 func aiServiceURL(path string) string {
 	return strings.TrimRight(os.Getenv("AI_SERVICE_URL"), "/") + path
 }
@@ -146,7 +154,9 @@ func upstreamError(status int, body []byte) *apiError {
 		Detail string `json:"detail"`
 	}
 	_ = json.Unmarshal(body, &detail)
-	if status >= 400 && status < 500 && detail.Detail != "" {
+	// 4xx are the caller's problem and 503 is the AI service's own "busy" message; both are
+	// written by us, so they are safe to show. Any other 5xx stays generic.
+	if (status >= 400 && status < 500 || status == http.StatusServiceUnavailable) && detail.Detail != "" {
 		return &apiError{status, detail.Detail}
 	}
 	return &apiError{http.StatusBadGateway, "The AI service failed to produce a response."}
@@ -199,6 +209,7 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 		return nil, prepErr
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
+	propagateRequestID(c, req)
 	return req, nil
 }
 
@@ -333,5 +344,6 @@ func buildTextRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
 	}
 	req.Header.Set("Content-Type", "application/json")
+	propagateRequestID(c, req)
 	return &aiRequest{req: req, sourceText: payload.Text}, nil
 }

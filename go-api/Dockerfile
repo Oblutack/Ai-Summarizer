@@ -18,6 +18,9 @@ COPY --from=builder /main /main
 # Run as an unprivileged user (nobody); scratch has no passwd file, so use the numeric id.
 USER 65534:65534
 
+# Quiet, production-mode Gin (no per-route debug output).
+ENV GIN_MODE=release
+
 EXPOSE 8080
 
 # scratch has no shell or curl, so the binary probes itself.

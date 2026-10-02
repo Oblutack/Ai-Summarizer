@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -107,7 +107,7 @@ func GoogleLogin(c *gin.Context) {
 
 	oauth2Service, err := oauth2.NewService(context.Background(), option.WithoutAuthentication())
 	if err != nil {
-		log.Printf("google login: init service: %v", err)
+		slog.Error("google login: init service", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init Google service"})
 		return
 	}
@@ -143,12 +143,12 @@ func GoogleLogin(c *gin.Context) {
 		}
 		user = models.User{Email: email, Password: hash}
 		if err := initializers.DB.Create(&user).Error; err != nil {
-			log.Printf("google login: create user: %v", err)
+			slog.Error("google login: create user", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 			return
 		}
 	} else if err != nil {
-		log.Printf("google login: lookup user: %v", err)
+		slog.Error("google login: lookup user", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to look up user"})
 		return
 	}
