@@ -1,17 +1,19 @@
 import asyncio
+import json
 import logging
 import os
 import tempfile
-from functools import lru_cache
-from typing import Optional
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Awaitable, Callable, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
+from llm import active_model, candidate_models, get_llm, is_model_missing, mark_unavailable, verify_models
 from prompts import (
     DEFAULT_LANGUAGE,
     DEFAULT_STYLE,
@@ -45,13 +47,6 @@ CHUNK_OVERLAP = 200
 REDUCE_MAX_CHARS = 24_000
 # Cap parallel LLM calls so long documents don't trip the provider's rate limit.
 MAX_CONCURRENT_LLM_CALLS = 3
-DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"  # override with LLM_MODEL; Groq retires models over time
-# gpt-oss models "think" before answering and those hidden tokens count against the output cap.
-# Low effort plus a generous cap keeps them from exhausting it and returning empty content.
-LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
-LLM_MAX_OUTPUT_TOKENS = 8192
-LLM_TIMEOUT_SECONDS = 60
-LLM_MAX_RETRIES = 5  # the OpenAI client backs off exponentially on 429/5xx
 
 # Chat limits: how much of the document is shown to the model per question, and how much
 # conversation history and question text is accepted.
@@ -60,7 +55,24 @@ MAX_QUESTION_CHARS = 1_000
 MAX_HISTORY_MESSAGES = 10
 MAX_HISTORY_MESSAGE_CHARS = 4_000
 
-app = FastAPI(title="AI Summarizer Service")
+SUMMARY_FAILED = "The language model failed to produce a summary. Please try again."
+
+ProgressCallback = Callable[[int, int], None]
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Fail loudly in the logs at boot if the configured model has been retired.
+    if os.getenv("GROQ_API_KEY"):
+        model = await verify_models()
+        if model:
+            logger.info("Using language model %s", model)
+    else:
+        logger.error("GROQ_API_KEY is not set; summarization will fail")
+    yield
+
+
+app = FastAPI(title="AI Summarizer Service", lifespan=lifespan)
 
 _llm_slots: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 
@@ -80,36 +92,67 @@ class ChatPayload(BaseModel):
     history: Optional[list[ChatMessage]] = None
 
 
-@lru_cache(maxsize=1)
-def get_llm() -> ChatOpenAI:
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY is not set")
-    model = os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
-    extra = {"reasoning_effort": LLM_REASONING_EFFORT} if "gpt-oss" in model else {}
-    return ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url="https://api.groq.com/openai/v1",
-        timeout=LLM_TIMEOUT_SECONDS,
-        max_retries=LLM_MAX_RETRIES,
-        max_tokens=LLM_MAX_OUTPUT_TOKENS,
-        model_kwargs=extra,
-    )
+def _slots() -> asyncio.Semaphore:
+    # A semaphore is bound to the loop that first awaits it, so keep one per running loop.
+    return _llm_slots.setdefault(asyncio.get_running_loop(), asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS))
 
 
 async def call_llm(prompt: str) -> str:
-    # A semaphore is bound to the loop that first awaits it, so keep one per running loop.
-    loop = asyncio.get_running_loop()
-    slots = _llm_slots.setdefault(loop, asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS))
-    async with slots:
-        response = await get_llm().ainvoke(prompt)
-    return (response.content or "").strip()
+    async with _slots():
+        # If the provider says the model no longer exists, move to the next candidate and retry.
+        for _ in candidate_models():
+            model = active_model()
+            try:
+                response = await get_llm().ainvoke(prompt)
+                return (response.content or "").strip()
+            except Exception as exc:
+                if not is_model_missing(exc):
+                    raise
+                mark_unavailable(model)
+    raise RuntimeError("No configured language model is available")
+
+
+async def stream_llm(prompt: str) -> AsyncIterator[str]:
+    """Yields the model's reply piece by piece, with the same model fallback as call_llm."""
+    async with _slots():
+        for _ in candidate_models():
+            model = active_model()
+            started = False
+            try:
+                async for chunk in get_llm().astream(prompt):
+                    text = chunk.content or ""
+                    if text:
+                        started = True
+                        yield text
+                return
+            except Exception as exc:
+                # Only fall back if nothing was sent yet; a half-written answer can't be resumed.
+                if started or not is_model_missing(exc):
+                    raise
+                mark_unavailable(model)
+    raise RuntimeError("No configured language model is available")
 
 
 @app.get("/")
 def read_root():
     return {"message": "Python AI Service is running"}
+
+
+@app.get("/healthz")
+def healthz():
+    """Liveness: the process is up. Deliberately independent of the LLM provider."""
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+async def readyz():
+    """Readiness: we hold an API key and at least one configured model exists at the provider."""
+    if not os.getenv("GROQ_API_KEY"):
+        raise HTTPException(503, "GROQ_API_KEY is not set")
+    model = await verify_models()
+    if model is None:
+        raise HTTPException(503, "No usable language model (provider unreachable or models retired)")
+    return {"status": "ready", "model": model}
 
 
 @app.get("/options")
@@ -155,6 +198,79 @@ async def read_pdf_upload(file: UploadFile) -> str:
             os.unlink(temp_pdf_path)
 
 
+def check_text(text: str) -> None:
+    """Rejects input that can't be summarized, before any LLM work or streaming starts."""
+    if not text.strip():
+        raise HTTPException(422, "No text found to summarize. Scanned PDFs (images) are not supported.")
+    if len(text) > MAX_TEXT_CHARS:
+        raise HTTPException(413, f"Text is too long (max {MAX_TEXT_CHARS} characters)")
+
+
+def check_documents(docs: list[tuple[str, str]]) -> None:
+    for name, text in docs:
+        if not text.strip():
+            raise HTTPException(422, f"No text found in {name}. Scanned PDFs (images) are not supported.")
+    if sum(len(text) for _, text in docs) > MAX_MULTI_TEXT_CHARS:
+        raise HTTPException(413, f"The documents are too long together (max {MAX_MULTI_TEXT_CHARS} characters)")
+
+
+# ---- Server-sent events -------------------------------------------------------------------
+# Each event is one line of JSON: {"type": "status" | "delta" | "done" | "error", ...}.
+
+def sse(event: dict) -> str:
+    return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+
+async def summary_event_stream(
+    prepare: Callable[[Optional[ProgressCallback]], Awaitable[str]],
+    done_extra: Optional[dict] = None,
+) -> AsyncIterator[str]:
+    """Runs `prepare` (which may do map-reduce work and reports progress), then streams the
+    final summary as it is generated. Failures become a final "error" event, since by the time
+    they happen the HTTP status line has already been sent."""
+    progress: asyncio.Queue = asyncio.Queue()
+    task: Optional[asyncio.Task] = None
+    try:
+        yield sse({"type": "status", "stage": "preparing"})
+
+        task = asyncio.create_task(prepare(lambda done, total: progress.put_nowait((done, total))))
+        while not task.done() or not progress.empty():
+            try:
+                done, total = await asyncio.wait_for(progress.get(), timeout=0.2)
+            except asyncio.TimeoutError:
+                continue
+            yield sse({"type": "status", "stage": "summarizing", "done": done, "total": total})
+        prompt = task.result()
+
+        yield sse({"type": "status", "stage": "writing"})
+        wrote_anything = False
+        async for piece in stream_llm(prompt):
+            wrote_anything = True
+            yield sse({"type": "delta", "text": piece})
+        if not wrote_anything:
+            raise ValueError("The model returned an empty or invalid summary.")
+
+        yield sse({"type": "done", **(done_extra or {})})
+    except HTTPException as exc:
+        yield sse({"type": "error", "status": exc.status_code, "message": exc.detail})
+    except Exception:
+        logger.exception("Streaming summarization failed")
+        yield sse({"type": "error", "status": 502, "message": SUMMARY_FAILED})
+    finally:
+        if task and not task.done():
+            task.cancel()
+
+
+def sse_response(stream: AsyncIterator[str]) -> StreamingResponse:
+    return StreamingResponse(
+        stream,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},  # no proxy buffering
+    )
+
+
+# ---- Endpoints ----------------------------------------------------------------------------
+
 @app.post("/summarize")
 async def summarize_file(
     file: UploadFile = File(...),
@@ -162,9 +278,16 @@ async def summarize_file(
     page_limit: int = Form(0),
     style: str = Form(DEFAULT_STYLE),
     language: str = Form(DEFAULT_LANGUAGE),
+    stream: bool = Query(False),
 ):
     validate_options(word_count, page_limit, style, language)
     text = await read_pdf_upload(file)
+    check_text(text)
+
+    if stream:
+        prepare = lambda progress: prepare_summary_prompt(text, word_count, page_limit, style, language, progress)
+        return sse_response(summary_event_stream(prepare, {"filename": file.filename, "text": text}))
+
     summary = await summarize_or_fail(text, word_count, page_limit, style, language)
     return {"filename": file.filename, "summary": summary, "text": text}
 
@@ -176,8 +299,15 @@ async def summarize_text(
     page_limit: int = Query(0),
     style: str = Query(DEFAULT_STYLE),
     language: str = Query(DEFAULT_LANGUAGE),
+    stream: bool = Query(False),
 ):
     validate_options(word_count, page_limit, style, language)
+    check_text(payload.text)
+
+    if stream:
+        prepare = lambda progress: prepare_summary_prompt(payload.text, word_count, page_limit, style, language, progress)
+        return sse_response(summary_event_stream(prepare))
+
     summary = await summarize_or_fail(payload.text, word_count, page_limit, style, language)
     return {"summary": summary}
 
@@ -189,20 +319,19 @@ async def summarize_multiple(
     page_limit: int = Form(0),
     style: str = Form(DEFAULT_STYLE),
     language: str = Form(DEFAULT_LANGUAGE),
+    stream: bool = Query(False),
 ):
     validate_options(word_count, page_limit, style, language)
     if not 1 <= len(files) <= MAX_FILES:
         raise HTTPException(422, f"Upload between 1 and {MAX_FILES} PDF files")
 
-    docs: list[tuple[str, str]] = []
-    for file in files:
-        text = await read_pdf_upload(file)
-        if not text.strip():
-            raise HTTPException(422, f"No text found in {file.filename}. Scanned PDFs (images) are not supported.")
-        docs.append((file.filename or "document.pdf", text))
+    docs = [(file.filename or "document.pdf", await read_pdf_upload(file)) for file in files]
+    check_documents(docs)
+    extra = {"filename": label_for(docs), "text": combine_documents(docs)}
 
-    if sum(len(text) for _, text in docs) > MAX_MULTI_TEXT_CHARS:
-        raise HTTPException(413, f"The documents are too long together (max {MAX_MULTI_TEXT_CHARS} characters)")
+    if stream:
+        prepare = lambda progress: prepare_multi_prompt(docs, word_count, page_limit, style, language, progress)
+        return sse_response(summary_event_stream(prepare, extra))
 
     try:
         summary = await process_multi_summary(docs, word_count, page_limit, style, language)
@@ -210,10 +339,8 @@ async def summarize_multiple(
         raise
     except Exception:
         logger.exception("Multi-document summarization failed")
-        raise HTTPException(502, "The language model failed to produce a summary. Please try again.")
-
-    combined_text = "\n\n".join(f"=== {name} ===\n{text}" for name, text in docs)
-    return {"filename": label_for(docs), "summary": summary, "text": combined_text}
+        raise HTTPException(502, SUMMARY_FAILED)
+    return {"filename": extra["filename"], "summary": summary, "text": extra["text"]}
 
 
 @app.post("/chat")
@@ -245,6 +372,8 @@ async def chat(payload: ChatPayload):
     return {"answer": answer}
 
 
+# ---- Summarization pipeline ---------------------------------------------------------------
+
 def label_for(docs: list[tuple[str, str]]) -> str:
     names = [name for name, _ in docs]
     if len(names) <= 2:
@@ -252,20 +381,20 @@ def label_for(docs: list[tuple[str, str]]) -> str:
     return f"{names[0]}, {names[1]} (+{len(names) - 2} more)"
 
 
+def combine_documents(docs: list[tuple[str, str]]) -> str:
+    return "\n\n".join(f"=== {name} ===\n{text}" for name, text in docs)
+
+
 async def summarize_or_fail(text: str, word_count: int, page_limit: int, style: str, language: str) -> str:
     """Runs the summarizer, turning failures into client-safe HTTP errors."""
-    if not text.strip():
-        raise HTTPException(422, "No text found to summarize. Scanned PDFs (images) are not supported.")
-    if len(text) > MAX_TEXT_CHARS:
-        raise HTTPException(413, f"Text is too long (max {MAX_TEXT_CHARS} characters)")
-
+    check_text(text)
     try:
         return await process_summary(text, word_count, page_limit, style, language)
     except HTTPException:
         raise
     except Exception:
         logger.exception("Summarization failed")
-        raise HTTPException(502, "The language model failed to produce a summary. Please try again.")
+        raise HTTPException(502, SUMMARY_FAILED)
 
 
 def split_text(text: str) -> list[str]:
@@ -273,18 +402,25 @@ def split_text(text: str) -> list[str]:
     return [chunk.page_content for chunk in splitter.create_documents([text])]
 
 
-async def condense(text: str) -> str:
-    """Map step: summarize each chunk, repeating until the result fits in a single reduce prompt."""
+async def condense(text: str, progress: Optional[ProgressCallback] = None) -> str:
+    """Map step: summarize each chunk, repeating until the result fits in a single reduce prompt.
+
+    `progress(done, total)` is called as each chunk of the current round finishes."""
     while True:
         chunks = split_text(text)
-        results = await asyncio.gather(
-            *(
-                call_llm(
-                    "Summarize the following text concisely, focusing on the key points:\n\n---\n\n" + chunk
-                )
-                for chunk in chunks
+        finished = 0
+
+        async def summarize_chunk(chunk: str) -> str:
+            nonlocal finished
+            result = await call_llm(
+                "Summarize the following text concisely, focusing on the key points:\n\n---\n\n" + chunk
             )
-        )
+            finished += 1
+            if progress:
+                progress(finished, len(chunks))
+            return result
+
+        results = await asyncio.gather(*(summarize_chunk(chunk) for chunk in chunks))
         combined = "\n\n".join(r for r in results if r)
         if not combined:
             raise ValueError("Failed to generate intermediate summaries from the document.")
@@ -298,6 +434,21 @@ def target_words_for(word_count: int, page_limit: int) -> int:
     return page_limit * WORDS_PER_PAGE if page_limit > 0 else word_count
 
 
+async def prepare_summary_prompt(
+    text: str,
+    word_count: int,
+    page_limit: int,
+    style: str = DEFAULT_STYLE,
+    language: str = DEFAULT_LANGUAGE,
+    progress: Optional[ProgressCallback] = None,
+) -> str:
+    """Builds the final prompt, doing any map-reduce condensing it needs first."""
+    target_words = target_words_for(word_count, page_limit)
+    if page_limit > 0 or len(text) > SINGLE_SHOT_MAX_CHARS:
+        return summary_prompt(await condense(text, progress), target_words, style, language, kind="summaries")
+    return summary_prompt(text, target_words, style, language, kind="text")
+
+
 async def process_summary(
     text: str,
     word_count: int,
@@ -305,17 +456,34 @@ async def process_summary(
     style: str = DEFAULT_STYLE,
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    target_words = target_words_for(word_count, page_limit)
-
-    if page_limit > 0 or len(text) > SINGLE_SHOT_MAX_CHARS:
-        prompt = summary_prompt(await condense(text), target_words, style, language, kind="summaries")
-    else:
-        prompt = summary_prompt(text, target_words, style, language, kind="text")
-
+    prompt = await prepare_summary_prompt(text, word_count, page_limit, style, language)
     summary = await call_llm(prompt)
     if not summary:
         raise ValueError("The model returned an empty or invalid summary.")
     return summary
+
+
+async def prepare_multi_prompt(
+    docs: list[tuple[str, str]],
+    word_count: int,
+    page_limit: int,
+    style: str = DEFAULT_STYLE,
+    language: str = DEFAULT_LANGUAGE,
+    progress: Optional[ProgressCallback] = None,
+) -> str:
+    """Builds the combined prompt for several documents. Long documents are condensed first so
+    the combined material fits in a single prompt and each document keeps its share of it."""
+
+    async def prepare(name: str, text: str) -> str:
+        body = await condense(text, progress) if len(text) > SINGLE_SHOT_MAX_CHARS // len(docs) else text
+        return f"### {name}\n{body}"
+
+    sections = await asyncio.gather(*(prepare(name, text) for name, text in docs))
+    material = "\n\n".join(sections)
+    if len(material) > REDUCE_MAX_CHARS:
+        material = await condense(material, progress)
+
+    return summary_prompt(material, target_words_for(word_count, page_limit), style, language, kind="documents")
 
 
 async def process_multi_summary(
@@ -325,21 +493,7 @@ async def process_multi_summary(
     style: str = DEFAULT_STYLE,
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    """Summarizes several documents into one. Long documents are condensed first so the
-    combined material fits in a single prompt and each document keeps its share of it."""
-
-    async def prepare(name: str, text: str) -> str:
-        body = await condense(text) if len(text) > SINGLE_SHOT_MAX_CHARS // len(docs) else text
-        return f"### {name}\n{body}"
-
-    sections = await asyncio.gather(*(prepare(name, text) for name, text in docs))
-    material = "\n\n".join(sections)
-    if len(material) > REDUCE_MAX_CHARS:
-        material = await condense(material)
-
-    prompt = summary_prompt(
-        material, target_words_for(word_count, page_limit), style, language, kind="documents"
-    )
+    prompt = await prepare_multi_prompt(docs, word_count, page_limit, style, language)
     summary = await call_llm(prompt)
     if not summary:
         raise ValueError("The model returned an empty or invalid summary.")
