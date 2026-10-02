@@ -7,7 +7,7 @@ the provider reports the current one as missing.
 import logging
 import os
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 from langchain_openai import ChatOpenAI
@@ -67,6 +67,7 @@ def mark_unavailable(model: str) -> None:
 def reset_unavailable() -> None:
     _unavailable.clear()
     _model_list_cache_clear()
+    breaker.reset()
 
 
 def is_model_missing(exc: BaseException) -> bool:
@@ -133,3 +134,65 @@ async def verify_models() -> Optional[str]:
     if chosen != candidate_models()[0]:
         logger.warning("Primary model unavailable; using fallback %s", chosen)
     return chosen
+
+
+# ---- Circuit breaker --------------------------------------------------------------------------
+# When the provider is down or rate limiting us, every request would otherwise burn through the
+# client's retries and timeouts (minutes per request) before failing. After a run of failures the
+# breaker opens and requests fail immediately for a cooldown, then a single probe is let through.
+
+class ServiceUnavailable(Exception):
+    """Raised instead of calling the provider while the circuit breaker is open."""
+
+
+class CircuitBreaker:
+    def __init__(self, threshold: int = 5, cooldown: float = 30.0, clock: Callable[[], float] = time.monotonic):
+        self.threshold = threshold
+        self.cooldown = cooldown
+        self._clock = clock
+        self._failures = 0
+        self._opened_at: Optional[float] = None
+        self._probing = False
+
+    @property
+    def is_open(self) -> bool:
+        return self._opened_at is not None
+
+    def allow(self) -> bool:
+        if self._opened_at is None:
+            return True
+        if self._clock() - self._opened_at >= self.cooldown and not self._probing:
+            self._probing = True  # half-open: let exactly one request test the provider
+            return True
+        return False
+
+    def success(self) -> None:
+        self._failures = 0
+        self._opened_at = None
+        self._probing = False
+
+    def failure(self) -> None:
+        self._failures += 1
+        if self._probing or self._failures >= self.threshold:
+            if self._opened_at is None:
+                logger.error("Language model circuit opened after %d consecutive failures", self._failures)
+            self._opened_at = self._clock()  # (re)start the cooldown
+            self._probing = False
+
+    def reset(self) -> None:
+        self.success()
+
+
+def counts_as_outage(exc: BaseException) -> bool:
+    """Provider-side trouble (timeouts, 5xx, rate limits) opens the breaker; caller-side errors
+    such as a bad request or an invalid key do not."""
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        return True  # connection errors, timeouts, anything without an HTTP status
+    return status in (408, 429) or status >= 500
+
+
+breaker = CircuitBreaker(
+    threshold=int(os.getenv("LLM_BREAKER_THRESHOLD", "5")),
+    cooldown=float(os.getenv("LLM_BREAKER_COOLDOWN_SECONDS", "30")),
+)

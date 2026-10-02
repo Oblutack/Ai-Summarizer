@@ -82,6 +82,7 @@ def test_stream_and_plain_responses_use_the_same_prompt(client, monkeypatch):
     fake = StreamFake()
     monkeypatch.setattr(main, "get_llm", lambda: fake)
     client.post("/summarize-text?stream=true&word_count=120&style=bullets", json={"text": "some text"})
+    main.summary_cache.clear()  # otherwise the second request is served from the cache
     client.post("/summarize-text?word_count=120&style=bullets", json={"text": "some text"})
     assert fake.prompts[0] == fake.prompts[1]
 

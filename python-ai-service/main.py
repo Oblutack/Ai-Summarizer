@@ -13,11 +13,25 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from pydantic import BaseModel
 
-from llm import active_model, candidate_models, get_llm, is_model_missing, mark_unavailable, verify_models
+from cache import from_env as cache_from_env
+from cache import summary_key
+from llm import (
+    ServiceUnavailable,
+    active_model,
+    breaker,
+    candidate_models,
+    counts_as_outage,
+    get_llm,
+    is_model_missing,
+    mark_unavailable,
+    verify_models,
+)
+from logging_setup import RequestContextMiddleware, configure_logging
 from prompts import (
     DEFAULT_LANGUAGE,
     DEFAULT_STYLE,
     LANGUAGES,
+    PROMPT_VERSION,
     STYLE_INSTRUCTIONS,
     chat_prompt,
     is_valid_language,
@@ -27,6 +41,7 @@ from prompts import (
 from retrieval import select_context
 
 load_dotenv()
+configure_logging()
 
 logger = logging.getLogger("ai-summarizer")
 
@@ -56,6 +71,9 @@ MAX_HISTORY_MESSAGES = 10
 MAX_HISTORY_MESSAGE_CHARS = 4_000
 
 SUMMARY_FAILED = "The language model failed to produce a summary. Please try again."
+BUSY_MESSAGE = "The AI service is busy right now. Please try again in a minute."
+
+summary_cache = cache_from_env()
 
 ProgressCallback = Callable[[int, int], None]
 
@@ -73,6 +91,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="AI Summarizer Service", lifespan=lifespan)
+app.add_middleware(RequestContextMiddleware)
 
 _llm_slots: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 
@@ -97,18 +116,34 @@ def _slots() -> asyncio.Semaphore:
     return _llm_slots.setdefault(asyncio.get_running_loop(), asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS))
 
 
+def to_http_error(exc: Exception, failure_message: str = SUMMARY_FAILED) -> HTTPException:
+    """Turns any failure into a client-safe HTTP error; internals are logged, never returned."""
+    if isinstance(exc, HTTPException):
+        return exc
+    if isinstance(exc, ServiceUnavailable):
+        return HTTPException(503, BUSY_MESSAGE, headers={"Retry-After": "30"})
+    logger.exception("Request failed", exc_info=exc)
+    return HTTPException(502, failure_message)
+
+
 async def call_llm(prompt: str) -> str:
     async with _slots():
         # If the provider says the model no longer exists, move to the next candidate and retry.
         for _ in candidate_models():
+            if not breaker.allow():
+                raise ServiceUnavailable("circuit open")
             model = active_model()
             try:
                 response = await get_llm().ainvoke(prompt)
+                breaker.success()
                 return (response.content or "").strip()
             except Exception as exc:
-                if not is_model_missing(exc):
-                    raise
-                mark_unavailable(model)
+                if is_model_missing(exc):
+                    mark_unavailable(model)
+                    continue
+                if counts_as_outage(exc):
+                    breaker.failure()
+                raise
     raise RuntimeError("No configured language model is available")
 
 
@@ -116,6 +151,8 @@ async def stream_llm(prompt: str) -> AsyncIterator[str]:
     """Yields the model's reply piece by piece, with the same model fallback as call_llm."""
     async with _slots():
         for _ in candidate_models():
+            if not breaker.allow():
+                raise ServiceUnavailable("circuit open")
             model = active_model()
             started = False
             try:
@@ -124,12 +161,16 @@ async def stream_llm(prompt: str) -> AsyncIterator[str]:
                     if text:
                         started = True
                         yield text
+                breaker.success()
                 return
             except Exception as exc:
                 # Only fall back if nothing was sent yet; a half-written answer can't be resumed.
-                if started or not is_model_missing(exc):
-                    raise
-                mark_unavailable(model)
+                if is_model_missing(exc) and not started:
+                    mark_unavailable(model)
+                    continue
+                if counts_as_outage(exc):
+                    breaker.failure()
+                raise
     raise RuntimeError("No configured language model is available")
 
 
@@ -152,6 +193,8 @@ async def readyz():
     model = await verify_models()
     if model is None:
         raise HTTPException(503, "No usable language model (provider unreachable or models retired)")
+    if breaker.is_open:
+        raise HTTPException(503, "The language model circuit breaker is open")
     return {"status": "ready", "model": model}
 
 
@@ -221,9 +264,13 @@ def sse(event: dict) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
 
+CACHED_PIECE_CHARS = 160
+
+
 async def summary_event_stream(
     prepare: Callable[[Optional[ProgressCallback]], Awaitable[str]],
     done_extra: Optional[dict] = None,
+    cache_key: Optional[str] = None,
 ) -> AsyncIterator[str]:
     """Runs `prepare` (which may do map-reduce work and reports progress), then streams the
     final summary as it is generated. Failures become a final "error" event, since by the time
@@ -232,6 +279,15 @@ async def summary_event_stream(
     task: Optional[asyncio.Task] = None
     try:
         yield sse({"type": "status", "stage": "preparing"})
+
+        cached = summary_cache.get(cache_key) if cache_key else None
+        if cached is not None:
+            # Same input and options as before: replay the stored summary without calling the LLM.
+            yield sse({"type": "status", "stage": "writing"})
+            for i in range(0, len(cached), CACHED_PIECE_CHARS):
+                yield sse({"type": "delta", "text": cached[i : i + CACHED_PIECE_CHARS]})
+            yield sse({"type": "done", **(done_extra or {})})
+            return
 
         task = asyncio.create_task(prepare(lambda done, total: progress.put_nowait((done, total))))
         while not task.done() or not progress.empty():
@@ -243,19 +299,19 @@ async def summary_event_stream(
         prompt = task.result()
 
         yield sse({"type": "status", "stage": "writing"})
-        wrote_anything = False
+        pieces: list[str] = []
         async for piece in stream_llm(prompt):
-            wrote_anything = True
+            pieces.append(piece)
             yield sse({"type": "delta", "text": piece})
-        if not wrote_anything:
+        if not pieces:
             raise ValueError("The model returned an empty or invalid summary.")
+        if cache_key:
+            summary_cache.put(cache_key, "".join(pieces))
 
         yield sse({"type": "done", **(done_extra or {})})
-    except HTTPException as exc:
-        yield sse({"type": "error", "status": exc.status_code, "message": exc.detail})
-    except Exception:
-        logger.exception("Streaming summarization failed")
-        yield sse({"type": "error", "status": 502, "message": SUMMARY_FAILED})
+    except Exception as exc:
+        error = to_http_error(exc)
+        yield sse({"type": "error", "status": error.status_code, "message": error.detail})
     finally:
         if task and not task.done():
             task.cancel()
@@ -286,7 +342,8 @@ async def summarize_file(
 
     if stream:
         prepare = lambda progress: prepare_summary_prompt(text, word_count, page_limit, style, language, progress)
-        return sse_response(summary_event_stream(prepare, {"filename": file.filename, "text": text}))
+        key = text_cache_key(text, word_count, page_limit, style, language)
+        return sse_response(summary_event_stream(prepare, {"filename": file.filename, "text": text}, key))
 
     summary = await summarize_or_fail(text, word_count, page_limit, style, language)
     return {"filename": file.filename, "summary": summary, "text": text}
@@ -306,7 +363,8 @@ async def summarize_text(
 
     if stream:
         prepare = lambda progress: prepare_summary_prompt(payload.text, word_count, page_limit, style, language, progress)
-        return sse_response(summary_event_stream(prepare))
+        key = text_cache_key(payload.text, word_count, page_limit, style, language)
+        return sse_response(summary_event_stream(prepare, None, key))
 
     summary = await summarize_or_fail(payload.text, word_count, page_limit, style, language)
     return {"summary": summary}
@@ -329,17 +387,18 @@ async def summarize_multiple(
     check_documents(docs)
     extra = {"filename": label_for(docs), "text": combine_documents(docs)}
 
+    key = multi_cache_key(docs, word_count, page_limit, style, language)
     if stream:
         prepare = lambda progress: prepare_multi_prompt(docs, word_count, page_limit, style, language, progress)
-        return sse_response(summary_event_stream(prepare, extra))
+        return sse_response(summary_event_stream(prepare, extra, key))
 
     try:
-        summary = await process_multi_summary(docs, word_count, page_limit, style, language)
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Multi-document summarization failed")
-        raise HTTPException(502, SUMMARY_FAILED)
+        summary = summary_cache.get(key)
+        if summary is None:
+            summary = await process_multi_summary(docs, word_count, page_limit, style, language)
+            summary_cache.put(key, summary)
+    except Exception as exc:
+        raise to_http_error(exc)
     return {"filename": extra["filename"], "summary": summary, "text": extra["text"]}
 
 
@@ -364,9 +423,8 @@ async def chat(payload: ChatPayload):
     try:
         context = select_context(payload.text, question, CHAT_CONTEXT_CHARS)
         answer = await call_llm(chat_prompt(context, history, question))
-    except Exception:
-        logger.exception("Chat failed")
-        raise HTTPException(502, "The language model failed to answer. Please try again.")
+    except Exception as exc:
+        raise to_http_error(exc, "The language model failed to answer. Please try again.")
     if not answer:
         raise HTTPException(502, "The language model returned an empty answer. Please try again.")
     return {"answer": answer}
@@ -388,13 +446,31 @@ def combine_documents(docs: list[tuple[str, str]]) -> str:
 async def summarize_or_fail(text: str, word_count: int, page_limit: int, style: str, language: str) -> str:
     """Runs the summarizer, turning failures into client-safe HTTP errors."""
     check_text(text)
+    key = text_cache_key(text, word_count, page_limit, style, language)
+    cached = summary_cache.get(key)
+    if cached is not None:
+        return cached
     try:
-        return await process_summary(text, word_count, page_limit, style, language)
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Summarization failed")
-        raise HTTPException(502, SUMMARY_FAILED)
+        summary = await process_summary(text, word_count, page_limit, style, language)
+    except Exception as exc:
+        raise to_http_error(exc)
+    summary_cache.put(key, summary)
+    return summary
+
+
+def text_cache_key(text: str, word_count: int, page_limit: int, style: str, language: str) -> str:
+    return summary_key("text", text, target_words_for(word_count, page_limit), style, language, active_model_or_none(), PROMPT_VERSION)
+
+
+def multi_cache_key(docs: list[tuple[str, str]], word_count: int, page_limit: int, style: str, language: str) -> str:
+    return summary_key("docs", combine_documents(docs), target_words_for(word_count, page_limit), style, language, active_model_or_none(), PROMPT_VERSION)
+
+
+def active_model_or_none() -> str:
+    try:
+        return active_model()
+    except RuntimeError:
+        return "none"
 
 
 def split_text(text: str) -> list[str]:

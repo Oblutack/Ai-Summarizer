@@ -1,5 +1,8 @@
 """Prompt construction for summaries and document chat."""
 
+# Bump when prompt wording changes so cached summaries made with the old wording are not reused.
+PROMPT_VERSION = "1"
+
 DEFAULT_STYLE = "default"
 DEFAULT_LANGUAGE = "English"
 
