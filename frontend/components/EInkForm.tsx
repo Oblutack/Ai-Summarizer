@@ -1,499 +1,68 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import axios, { CancelTokenSource } from "axios";
-import html2pdf from "html2pdf.js";
-import Markdown from "markdown-to-jsx";
 import { motion } from "framer-motion";
-import { LANGUAGES, MAX_FILES, SUMMARY_STYLES } from "../lib/summaryOptions";
+import { useSummarizer } from "../hooks/useSummarizer";
+import { saveElementAsPdf } from "../lib/pdfExport";
+import InputArea from "./summarizer/InputArea";
+import OutputPanel from "./summarizer/OutputPanel";
+import PageLimitPanel from "./summarizer/PageLimitPanel";
+import SummaryOptions from "./summarizer/SummaryOptions";
 
 interface EInkFormProps {
   endpoint: string;
   onSummaryCreated?: () => void;
 }
 
-export default function EInkForm({
-  onSummaryCreated,
-  endpoint,
-}: EInkFormProps) {
-  const [wordCount, setWordCount] = useState(150);
-  const [files, setFiles] = useState<File[]>([]);
-  const [style, setStyle] = useState("default");
-  const [language, setLanguage] = useState("English");
-  const [inputText, setInputText] = useState("");
-  const [summary, setSummary] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPageLimit, setShowPageLimit] = useState(false);
-  const [pageLimit, setPageLimit] = useState("");
-  const cancelTokenSourceRef = useRef<CancelTokenSource | null>(null);
-  const [progress, setProgress] = useState(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    const textWordCount = inputText.trim().split(/\s+/).length;
-
-    if (textWordCount > 1000 || files.length > 0) {
-      setShowPageLimit(true);
-    } else {
-      setShowPageLimit(false);
-    }
-  }, [inputText, files]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    e.target.value = ""; // allow picking the same file again after removing it
-    if (picked.length === 0) return;
-
-    const pdfs = picked.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
-    const merged = [...files];
-    for (const f of pdfs) {
-      if (!merged.some((m) => m.name === f.name && m.size === f.size)) {
-        merged.push(f);
-      }
-    }
-
-    if (pdfs.length < picked.length) {
-      setError("Only PDF files are supported.");
-    } else if (merged.length > MAX_FILES) {
-      setError(`You can attach up to ${MAX_FILES} PDFs at once.`);
-    } else {
-      setError("");
-    }
-    setFiles(merged.slice(0, MAX_FILES));
-    setInputText("");
-  };
-
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
-    // Keep the same array when already empty so typing doesn't re-render for nothing.
-    setFiles((prev) => (prev.length === 0 ? prev : []));
-    setError("");
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (files.length === 0 && !inputText) {
-      setError("Please attach a PDF or paste some text.");
-      return;
-    }
-
-    console.log("--- handleSubmit START ---");
-
-    setError("");
-    setSummary("");
-    setProgress(0);
-    setIsLoading(true);
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 95) {
-          clearInterval(interval); // Zaustavi se na 95%
-          return 95;
-        }
-        // Raste brzo na početku, a usporava kako se približava 95%
-        return prev + (100 - prev) / 20;
-      });
-    }, 800);
-
-    abortControllerRef.current = new AbortController();
-
-    // Kreiramo novi kontroler i čuvamo ga u ref
-    cancelTokenSourceRef.current = axios.CancelToken.source();
-    console.log(
-      "1. CREATED new AbortController:",
-      cancelTokenSourceRef.current
-    );
-
-    try {
-      const token = localStorage.getItem("token");
-      const headers: { [key: string]: string } = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      let response;
-      const config = {
-        headers: headers,
-        cancelToken: cancelTokenSourceRef.current.token, // Koristimo CancelToken
-      };
-
-      if (files.length > 0) {
-        headers["Content-Type"] = "multipart/form-data";
-        const formData = new FormData();
-        const multiple = files.length > 1;
-        files.forEach((f) => formData.append(multiple ? "files" : "file", f));
-        formData.append("wordCount", String(wordCount));
-        formData.append("pageLimit", pageLimit);
-        formData.append("style", style);
-        formData.append("language", language);
-        const fileEndpoint = multiple
-          ? endpoint.replace("summarize", "summarize-multiple")
-          : endpoint;
-        response = await axios.post(fileEndpoint, formData, config);
-      } else if (inputText) {
-        headers["Content-Type"] = "application/json";
-        const query = new URLSearchParams({
-          wordCount: String(wordCount),
-          pageLimit,
-          style,
-          language,
-        });
-        const textEndpoint = `${endpoint.replace(
-          "summarize",
-          "summarize-text"
-        )}?${query.toString()}`;
-        response = await axios.post(textEndpoint, { text: inputText }, config);
-      }
-
-      if (response) {
-        setSummary(response.data.summary);
-        if (onSummaryCreated) onSummaryCreated();
-      }
-    } catch (err) {
-      if (axios.isCancel(err)) {
-        setError("Summarization was cancelled.");
-      } else if (axios.isAxiosError(err) && err.response) {
-        setError(
-          err.response.data?.details ||
-            err.response.data?.error ||
-            "An error occurred."
-        );
-      } else {
-        setError("An unexpected error occurred.");
-      }
-    } finally {
-      clearInterval(interval);
-      setProgress(100);
-      setIsLoading(false);
-      cancelTokenSourceRef.current = null;
-      abortControllerRef.current = null;
-    }
-  };
-
-  const isSubmitDisabled = isLoading || (files.length === 0 && !inputText);
+export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) {
+  const s = useSummarizer({ endpoint, onSummaryCreated });
 
   const handleDownloadPDF = () => {
     const element = document.getElementById("summary-output-content");
-    if (!element) {
-      console.error("Could not find element to export.");
-      return;
-    }
-
-    const baseName =
-      files.length === 1
-        ? files[0].name.replace(/\.[^/.]+$/, "")
-        : files.length > 1
-        ? "combined-documents"
-        : "pasted-text";
-    const pdfFileName = baseName + "-summary.pdf";
-
-    const opt = {
-      margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
-      filename: pdfFileName,
-      image: { type: "jpeg" as const, quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#F5F0E6",
-        onclone: (document: Document) => {
-          const textureDiv = document.querySelector(
-            ".texture-div-for-pdf-export"
-          );
-          if (textureDiv && textureDiv instanceof HTMLElement) {
-            textureDiv.style.display = "none";
-          }
-        },
-      },
-      jsPDF: {
-        unit: "in" as const,
-        format: "letter" as const,
-        orientation: "portrait" as const,
-      },
-    };
-
-    html2pdf().from(element).set(opt).save();
-  };
-  const incrementPageLimit = () => {
-    // Pretvara string u broj, dodaje 1, i vraća nazad u string
-    setPageLimit(String(Number(pageLimit || 0) + 1));
-  };
-
-  const decrementPageLimit = () => {
-    // Smanjuje samo ako je broj veći od 1
-    const currentValue = Number(pageLimit || 0);
-    if (currentValue > 1) {
-      setPageLimit(String(currentValue - 1));
-    }
-  };
-
-  const handleCancel = () => {
-    if (cancelTokenSourceRef.current) {
-      cancelTokenSourceRef.current.cancel("Operation canceled by the user.");
-    }
+    if (element) saveElementAsPdf(element, `${s.exportBaseName}-summary.pdf`);
   };
 
   return (
     <div className="flex w-full flex-col lg:flex-row lg:space-x-8">
       <div className="flex-grow">
         <form
-          onSubmit={handleSubmit}
+          onSubmit={(e) => {
+            e.preventDefault();
+            s.submit();
+          }}
           className="w-full flex flex-col items-center space-y-6 text-xl md:text-2xl font-bebas"
         >
-          {/* --- Slider za broj riječi --- */}
-          <div className="w-full flex flex-col md:flex-row justify-center items-center md:space-x-4">
-            <label
-              htmlFor="word-count"
-              className={`uppercase tracking-widest ${
-                showPageLimit && "opacity-50"
-              }`}
-            >
-              Summary Word Count:
-            </label>
-            <div className="flex flex-col items-center my-2 md:my-0">
-              <input
-                id="word-count"
-                type="range"
-                disabled={showPageLimit}
-                min="50"
-                max="500"
-                step="10"
-                value={wordCount}
-                onChange={(e) => setWordCount(Number(e.target.value))}
-                className="w-60 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <div className="w-60 flex justify-between px-1 -mt-1 text-ink opacity-40 text-xs">
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-                <span>|</span>
-              </div>
-            </div>
-            <span
-              className={`w-28 text-center tracking-widest ${
-                showPageLimit && "opacity-50"
-              }`}
-            >
-              {wordCount} Words
-            </span>
-          </div>
+          <SummaryOptions
+            wordCount={s.wordCount}
+            onWordCountChange={s.setWordCount}
+            wordCountDisabled={s.showPageLimit}
+            style={s.style}
+            onStyleChange={s.setStyle}
+            language={s.language}
+            onLanguageChange={s.setLanguage}
+          />
 
-          {/* --- Stil i jezik --- */}
-          <div className="w-full flex flex-col md:flex-row justify-center items-center gap-4 md:gap-8">
-            <label className="flex items-center gap-3 uppercase tracking-widest">
-              Style
-              <select
-                value={style}
-                onChange={(e) => setStyle(e.target.value)}
-                className="bg-canvas border-2 border-ink rounded-md px-3 py-1 focus:outline-none cursor-pointer"
-              >
-                {SUMMARY_STYLES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-3 uppercase tracking-widest">
-              Language
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="bg-canvas border-2 border-ink rounded-md px-3 py-1 focus:outline-none cursor-pointer"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {/* --- Separator --- */}
           <hr className="w-full border-t-2 border-ink" />
 
-          {/* --- Input Polje --- */}
-          <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
-            <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
-              {files.length > 0 ? (
-                // auto margins on the first/last child center the list when it fits, but unlike
-                // justify-center they don't clip the top rows when it overflows and scrolls.
-                <div className="flex flex-col items-center h-full w-full gap-3 overflow-y-auto [&>:first-child]:mt-auto [&>:last-child]:mb-auto">
-                  {files.map((f, i) => (
-                    <div
-                      key={`${f.name}-${f.size}`}
-                      className="flex items-center justify-between space-x-4 border-2 border-dashed border-ink/50 px-3 py-1 rounded-md w-auto max-w-full"
-                    >
-                      <p className="text-lg md:text-xl tracking-wider text-center truncate">
-                        {f.name}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFile(i)}
-                        className="text-ink/50 hover:text-red-600 text-3xl leading-none flex-shrink-0"
-                        title="Remove file"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-                  {files.length < MAX_FILES && (
-                    <label
-                      htmlFor="pdf-upload"
-                      className="cursor-pointer border-2 border-ink px-4 py-1 rounded-md bg-canvas hover:bg-ink hover:text-canvas text-xl tracking-wider"
-                    >
-                      + ADD MORE PDFS
-                    </label>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* One textarea stays mounted for the whole typing session, so focus and the
-                      first keystroke are never lost to a swap between elements. */}
-                  <textarea
-                    id="main-textarea"
-                    value={inputText}
-                    onChange={handleTextChange}
-                    aria-label="Text to summarize"
-                    className="w-full h-full pb-12 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
-                  />
-                  {inputText ? (
-                    <label
-                      htmlFor="pdf-upload"
-                      className="absolute bottom-4 left-4 cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
-                    >
-                      <span className="text-2xl">📎</span>
-                      <span className="text-xl tracking-wider">ATTACH PDFS</span>
-                    </label>
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col justify-center items-center space-y-4 pointer-events-none">
-                      <p className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl">
-                        PASTE TEXT OR ATTACH PDF DOCUMENTS...
-                      </p>
-                      <label
-                        htmlFor="pdf-upload"
-                        className="pointer-events-auto cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas"
-                      >
-                        <span className="text-2xl">📎</span>
-                        <span className="text-xl tracking-wider">ATTACH PDFS</span>
-                      </label>
-                    </div>
-                  )}
-                </>
-              )}
+          <InputArea
+            files={s.files}
+            text={s.inputText}
+            onTextChange={s.changeText}
+            onFilesPicked={s.addFiles}
+            onRemoveFile={s.removeFile}
+          />
 
-              {/* Sakriveni input za fajl, uvek dostupan */}
-              <input
-                id="pdf-upload"
-                type="file"
-                className="hidden"
-                onChange={handleFileChange}
-                accept=".pdf"
-                multiple
-              />
-            </div>
-          </div>
+          {s.error && <p className="text-red-500 text-lg">{s.error}</p>}
 
-          {/* --- Ispis greške --- */}
-          {error && <p className="text-red-500 text-lg">{error}</p>}
+          <OutputPanel
+            summary={s.summary}
+            isLoading={s.isLoading}
+            progress={s.progress}
+            stageLabel={s.stageLabel}
+          />
 
-          {/* --- Output Polje --- */}
-          <div className="w-full h-72 p-2 border-2 border-ink rounded-md">
-            {/* Unutrašnji div sada ima ID i skrolovanje */}
-            <div className="w-full h-full p-4 border border-dashed border-ink/50 rounded-sm overflow-y-auto">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <p className="text-2xl md:text-3xl text-ink/70 tracking-widest uppercase">
-                    Summarizing...
-                  </p>
-                  <p className="font-bebas text-5xl text-ink font-bold my-4 tracking-wider">
-                    {Math.round(progress)}%
-                  </p>
-                  {/* --- NOVI, STILIZOVANI PROGRESS BAR --- */}
-                  {/* Spoljni kontejner sa punim okvirom */}
-                  <div className="w-full max-w-md p-1 border-2 border-ink rounded-md">
-                    {/* Unutrašnji div sa isprekidanim okvirom */}
-                    <div className="w-full h-8 border border-dashed border-ink/50 p-1">
-                      {/* Traka koja se puni */}
-                      <div
-                        className="bg-ink h-full"
-                        style={{ width: `${progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  id="summary-output-content"
-                  className="text-xl md:text-2xl text-ink/70 tracking-wider whitespace-pre-wrap text-left"
-                >
-                  <Markdown
-                    options={{
-                      overrides: {
-                        h1: {
-                          props: {
-                            className:
-                              "text-2xl md:text-3xl font-bold my-4 break-after-avoid'",
-                          },
-                        },
-                        h2: {
-                          props: {
-                            className:
-                              "text-xl md:text-2xl font-bold my-3 break-after-avoid'",
-                          },
-                        },
-                        p: { props: { className: "mb-4" } },
-                        ul: {
-                          props: {
-                            className: "list-disc list-inside mb-4 ml-4",
-                          },
-                        },
-                        ol: {
-                          props: {
-                            className: "list-decimal list-inside mb-4 ml-4",
-                          },
-                        },
-                        table: {
-                          props: { className: "border-collapse my-4 text-lg" },
-                        },
-                        th: {
-                          props: {
-                            className:
-                              "border border-ink/40 px-2 py-1 text-left align-top",
-                          },
-                        },
-                        td: {
-                          props: {
-                            className:
-                              "border border-ink/40 px-2 py-1 text-left align-top",
-                          },
-                        },
-                        strong: { props: { className: "text-ink" } },
-                      },
-                    }}
-                  >
-                    {summary || "SUMMARIZED TEXT OUTPUT APPEARS HERE."}
-                  </Markdown>
-                </div>
-              )}
-            </div>
-          </div>
-          {/*DUGME ZA EXPORT*/}
-          {!isLoading && (
+          {!s.isLoading && (
             <motion.button
               type="submit"
-              disabled={isSubmitDisabled}
+              disabled={!s.canSubmit}
               className="bg-ink text-canvas text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               whileTap={{ scale: 0.97 }}
               whileHover={{ scale: 1.03 }}
@@ -502,11 +71,12 @@ export default function EInkForm({
             </motion.button>
           )}
         </form>
-        {isLoading && (
+
+        {s.isLoading && (
           <div className="w-full flex justify-center mt-6">
             <button
               type="button"
-              onClick={handleCancel}
+              onClick={s.cancel}
               className="bg-red-600 text-white text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md hover:bg-red-700"
             >
               Cancel
@@ -514,7 +84,7 @@ export default function EInkForm({
           </div>
         )}
 
-        {summary && !isLoading && (
+        {s.summary && !s.isLoading && (
           <div className="mt-4 w-full flex justify-center">
             <button
               type="button"
@@ -527,54 +97,13 @@ export default function EInkForm({
         )}
       </div>
 
-      {/* --- DESNA STRANA: NOVI BLOK ZA PAGE LIMITER --- */}
-      {/* Ovaj div će se prikazati samo ako je showPageLimit === true */}
-      {showPageLimit && (
-        <div className="w-full lg:w-48 flex-shrink-0 mt-8 lg:mt-0 lg:pt-24 text-xl md:text-2xl font-bebas">
-          <h3 className="uppercase tracking-widest text-center mb-2">
-            Page Limit
-          </h3>
-          <div className="relative p-1 border-2 border-ink rounded-md">
-            <div className="border border-dashed border-ink/50 rounded-sm">
-              <input
-                type="number"
-                value={pageLimit}
-                onChange={(e) => setPageLimit(e.target.value)}
-                placeholder="e.g. 5"
-                className="w-full p-2 bg-transparent focus:outline-none text-center"
-              />
-            </div>
-            {/* --- DUGMIĆI ZA KONTROLU --- */}
-            {/* Kontejner za dugmiće, pozicioniran apsolutno sa desne strane */}
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col space-y-1">
-              {/* Dugme GORE */}
-              <button
-                type="button"
-                onClick={incrementPageLimit}
-                className="text-ink h-4 w-4 flex items-center justify-center hover:opacity-70"
-              >
-                {/* SVG trougao koji gleda gore */}
-                <svg viewBox="0 0 10 10" className="w-full h-full fill-current">
-                  <polygon points="5 2, 8 8, 2 8" />
-                </svg>
-              </button>
-              {/* Dugme DOLE */}
-              <button
-                type="button"
-                onClick={decrementPageLimit}
-                className="text-ink h-4 w-4 flex items-center justify-center hover:opacity-70"
-              >
-                {/* SVG trougao koji gleda dole */}
-                <svg viewBox="0 0 10 10" className="w-full h-full fill-current">
-                  <polygon points="5 8, 2 2, 8 2" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <p className="text-center text-base mt-2 text-ink/70">
-            (Approx. 250 words per page)
-          </p>
-        </div>
+      {s.showPageLimit && (
+        <PageLimitPanel
+          value={s.pageLimit}
+          onChange={s.setPageLimit}
+          onIncrement={s.incrementPageLimit}
+          onDecrement={s.decrementPageLimit}
+        />
       )}
     </div>
   );
