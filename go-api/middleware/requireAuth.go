@@ -1,53 +1,53 @@
 package middleware
 
 import (
-	"ai-summarizer/go-api/initializers"
-	"ai-summarizer/go-api/models"
-	"fmt"
+	"ai-summarizer/go-api/auth"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
+// Context keys set by RequireAuth.
+const (
+	UserKey      = "user"
+	SessionIDKey = "session_id"
+)
+
+// RequireAuth accepts a valid session from the session cookie (browsers) or an
+// "Authorization: Bearer <session token>" header (scripts and API clients). Unknown, expired and
+// revoked sessions are indistinguishable to the caller.
 func RequireAuth(c *gin.Context) {
-	scheme, tokenString, ok := strings.Cut(c.GetHeader("Authorization"), " ")
-	if !ok || scheme != "Bearer" || tokenString == "" {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-
-	// jwt.Parse also validates the exp claim.
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	session, user, err := auth.LookupSession(auth.TokenFromRequest(c))
+	if err != nil {
+		if err != auth.ErrInvalidSession {
+			slog.Error("session lookup failed", "request_id", RequestIDFrom(c), "error", err)
 		}
-		return []byte(os.Getenv("SECRET")), nil
-	}, jwt.WithExpirationRequired())
-	if err != nil || !token.Valid {
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Please log in again.", "code": "unauthenticated"})
 		return
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-	sub, ok := claims["sub"].(float64)
-	if !ok {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
+	c.Set(UserKey, *user)
+	c.Set(SessionIDKey, session.ID)
+	c.Next()
+}
 
-	var user models.User
-	if err := initializers.DB.First(&user, uint(sub)).Error; err != nil {
-		c.AbortWithStatus(http.StatusUnauthorized)
+// RequireVerifiedEmail blocks users who haven't confirmed their email. It only does anything when
+// REQUIRE_EMAIL_VERIFICATION=true, so deployments without a mail provider keep working.
+func RequireVerifiedEmail(c *gin.Context) {
+	if strings.ToLower(os.Getenv("REQUIRE_EMAIL_VERIFICATION")) != "true" {
+		c.Next()
 		return
 	}
-
-	c.Set("user", user)
+	user := CurrentUser(c)
+	if !user.EmailVerified() {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": "Please confirm your email address to use this feature. We sent you a link when you signed up.",
+			"code":  "email_not_verified",
+		})
+		return
+	}
 	c.Next()
 }

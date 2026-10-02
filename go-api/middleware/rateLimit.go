@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -76,6 +77,22 @@ func (l *RateLimiter) evictStale(now time.Time) {
 func RateLimit(l *RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !l.Allow(c.ClientIP()) {
+			c.Header("Retry-After", "60")
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "Too many requests. Please wait a moment and try again.",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
+// RateLimitUser limits per signed-in user instead of per IP, so people sharing a network (an
+// office, a university, a mobile carrier) don't throttle each other. Must run after RequireAuth.
+func RateLimitUser(l *RateLimiter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := "user:" + strconv.FormatUint(uint64(CurrentUser(c).ID), 10)
+		if !l.Allow(key) {
 			c.Header("Retry-After", "60")
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "Too many requests. Please wait a moment and try again.",
