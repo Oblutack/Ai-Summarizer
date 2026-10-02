@@ -40,9 +40,24 @@ services:
         condition: service_healthy
     environment:
       - DSN=host=postgres user=${POSTGRES_USER:-user} password=${POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-summarizer_db} port=5432 sslmode=disable
-      - SECRET=${SECRET:?set SECRET in .env}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
       - AI_SERVICE_URL=http://python-ai-service:10000
+      # Sessions: plain-http local development needs non-Secure cookies. In production use
+      # COOKIE_SECURE=true, and COOKIE_SAMESITE=none when the frontend and API are on different sites.
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      # Email: "log" prints links to the server log; brevo and resend send real mail.
+      - MAIL_PROVIDER=${MAIL_PROVIDER:-log}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - REQUIRE_EMAIL_VERIFICATION=${REQUIRE_EMAIL_VERIFICATION:-false}
+      # Abuse protection. Empty TURNSTILE_SECRET turns the human check off.
+      - TURNSTILE_SECRET=${TURNSTILE_SECRET:-}
+      - QUOTA_SUMMARIES_PER_DAY=${QUOTA_SUMMARIES_PER_DAY:-50}
+      - QUOTA_CHAT_PER_DAY=${QUOTA_CHAT_PER_DAY:-200}
     restart: unless-stopped
 
 volumes:

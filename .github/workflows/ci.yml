@@ -34,7 +34,8 @@ jobs:
         with:
           go-version-file: go-api/go.mod
       - run: go vet ./...
-      - run: go test ./...
+      # -race catches data races in the limiters, sessions and quota code.
+      - run: go test -race ./...
 
   python-ai-service:
     runs-on: ubuntu-latest
