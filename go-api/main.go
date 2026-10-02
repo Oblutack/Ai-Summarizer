@@ -5,18 +5,43 @@ import (
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/middleware"
 	"ai-summarizer/go-api/models"
+	"flag"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-func init() {
-	initializers.ConnectToDB()
+// listenAddr honors PORT (set by hosts like Render) and defaults to 8080.
+func listenAddr() string {
+	if port := os.Getenv("PORT"); port != "" {
+		return ":" + port
+	}
+	return ":8080"
+}
+
+// runHealthcheck probes the local server and exits 0/1. It exists so the minimal scratch-based
+// image, which has no shell or curl, can still define a container HEALTHCHECK.
+func runHealthcheck() {
+	client := http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://127.0.0.1" + listenAddr() + "/healthz")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 func main() {
+	healthcheck := flag.Bool("healthcheck", false, "probe the running server and exit")
+	flag.Parse()
+	if *healthcheck {
+		runHealthcheck()
+	}
+
+	initializers.ConnectToDB()
 	if err := initializers.DB.AutoMigrate(&models.User{}, &models.Document{}); err != nil {
 		log.Fatalf("database migration failed: %v", err)
 	}
@@ -42,6 +67,8 @@ func main() {
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from Go API Gateway"})
 	})
+	r.GET("/healthz", controllers.Healthz)
+	r.GET("/readyz", controllers.Readyz(controllers.DatabaseCheck(), controllers.AIServiceCheck()))
 	r.GET("/options", controllers.Options)
 	r.POST("/signup", authLimit, controllers.Signup)
 	r.POST("/login", authLimit, controllers.Login)
@@ -61,7 +88,7 @@ func main() {
 		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
 	}
 
-	if err := r.Run(":8080"); err != nil {
+	if err := r.Run(listenAddr()); err != nil {
 		log.Fatal(err)
 	}
 }
