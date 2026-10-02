@@ -61,16 +61,65 @@ func saveDocument(c *gin.Context, title string, result *aiSummary) {
 	}
 }
 
+const (
+	defaultPageSize = 20
+	maxPageSize     = 100
+	// NextCursorHeader carries the cursor for the next page; it is empty on the last page.
+	NextCursorHeader = "X-Next-Cursor"
+)
+
+// parsePage reads ?limit= and ?before= (a document id; only older documents are returned).
+func parsePage(limit, before string) (int, uint64, *apiError) {
+	size := defaultPageSize
+	if limit != "" {
+		n, err := strconv.Atoi(limit)
+		if err != nil || n < 1 {
+			return 0, 0, &apiError{http.StatusBadRequest, "limit must be a positive number."}
+		}
+		size = min(n, maxPageSize)
+	}
+
+	var cursor uint64
+	if before != "" {
+		n, err := strconv.ParseUint(before, 10, 64)
+		if err != nil {
+			return 0, 0, &apiError{http.StatusBadRequest, "before must be a document id."}
+		}
+		cursor = n
+	}
+	return size, cursor, nil
+}
+
+// ListDocuments returns the signed-in user's documents, newest first, one page at a time.
+// Pass the X-Next-Cursor response header back as ?before= to get the following page.
 func ListDocuments(c *gin.Context) {
 	user := c.MustGet("user").(models.User)
 
+	size, before, apiErr := parsePage(c.Query("limit"), c.Query("before"))
+	if apiErr != nil {
+		apiErr.send(c)
+		return
+	}
+
 	// Content can be hundreds of KB per document and is never shown in the list.
+	query := initializers.DB.Omit("content").Where("user_id = ?", user.ID)
+	if before > 0 {
+		query = query.Where("id < ?", before)
+	}
+
+	// Fetch one extra row to learn whether another page exists without a second count query.
 	var documents []models.Document
-	if err := initializers.DB.Omit("content").Where("user_id = ?", user.ID).Find(&documents).Error; err != nil {
+	if err := query.Order("id DESC").Limit(size + 1).Find(&documents).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load documents"})
 		return
 	}
 
+	next := ""
+	if len(documents) > size {
+		documents = documents[:size]
+		next = strconv.FormatUint(uint64(documents[size-1].ID), 10)
+	}
+	c.Header(NextCursorHeader, next)
 	c.JSON(http.StatusOK, documents)
 }
 
