@@ -3,14 +3,13 @@ package main
 import (
 	"ai-summarizer/go-api/controllers"
 	"ai-summarizer/go-api/initializers"
-	"ai-summarizer/go-api/middleware"
+	"ai-summarizer/go-api/mailer"
+	"ai-summarizer/go-api/server"
 	"flag"
 	"net/http"
 	"os"
+	"strings"
 	"time"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 )
 
 // listenAddr honors PORT (set by hosts like Render) and defaults to 8080.
@@ -48,47 +47,21 @@ func main() {
 	}
 	logger.Info("database migrations up to date")
 
-	r := gin.New()
-	r.Use(middleware.RequestID(), middleware.AccessLog(logger), middleware.Recover(logger))
+	// A bad MAIL_PROVIDER or missing key fails here, at startup, not silently at the first reset.
+	m, err := mailer.FromEnv()
+	if err != nil {
+		logger.Error("mail configuration is invalid", "error", err)
+		os.Exit(1)
+	}
+	controllers.Mail = m
+	if provider := strings.ToLower(os.Getenv("MAIL_PROVIDER")); provider == "" || provider == "log" {
+		logger.Warn("MAIL_PROVIDER is not set: emails are only written to the log, never sent")
+	}
 
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000", "https://ai-summarizer-ten-tan.vercel.app"}
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
-	config.ExposeHeaders = []string{controllers.NextCursorHeader} // lets the browser read the page cursor
-	r.Use(cors.New(config))
-
-	// Summaries are expensive LLM calls, so they get a tighter budget than auth.
-	summarizeLimit := middleware.RateLimit(middleware.NewRateLimiter(6, 3))
-	authLimit := middleware.RateLimit(middleware.NewRateLimiter(20, 10))
-	fileBody := middleware.MaxBody(controllers.MaxPDFBytes + 1<<20)
-	multiBody := middleware.MaxBody(controllers.MaxMultiBytes + 1<<20)
-	textBody := middleware.MaxBody(controllers.MaxTextBytes)
-	chatBody := middleware.MaxBody(controllers.MaxTextBytes)
-	chatLimit := middleware.RateLimit(middleware.NewRateLimiter(20, 10))
-
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Hello from Go API Gateway"})
-	})
-	r.GET("/healthz", controllers.Healthz)
-	r.GET("/readyz", controllers.Readyz(controllers.DatabaseCheck(), controllers.AIServiceCheck()))
-	r.GET("/options", controllers.Options)
-	r.POST("/signup", authLimit, controllers.Signup)
-	r.POST("/login", authLimit, controllers.Login)
-	r.POST("/auth/google", authLimit, controllers.GoogleLogin)
-	r.POST("/public/summarize", summarizeLimit, fileBody, controllers.PublicSummarize)
-	r.POST("/public/summarize-multiple", summarizeLimit, multiBody, controllers.PublicSummarizeMultiple)
-	r.POST("/public/summarize-text", summarizeLimit, textBody, controllers.PublicSummarizeText)
-
-	authorized := r.Group("/")
-	authorized.Use(middleware.RequireAuth)
-	{
-		authorized.POST("/summarize", summarizeLimit, fileBody, controllers.CreateSummary)
-		authorized.POST("/summarize-multiple", summarizeLimit, multiBody, controllers.CreateSummaryMultiple)
-		authorized.POST("/summarize-text", summarizeLimit, textBody, controllers.CreateSummaryText)
-		authorized.POST("/documents/:id/chat", chatLimit, chatBody, controllers.ChatWithDocument)
-		authorized.GET("/documents", controllers.ListDocuments)
-		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
+	r, err := server.NewRouter(logger, server.DefaultRates)
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
 	}
 
 	logger.Info("listening", "addr", listenAddr())

@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
-	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	golang.org/x/crypto v0.43.0
 	google.golang.org/api v0.256.0

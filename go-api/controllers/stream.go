@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"ai-summarizer/go-api/middleware"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,7 @@ func writeEvent(c *gin.Context, event map[string]any) {
 func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 	resp, err := aiHTTPClient.Do(ar.req)
 	if err != nil {
+		middleware.RefundQuota(c)
 		(&apiError{http.StatusGatewayTimeout, "The AI service is unavailable or took too long to respond."}).send(c)
 		return
 	}
@@ -44,6 +46,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		middleware.RefundQuota(c)
 		upstreamError(resp.StatusCode, body).send(c)
 		return
 	}
@@ -105,6 +108,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 				fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
 				c.Writer.Flush()
 				if kind == "error" {
+					middleware.RefundQuota(c) // the user got no complete summary
 					return
 				}
 			}
@@ -116,6 +120,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 	}
 
 	if !finished && c.Request.Context().Err() == nil {
+		middleware.RefundQuota(c)
 		writeEvent(c, map[string]any{"type": "error", "status": http.StatusBadGateway, "message": "The summary stream ended unexpectedly. Please try again."})
 	}
 }

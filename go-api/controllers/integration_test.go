@@ -4,51 +4,26 @@ package controllers
 //
 //	TEST_DSN="host=localhost port=5433 user=user password=... dbname=summarizer_test sslmode=disable"
 //
-// They DROP the public schema, so the database name must contain "test".
+// They run in a schema of their own (see testutil), and the database name must contain "test".
 
 import (
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/models"
+	"ai-summarizer/go-api/testutil"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func testDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv("TEST_DSN")
-	if dsn == "" {
-		t.Skip("TEST_DSN not set; skipping Postgres integration test")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	var name string
-	if err := db.Raw("SELECT current_database()").Scan(&name).Error; err != nil || !strings.Contains(name, "test") {
-		t.Fatalf("refusing to wipe database %q: its name must contain \"test\"", name)
-	}
-	if err := db.Exec("DROP SCHEMA public CASCADE").Error; err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Exec("CREATE SCHEMA public").Error; err != nil {
-		t.Fatal(err)
-	}
-	initializers.DB = db
-	t.Cleanup(func() {
-		if sqlDB, err := db.DB(); err == nil {
-			sqlDB.Close()
-		}
-	})
-	return db
+	return testutil.EmptyDB(t, "ctrltest")
 }
 
 func migrated(t *testing.T) *gorm.DB {
@@ -75,17 +50,17 @@ func TestMigrationsBuildAFreshDatabase(t *testing.T) {
 	db := migrated(t)
 
 	for _, table := range []string{"users", "documents"} {
-		if scalar[int](t, db, "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", table) != 1 {
+		if scalar[int](t, db, "SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = ?", table) != 1 {
 			t.Errorf("table %s missing", table)
 		}
 	}
-	if scalar[int](t, db, "SELECT count(*) FROM pg_indexes WHERE indexname = 'idx_documents_user_id_id'") != 1 {
+	if scalar[int](t, db, "SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_documents_user_id_id'") != 1 {
 		t.Error("the user/id index is missing")
 	}
-	if scalar[string](t, db, "SELECT is_nullable FROM information_schema.columns WHERE table_name='documents' AND column_name='has_content'") != "NO" {
+	if scalar[string](t, db, "SELECT is_nullable FROM information_schema.columns WHERE table_schema = current_schema() AND table_name='documents' AND column_name='has_content'") != "NO" {
 		t.Error("has_content should be NOT NULL")
 	}
-	if scalar[int](t, db, "SELECT count(*) FROM pg_constraint WHERE conname = 'uni_users_email'") != 1 {
+	if scalar[int](t, db, "SELECT count(*) FROM pg_constraint WHERE connamespace = current_schema()::regnamespace AND conname = 'uni_users_email'") != 1 {
 		t.Error("the unique email constraint is missing")
 	}
 

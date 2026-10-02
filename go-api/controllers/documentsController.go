@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"ai-summarizer/go-api/initializers"
+	"ai-summarizer/go-api/middleware"
 	"ai-summarizer/go-api/models"
 	"net/http"
 	"strconv"
@@ -16,6 +17,7 @@ func respond(c *gin.Context, build summaryBuilder, save bool, label string) {
 	if wantsStream(c) {
 		ar, apiErr := build(c, true)
 		if apiErr != nil {
+			middleware.RefundQuota(c) // nothing was summarized, so nothing should be charged
 			apiErr.send(c)
 			return
 		}
@@ -25,6 +27,7 @@ func respond(c *gin.Context, build summaryBuilder, save bool, label string) {
 
 	result, apiErr := buffered(build)(c)
 	if apiErr != nil {
+		middleware.RefundQuota(c)
 		apiErr.send(c)
 		return
 	}
@@ -48,7 +51,7 @@ func CreateSummaryText(c *gin.Context)       { respond(c, buildTextRequest, true
 // saveDocument stores the summary for the authenticated user. The summary is still
 // returned to the client if saving fails, so a DB hiccup doesn't waste the LLM call.
 func saveDocument(c *gin.Context, title string, result *aiSummary) {
-	user := c.MustGet("user").(models.User)
+	user := middleware.CurrentUser(c)
 	document := models.Document{
 		Filename:   title,
 		Summary:    result.Summary,
@@ -93,7 +96,7 @@ func parsePage(limit, before string) (int, uint64, *apiError) {
 // ListDocuments returns the signed-in user's documents, newest first, one page at a time.
 // Pass the X-Next-Cursor response header back as ?before= to get the following page.
 func ListDocuments(c *gin.Context) {
-	user := c.MustGet("user").(models.User)
+	user := middleware.CurrentUser(c)
 
 	size, before, apiErr := parsePage(c.Query("limit"), c.Query("before"))
 	if apiErr != nil {
@@ -124,7 +127,7 @@ func ListDocuments(c *gin.Context) {
 }
 
 func DeleteDocument(c *gin.Context) {
-	user := c.MustGet("user").(models.User)
+	user := middleware.CurrentUser(c)
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {

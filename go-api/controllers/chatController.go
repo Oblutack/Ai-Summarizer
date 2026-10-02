@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"ai-summarizer/go-api/initializers"
+	"ai-summarizer/go-api/middleware"
 	"ai-summarizer/go-api/models"
 	"bytes"
 	"encoding/json"
@@ -56,7 +57,7 @@ func (r *chatRequest) validate() *apiError {
 
 // ChatWithDocument answers a question about one of the signed-in user's saved documents.
 func ChatWithDocument(c *gin.Context) {
-	user := c.MustGet("user").(models.User)
+	user := middleware.CurrentUser(c)
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -100,6 +101,7 @@ func ChatWithDocument(c *gin.Context) {
 
 	respBody, apiErr := callAIService(req)
 	if apiErr != nil {
+		middleware.RefundQuota(c)
 		apiErr.send(c)
 		return
 	}
@@ -107,6 +109,7 @@ func ChatWithDocument(c *gin.Context) {
 		Answer string `json:"answer"`
 	}
 	if err := json.Unmarshal(respBody, &out); err != nil || strings.TrimSpace(out.Answer) == "" {
+		middleware.RefundQuota(c)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "The AI service returned an empty answer."})
 		return
 	}

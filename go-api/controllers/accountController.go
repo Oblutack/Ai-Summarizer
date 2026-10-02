@@ -1,0 +1,113 @@
+package controllers
+
+import (
+	"ai-summarizer/go-api/auth"
+	"ai-summarizer/go-api/initializers"
+	"ai-summarizer/go-api/middleware"
+	"ai-summarizer/go-api/models"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+)
+
+// Usage reports how much of today's allowance the signed-in user has used.
+func Usage(c *gin.Context) {
+	user := middleware.CurrentUser(c)
+	summaries, chats, err := middleware.UsageToday(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load usage"})
+		return
+	}
+
+	now := time.Now().UTC()
+	resets := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
+	c.JSON(http.StatusOK, gin.H{
+		"summaries": gin.H{"used": summaries, "limit": middleware.QuotaLimit(middleware.QuotaSummaries)},
+		"chats":     gin.H{"used": chats, "limit": middleware.QuotaLimit(middleware.QuotaChats)},
+		"resetsAt":  resets,
+	})
+}
+
+// ExportAccount downloads everything we hold about the user as a JSON file: the account itself,
+// every saved summary together with the source text kept for chat, and recent usage.
+func ExportAccount(c *gin.Context) {
+	user := middleware.CurrentUser(c)
+
+	var documents []models.Document
+	if err := initializers.DB.Where("user_id = ?", user.ID).Order("id ASC").Find(&documents).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export your data"})
+		return
+	}
+	docs := make([]gin.H, 0, len(documents))
+	for _, d := range documents {
+		docs = append(docs, gin.H{
+			"id": d.ID, "filename": d.Filename, "createdAt": d.CreatedAt,
+			"summary": d.Summary, "sourceText": d.Content,
+		})
+	}
+
+	type usageRow struct {
+		Day       string `json:"day"`
+		Summaries int    `json:"summaries"`
+		Chats     int    `json:"chats"`
+	}
+	var usage []usageRow
+	initializers.DB.Raw(`SELECT day::text AS day, summaries, chats FROM daily_usage WHERE user_id = ? ORDER BY day`, user.ID).Scan(&usage)
+
+	securityEvent(c, "account_exported", user.ID)
+	c.Header("Content-Disposition", `attachment; filename="ai-summarizer-export.json"`)
+	c.JSON(http.StatusOK, gin.H{
+		"exportedAt": time.Now().UTC(),
+		"account": gin.H{
+			"email": user.Email, "createdAt": user.CreatedAt, "emailVerified": user.EmailVerified(),
+		},
+		"documents": docs,
+		"usage":     usage,
+	})
+}
+
+// DeleteAccount permanently deletes the account and everything attached to it. Because it can't be
+// undone, it asks the user to type their email and, if they have a password, to enter it too: a
+// stolen session alone isn't enough to destroy an account.
+func DeleteAccount(c *gin.Context) {
+	user := middleware.CurrentUser(c)
+	var body struct {
+		ConfirmEmail string `json:"confirmEmail"`
+		Password     string `json:"password"`
+	}
+	if !bindJSON(c, &body) {
+		return
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(body.ConfirmEmail), user.Email) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Type your account email exactly to confirm."})
+		return
+	}
+	if user.HasPassword && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)) != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Your password is incorrect.", "code": "wrong_password"})
+		return
+	}
+
+	err := initializers.DB.Transaction(func(tx *gorm.DB) error {
+		// Documents have no foreign key (they predate it), and are soft-deletable: remove them for real.
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.Document{}).Error; err != nil {
+			return err
+		}
+		// Sessions, email tokens and usage cascade from the user row.
+		return tx.Unscoped().Delete(&models.User{}, user.ID).Error
+	})
+	if err != nil {
+		slog.Error("deleting account failed", "user_id", user.ID, "error", err, "request_id", middleware.RequestIDFrom(c))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete your account. Nothing was changed."})
+		return
+	}
+
+	auth.ClearSessionCookie(c)
+	securityEvent(c, "account_deleted", user.ID)
+	c.JSON(http.StatusOK, gin.H{"message": "Your account and all its data were deleted."})
+}

@@ -25,14 +25,37 @@ func TestNormalizeEmail(t *testing.T) {
 }
 
 func TestValidatePassword(t *testing.T) {
-	if validatePassword("short") == nil {
+	if validatePassword("short", "") == nil {
 		t.Error("short password should fail")
 	}
-	if validatePassword(strings.Repeat("x", 73)) == nil {
+	if validatePassword(strings.Repeat("x", 73), "") == nil {
 		t.Error("password over 72 bytes should fail")
 	}
-	if err := validatePassword("long-enough-1"); err != nil {
+	if err := validatePassword("long-enough-1", ""); err != nil {
 		t.Errorf("valid password rejected: %v", err)
+	}
+}
+
+func TestCommonPasswordsAreRejectedInAnyCase(t *testing.T) {
+	for _, p := range []string{"password", "PASSWORD", "Password123", "12345678", "QWERTY123", "iloveyou"} {
+		if validatePassword(p, "") == nil {
+			t.Errorf("%q should be rejected as too common", p)
+		}
+	}
+}
+
+func TestPasswordCannotBeTheEmail(t *testing.T) {
+	if validatePassword("someone@example.com", "someone@example.com") == nil {
+		t.Error("the email itself must not be accepted as a password")
+	}
+	if validatePassword("SOMEONE@example.com", "someone@example.com") == nil {
+		t.Error("nor a differently-cased copy of it")
+	}
+	if validatePassword("someonexyz", "someonexyz@example.com") == nil {
+		t.Error("nor the part before the @")
+	}
+	if err := validatePassword("a-different-passphrase", "someone@example.com"); err != nil {
+		t.Errorf("unrelated password rejected: %v", err)
 	}
 }
 
