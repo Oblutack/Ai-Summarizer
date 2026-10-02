@@ -127,6 +127,16 @@ Summarization and chat endpoints are rate limited per IP. PDFs are capped at 10 
 
 Documents saved before the chat feature existed have no stored source text, so chat is only offered for documents summarized after it was added.
 
+### Operations
+
+- **Health:** both services expose `/healthz` (liveness) and `/readyz` (readiness: database and AI service reachable, a language model available). Docker Compose waits on these.
+- **Migrations:** the schema is managed with SQL migrations in `go-api/migrations/`, applied automatically on startup. Add a new numbered `.up.sql`/`.down.sql` pair for any schema change.
+- **Logging:** JSON lines on stdout with a request id (`X-Request-ID`) that is passed from the Go API to the AI service, so one id traces a request through both. Set `LOG_FORMAT=text` for readable local logs and `LOG_LEVEL=debug|info|warn|error`.
+- **Resilience:** repeated provider failures open a circuit breaker so requests fail fast with a 503 instead of hanging (`LLM_BREAKER_THRESHOLD`, `LLM_BREAKER_COOLDOWN_SECONDS`). If a configured model is retired the AI service falls back to the next one in `LLM_FALLBACK_MODELS`.
+- **Caching:** identical summarize requests (same text, options and model) are answered from an in-memory cache (`SUMMARY_CACHE_SIZE`, `SUMMARY_CACHE_TTL_SECONDS`; set the size to `0` to disable).
+- **Pagination:** `GET /documents?limit=20&before=<id>` returns newest first; the next cursor is in the `X-Next-Cursor` response header.
+- **Integration tests:** set `TEST_DSN` to a Postgres database whose name contains `test` to run the migration and pagination tests (they wipe that database's schema).
+
 ---
 
 ## Usage
