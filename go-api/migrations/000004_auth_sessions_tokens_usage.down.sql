@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS daily_usage;
+DROP TABLE IF EXISTS email_tokens;
+DROP TABLE IF EXISTS sessions;
+ALTER TABLE users DROP COLUMN IF EXISTS has_password;
+ALTER TABLE users DROP COLUMN IF EXISTS email_verified_at;
