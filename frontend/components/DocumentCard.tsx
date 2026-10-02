@@ -1,21 +1,20 @@
 "use client";
-import type { Document } from "../types";
-import { DownloadIcon, TrashIcon } from "./Icon";
-import html2pdf from "html2pdf.js";
 import Markdown from "markdown-to-jsx";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import type { Document } from "../types";
+import { createMarkdownOptions } from "../lib/markdown";
+import { saveElementAsPdf } from "../lib/pdfExport";
 import DocumentChat from "./DocumentChat";
+import { DownloadIcon, TrashIcon } from "./Icon";
 
 interface DocumentCardProps {
   doc: Document;
   onDelete: (id: number) => void;
 }
 
-const cardVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: { y: 0, opacity: 1 },
-};
+// Saved cards use larger body text than the live form.
+const markdownOptions = createMarkdownOptions("text-2xl");
 
 export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
   const [chatOpen, setChatOpen] = useState(false);
@@ -23,42 +22,25 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
   const handleDownloadPDF = () => {
     const element = document.getElementById(`doc-content-${doc.ID}`);
     if (!element) return;
-
-    const pdfFileName = doc.Filename.replace(/\.[^/.]+$/, "") + "-summary.pdf";
-
-    const opt = {
-      margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
-      filename: pdfFileName,
-      image: { type: "jpeg" as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: "#F5F0E6" },
-      jsPDF: {
-        unit: "in" as const,
-        format: "letter" as const,
-        orientation: "portrait" as const,
-      },
-    };
-
-    html2pdf().from(element).set(opt).save();
+    saveElementAsPdf(element, doc.Filename.replace(/\.[^/.]+$/, "") + "-summary.pdf");
   };
 
   return (
     <motion.div
-      layout // Ova magična reč kaže Frameru da animira promenu pozicije
+      layout // animate position changes when cards are added or removed
       initial={{ opacity: 0, y: 50, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }} // Animacija za nestajanje
+      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
       className="bg-canvas border-2 border-ink p-6 rounded-md"
     >
       <div className="flex justify-between items-start">
-        <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">
-          {doc.Filename}
-        </h3>
+        <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">{doc.Filename}</h3>
 
-        {/* --- NOVI KONTEJNER ZA DUGMAD --- */}
         <div className="flex-shrink-0 flex items-center space-x-4">
           <button
             onClick={handleDownloadPDF}
             title="Save as PDF"
+            aria-label={`Save ${doc.Filename} as PDF`}
             className="text-ink hover:opacity-70"
           >
             <DownloadIcon className="w-8 h-8" />
@@ -67,61 +49,21 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
           <button
             onClick={() => onDelete(doc.ID)}
             title="Delete Summary"
+            aria-label={`Delete ${doc.Filename}`}
             className="text-red-600 hover:opacity-70"
           >
             <TrashIcon className="w-7 h-7" />
           </button>
         </div>
-        {/* --- KRAJ NOVOG KONTEJNERA --- */}
       </div>
 
-      <p className="text-ink/70 text-lg">
-        Created on: {new Date(doc.CreatedAt).toLocaleDateString()}
-      </p>
+      <p className="text-ink/70 text-lg">Created on: {new Date(doc.CreatedAt).toLocaleDateString()}</p>
 
       <div className="max-h-48 overflow-y-auto">
-        {/* Kontejner sa jedinstvenim ID-jem */}
+        {/* The id is how the PDF export finds this card's content. */}
         <div id={`doc-content-${doc.ID}`}>
           <hr className="border-t border-dashed border-ink/50 my-3" />
-          <Markdown
-            options={{
-              overrides: {
-                h1: { props: { className: "text-3xl font-bold my-4" } },
-                h2: { props: { className: "text-2xl font-bold my-3" } },
-
-                p: { props: { className: "mb-4 text-2xl" } },
-                ul: {
-                  props: {
-                    className: "list-disc list-inside mb-4 ml-4 text-2xl",
-                  },
-                },
-                ol: {
-                  props: {
-                    className: "list-decimal list-inside mb-4 ml-4 text-2xl",
-                  },
-                },
-
-                table: {
-                  props: { className: "border-collapse my-4 text-lg" },
-                },
-                th: {
-                  props: {
-                    className:
-                      "border border-ink/40 px-2 py-1 text-left align-top",
-                  },
-                },
-                td: {
-                  props: {
-                    className:
-                      "border border-ink/40 px-2 py-1 text-left align-top",
-                  },
-                },
-                strong: { props: { className: "text-ink" } },
-              },
-            }}
-          >
-            {doc.Summary}
-          </Markdown>
+          <Markdown options={markdownOptions}>{doc.Summary}</Markdown>
         </div>
       </div>
 
