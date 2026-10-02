@@ -4,9 +4,7 @@ import (
 	"ai-summarizer/go-api/controllers"
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/middleware"
-	"ai-summarizer/go-api/models"
 	"flag"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -41,18 +39,23 @@ func main() {
 		runHealthcheck()
 	}
 
-	initializers.ConnectToDB()
-	if err := initializers.DB.AutoMigrate(&models.User{}, &models.Document{}); err != nil {
-		log.Fatalf("database migration failed: %v", err)
-	}
-	log.Println("database migration completed")
+	logger := initializers.SetupLogger()
 
-	r := gin.Default()
+	initializers.ConnectToDB()
+	if err := initializers.RunMigrations(); err != nil {
+		logger.Error("database migration failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("database migrations up to date")
+
+	r := gin.New()
+	r.Use(middleware.RequestID(), middleware.AccessLog(logger), middleware.Recover(logger))
 
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{"http://localhost:3000", "https://ai-summarizer-ten-tan.vercel.app"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
+	config.ExposeHeaders = []string{controllers.NextCursorHeader} // lets the browser read the page cursor
 	r.Use(cors.New(config))
 
 	// Summaries are expensive LLM calls, so they get a tighter budget than auth.
@@ -88,7 +91,9 @@ func main() {
 		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
 	}
 
+	logger.Info("listening", "addr", listenAddr())
 	if err := r.Run(listenAddr()); err != nil {
-		log.Fatal(err)
+		logger.Error("server stopped", "error", err)
+		os.Exit(1)
 	}
 }
