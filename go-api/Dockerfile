@@ -4,18 +4,23 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 
-COPY go.mod ./
-COPY go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /main .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /main .
 
 FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /main /main
 
+# Run as an unprivileged user (nobody); scratch has no passwd file, so use the numeric id.
+USER 65534:65534
+
 EXPOSE 8080
+
+# scratch has no shell or curl, so the binary probes itself.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 CMD ["/main", "-healthcheck"]
 
 CMD ["/main"]
