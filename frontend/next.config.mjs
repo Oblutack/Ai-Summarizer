@@ -17,6 +17,8 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const config = {
+  // The end-to-end tests build into their own directory so they never clash with `pnpm dev`.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false, // don't advertise the framework
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

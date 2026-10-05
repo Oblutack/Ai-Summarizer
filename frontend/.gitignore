@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tests
+/test-results/
+/playwright-report/
+/coverage/
+/.next-e2e/
+/e2e/.tmp/
