@@ -4,6 +4,7 @@ import (
 	"ai-summarizer/go-api/auth"
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/mailer"
+	"ai-summarizer/go-api/metrics"
 	"ai-summarizer/go-api/middleware"
 	"ai-summarizer/go-api/models"
 	"context"
@@ -69,6 +70,7 @@ func randomString() string {
 }
 
 func securityEvent(c *gin.Context, event string, userID uint) {
+	metrics.AccountEvent(event)
 	slog.Info("security event", "event", event, "user_id", userID, "request_id", middleware.RequestIDFrom(c))
 }
 
@@ -162,6 +164,7 @@ func Login(c *gin.Context) {
 	}
 	passwordOK := bcrypt.CompareHashAndPassword(hash, []byte(body.Password)) == nil
 	if err != nil || !passwordOK {
+		metrics.AccountEvent("login_failed")
 		slog.Info("security event", "event", "login_failed", "request_id", middleware.RequestIDFrom(c))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return

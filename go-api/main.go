@@ -44,6 +44,7 @@ func main() {
 	}
 
 	logger := initializers.SetupLogger()
+	defer initializers.SetupSentry(logger)()
 
 	initializers.ConnectToDB()
 	if err := initializers.RunMigrations(); err != nil {

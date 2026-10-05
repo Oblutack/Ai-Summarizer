@@ -73,3 +73,49 @@ func TestOtherServerErrorsStayGeneric(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedSecretIsSentToTheAIServiceWhenConfigured(t *testing.T) {
+	var seen string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"summary":"ok"}`))
+	}))
+	defer srv.Close()
+	t.Setenv("AI_SERVICE_URL", srv.URL)
+
+	call := func() {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/public/summarize-text", strings.NewReader(`{"text":"hello"}`))
+		req.Header.Set("Content-Type", "application/json")
+		routerWithRequestID().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("got %d %s", w.Code, w.Body.String())
+		}
+	}
+
+	t.Setenv("AI_SERVICE_TOKEN", "")
+	call()
+	if seen != "" {
+		t.Errorf("no secret is configured, yet the AI service saw %q", seen)
+	}
+
+	t.Setenv("AI_SERVICE_TOKEN", "s3cret-value")
+	call()
+	if seen != "Bearer s3cret-value" {
+		t.Errorf("AI service saw Authorization %q", seen)
+	}
+}
+
+func TestAIServiceURLAcceptsAHostWithoutAScheme(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://ai:10000":    "http://ai:10000/chat",
+		"https://ai.example": "https://ai.example/chat",
+		"http://ai:10000/":   "http://ai:10000/chat",
+		"ai-service:10000":   "http://ai-service:10000/chat",
+	} {
+		t.Setenv("AI_SERVICE_URL", in)
+		if got := aiServiceURL("/chat"); got != want {
+			t.Errorf("AI_SERVICE_URL=%q: got %q, want %q", in, got, want)
+		}
+	}
+}

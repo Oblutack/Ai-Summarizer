@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"ai-summarizer/go-api/metrics"
 	"ai-summarizer/go-api/middleware"
 	"bytes"
 	"encoding/json"
@@ -115,25 +116,40 @@ func (o summaryOptions) fields() map[string]string {
 	}
 }
 
-// propagateRequestID forwards the request id so the AI service's logs can be matched to ours.
-func propagateRequestID(c *gin.Context, req *http.Request) {
+// prepareAIRequest adds what the AI service expects on every call from the gateway: the request id,
+// so its logs can be matched to ours, and the shared secret (AI_SERVICE_TOKEN) when one is set.
+// The secret matters when the AI service is reachable from the internet, as on most hosting
+// platforms' free tiers: without it anyone who found the URL could spend the model quota.
+func prepareAIRequest(c *gin.Context, req *http.Request) {
 	if id := middleware.RequestIDFrom(c); id != "" {
 		req.Header.Set(middleware.RequestIDHeader, id)
 	}
+	if token := os.Getenv("AI_SERVICE_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 }
 
+// aiServiceURL is the full URL of an AI service path. AI_SERVICE_URL may omit the scheme (hosting
+// platforms often hand out just "host:port" for private networking); http:// is assumed then.
 func aiServiceURL(path string) string {
-	return strings.TrimRight(os.Getenv("AI_SERVICE_URL"), "/") + path
+	base := strings.TrimRight(os.Getenv("AI_SERVICE_URL"), "/")
+	if base != "" && !strings.Contains(base, "://") {
+		base = "http://" + base
+	}
+	return base + path
 }
 
 // callAIService performs the request and returns the raw body of a successful reply.
 // Failures from the AI service are mapped to client-safe errors.
 func callAIService(req *http.Request) ([]byte, *apiError) {
+	started := time.Now()
 	resp, err := aiHTTPClient.Do(req)
 	if err != nil {
+		metrics.AIRequest(req.URL.Path, "unavailable", time.Since(started))
 		return nil, &apiError{http.StatusGatewayTimeout, "The AI service is unavailable or took too long to respond."}
 	}
 	defer func() { _ = resp.Body.Close() }()
+	metrics.AIRequest(req.URL.Path, aiOutcome(resp.StatusCode), time.Since(started))
 
 	// Summaries echo the source text back (to be stored for chat), so allow more than a summary needs.
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -145,6 +161,14 @@ func callAIService(req *http.Request) ([]byte, *apiError) {
 		return nil, upstreamError(resp.StatusCode, body)
 	}
 	return body, nil
+}
+
+// aiOutcome is the metrics label for an AI service reply.
+func aiOutcome(status int) string {
+	if status == http.StatusOK {
+		return "ok"
+	}
+	return "upstream_error"
 }
 
 // upstreamError maps a failed AI service reply to a client-safe error: its own 4xx messages are
@@ -209,7 +233,7 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 		return nil, prepErr
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
-	propagateRequestID(c, req)
+	prepareAIRequest(c, req)
 	return req, nil
 }
 
@@ -338,6 +362,6 @@ func buildTextRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
 	}
 	req.Header.Set("Content-Type", "application/json")
-	propagateRequestID(c, req)
+	prepareAIRequest(c, req)
 	return &aiRequest{req: req, sourceText: payload.Text}, nil
 }

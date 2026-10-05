@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"ai-summarizer/go-api/initializers"
+	"ai-summarizer/go-api/metrics"
 	"database/sql"
 	"errors"
 	"log/slog"
@@ -87,6 +88,7 @@ func Quota(kind string) gin.HandlerFunc {
 				return
 			}
 			// No row came back: the limit has been reached.
+			metrics.QuotaRejected(kind)
 			c.Header("X-Quota-Limit", strconv.Itoa(limit))
 			c.Header("X-Quota-Remaining", "0")
 			c.Header("Retry-After", strconv.Itoa(secondsUntilUTCMidnight()))

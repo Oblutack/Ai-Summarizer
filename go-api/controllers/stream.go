@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"ai-summarizer/go-api/metrics"
 	"ai-summarizer/go-api/middleware"
 	"bufio"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,13 +38,16 @@ func writeEvent(c *gin.Context, event map[string]any) {
 // Errors before the first byte are ordinary JSON error responses. Once streaming has begun the
 // status line is already sent, so failures are reported as a final "error" event instead.
 func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
+	started := time.Now()
 	resp, err := aiHTTPClient.Do(ar.req)
 	if err != nil {
+		metrics.AIRequest(ar.req.URL.Path, "unavailable", time.Since(started))
 		middleware.RefundQuota(c)
 		(&apiError{http.StatusGatewayTimeout, "The AI service is unavailable or took too long to respond."}).send(c)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+	metrics.AIRequest(ar.req.URL.Path, aiOutcome(resp.StatusCode), time.Since(started))
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))

@@ -4,6 +4,7 @@ package server
 
 import (
 	"ai-summarizer/go-api/controllers"
+	"ai-summarizer/go-api/metrics"
 	"ai-summarizer/go-api/middleware"
 	"log/slog"
 	"net/http"
@@ -52,7 +53,7 @@ func (r Rates) Scaled(factor int) Rates {
 // every router (and every test) starts with full allowances.
 func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r := gin.New()
-	r.Use(middleware.RequestID(), middleware.AccessLog(logger), middleware.Recover(logger), middleware.SecurityHeaders())
+	r.Use(middleware.RequestID(), middleware.AccessLog(logger), metrics.HTTP(), middleware.Recover(logger), middleware.SecurityHeaders())
 
 	// Client IPs drive the rate limits. Behind a proxy such as Render, list its addresses in
 	// TRUSTED_PROXIES (comma separated CIDRs) so X-Forwarded-For is only believed from it.
@@ -95,6 +96,11 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r.GET("/healthz", controllers.Healthz)
 	r.GET("/readyz", controllers.Readyz(controllers.DatabaseCheck(), controllers.AIServiceCheck()))
 	r.GET("/options", controllers.Options)
+
+	// Prometheus metrics, only when a token is configured, and only for callers presenting it.
+	if token := os.Getenv("METRICS_TOKEN"); token != "" {
+		r.GET("/metrics", metrics.Handler(token))
+	}
 
 	// Public: account access.
 	r.POST("/signup", authLimit, smallBody, turnstile, controllers.Signup)

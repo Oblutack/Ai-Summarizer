@@ -4,11 +4,13 @@ import (
 	"ai-summarizer/go-api/models"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 )
 
@@ -99,6 +101,11 @@ func AccessLog(logger *slog.Logger) gin.HandlerFunc {
 func Recover(logger *slog.Logger) gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, err any) {
 		logger.Error("panic", "request_id", RequestIDFrom(c), "panic", err)
+		// A no-op unless Sentry was set up. Only the panic and the request id are reported.
+		sentry.CurrentHub().WithScope(func(scope *sentry.Scope) {
+			scope.SetTag("request_id", RequestIDFrom(c))
+			sentry.CaptureException(fmt.Errorf("panic: %v", err))
+		})
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 	})
 }
