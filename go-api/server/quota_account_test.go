@@ -111,7 +111,8 @@ func TestFailedWorkIsRefunded(t *testing.T) {
 	}
 
 	a.ai.fail.Store(false)
-	if summarize(cl).Status != 200 || summarize(cl).Status != 200 {
+	first, second := summarize(cl).Status, summarize(cl).Status
+	if first != 200 || second != 200 {
 		t.Error("the full allowance should still be available after the outage")
 	}
 }

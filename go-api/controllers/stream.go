@@ -23,7 +23,7 @@ func writeEvent(c *gin.Context, event map[string]any) {
 	if err != nil {
 		return
 	}
-	fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+	_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
 	c.Writer.Flush()
 }
 
@@ -42,7 +42,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 		(&apiError{http.StatusGatewayTimeout, "The AI service is unavailable or took too long to respond."}).send(c)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -79,7 +79,6 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 					if source == "" {
 						source = ar.sourceText
 					}
-					finished = true
 
 					if save && strings.TrimSpace(summary.String()) != "" {
 						title := filename
@@ -105,7 +104,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 				}
 
 				// status, delta and error events pass through unchanged.
-				fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+				_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
 				c.Writer.Flush()
 				if kind == "error" {
 					middleware.RefundQuota(c) // the user got no complete summary

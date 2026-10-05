@@ -35,7 +35,8 @@ func TestTokensAreUniqueAndLongEnough(t *testing.T) {
 }
 
 func TestHashIsStableDeterministicAndNotReversibleByInspection(t *testing.T) {
-	if HashToken("abc") != HashToken("abc") || HashToken("abc") == HashToken("abd") {
+	first, second, other := HashToken("abc"), HashToken("abc"), HashToken("abd")
+	if first != second || first == other {
 		t.Fatal("hash should be deterministic and sensitive to the input")
 	}
 	h := HashToken("secret-token")

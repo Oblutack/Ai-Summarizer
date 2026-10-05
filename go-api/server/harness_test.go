@@ -265,7 +265,7 @@ func (cl *client) req(method, path string, body any, headers ...string) reply {
 	if err != nil {
 		cl.a.t.Fatalf("%s %s: %v", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(resp.Body)
 	return reply{resp.StatusCode, resp.Header, data}
 }
@@ -290,7 +290,7 @@ func (cl *client) sessionToken() string {
 var emailCounter atomic.Int32
 
 func uniqueEmail() string {
-	return "user" + time.Now().Format("150405") + "-" + string(rune('a'+emailCounter.Add(1)%26)) + string(rune('a'+(emailCounter.Load()/26)%26)) + "@example.com"
+	return "user" + time.Now().Format("150405") + "-" + string('a'+emailCounter.Add(1)%26) + string('a'+(emailCounter.Load()/26)%26) + "@example.com"
 }
 
 // signup creates an account (unverified) and returns its email.

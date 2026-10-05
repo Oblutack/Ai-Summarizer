@@ -51,7 +51,7 @@ func EmptyDB(t *testing.T, schema string) *gorm.DB {
 		t.Fatal(err)
 	}
 	if sqlDB, err := admin.DB(); err == nil {
-		sqlDB.Close()
+		_ = sqlDB.Close()
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn+" search_path="+schema), initializers.GormConfig())
@@ -61,7 +61,7 @@ func EmptyDB(t *testing.T, schema string) *gorm.DB {
 	initializers.DB = db
 	t.Cleanup(func() {
 		if sqlDB, err := db.DB(); err == nil {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 		}
 	})
 

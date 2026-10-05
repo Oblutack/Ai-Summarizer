@@ -14,7 +14,9 @@ func TestRateLimiterBurstAndRefill(t *testing.T) {
 	now := time.Unix(1000, 0)
 	l.now = func() time.Time { return now }
 
-	if !l.Allow("a") || !l.Allow("a") {
+	firstOK := l.Allow("a")
+	secondOK := l.Allow("a")
+	if !firstOK || !secondOK {
 		t.Fatal("burst requests should be allowed")
 	}
 	if l.Allow("a") {

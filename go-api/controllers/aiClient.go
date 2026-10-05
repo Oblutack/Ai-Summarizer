@@ -133,7 +133,7 @@ func callAIService(req *http.Request) ([]byte, *apiError) {
 	if err != nil {
 		return nil, &apiError{http.StatusGatewayTimeout, "The AI service is unavailable or took too long to respond."}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Summaries echo the source text back (to be stored for chat), so allow more than a summary needs.
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -195,7 +195,7 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 		if err == nil {
 			_, err = io.Copy(part, src)
 		}
-		src.Close()
+		_ = src.Close()
 		if err != nil {
 			return nil, prepErr
 		}
@@ -248,12 +248,6 @@ func buffered(build summaryBuilder) func(*gin.Context) (*aiSummary, *apiError) {
 		return result, nil
 	}
 }
-
-var (
-	summarizeFile  = buffered(buildFileRequest)
-	summarizeFiles = buffered(buildFilesRequest)
-	summarizeText  = buffered(buildTextRequest)
-)
 
 func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	opts, perr := parseSummaryParams(c.PostForm("wordCount"), c.PostForm("pageLimit"), c.PostForm("style"), c.PostForm("language"))

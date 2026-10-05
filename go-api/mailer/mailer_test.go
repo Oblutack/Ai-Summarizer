@@ -165,19 +165,6 @@ func TestNetworkFailuresAreErrors(t *testing.T) {
 
 // ---- SendAsync -------------------------------------------------------------------------------
 
-type recorder struct {
-	mu   sync.Mutex
-	sent []Message
-	err  error
-}
-
-func (r *recorder) Send(_ context.Context, m Message) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.sent = append(r.sent, m)
-	return r.err
-}
-
 func TestSendAsyncDoesNotBlockTheCaller(t *testing.T) {
 	slow := make(chan struct{})
 	m := mailerFunc(func(ctx context.Context, msg Message) error { <-slow; return nil })

@@ -70,7 +70,7 @@ func verifyTurnstile(ctx context.Context, secret, token, ip string) (bool, error
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return false, &url.Error{Op: "siteverify", URL: turnstileVerifyURL, Err: http.ErrNotSupported}
 	}

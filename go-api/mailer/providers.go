@@ -39,7 +39,7 @@ func postJSON(ctx context.Context, url string, headers map[string]string, body a
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("provider returned %s: %s", resp.Status, bytes.TrimSpace(detail))
