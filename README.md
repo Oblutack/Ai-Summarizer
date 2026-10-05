@@ -51,6 +51,7 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 - A circuit breaker and automatic model fallback so a provider outage or a retired model degrades gracefully instead of hanging.
 - Structured JSON logs with a request ID that follows each request from the browser through the Go API into the AI service.
 - Health and readiness endpoints, Docker health checks, non-root images, SQL migrations, and CI that runs every test suite against a real Postgres.
+- **Observability:** Prometheus metrics from both backends (traffic, latency, model outcomes, token usage, cache and circuit-breaker state) with a ready-made Grafana dashboard, and opt-in Sentry error reporting that never sends documents or request data. See [Observability](#observability).
 
 ---
 
@@ -245,6 +246,9 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL` | `http://localhost:3000` | Allowed browser origins and the base URL of emailed links. |
 | `TRUSTED_PROXIES` | unset | CIDRs of your reverse proxy, so client IPs (and rate limits) cannot be spoofed. |
 | `RATE_LIMIT_MULTIPLIER` | `1` | Multiplies every request rate limit, for deployments with many users behind one address. |
+| `AI_SERVICE_TOKEN` | empty | Shared secret between the Go API and the AI service (same value on both). Required when the AI service is reachable from the internet. |
+| `METRICS_TOKEN` | empty (off) | Switches on `GET /metrics` on both backends, for callers sending `Authorization: Bearer <token>`. |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` | empty (off) | Opt-in error reporting. Only errors and stack traces are sent: no request bodies, cookies or documents. |
 | `LOG_FORMAT`, `LOG_LEVEL` | `json`, `info` | Structured logging. `LOG_FORMAT=text` is easier to read locally. |
 | `SUMMARY_CACHE_SIZE`, `SUMMARY_CACHE_TTL_SECONDS` | `256`, `3600` | In-memory summary cache (`0` disables). |
 | `LLM_BREAKER_THRESHOLD`, `LLM_BREAKER_COOLDOWN_SECONDS` | `5`, `30` | Circuit breaker around the LLM provider. |
@@ -261,6 +265,33 @@ Verification and password-reset links go through a small provider interface. `lo
 | [Resend](https://resend.com/) | 3,000/month, 100/day | Simple API; needs a verified domain. |
 
 Check each provider's current terms when you sign up.
+
+---
+
+## Observability
+
+Both backends expose Prometheus metrics at `/metrics`. The endpoint is **off unless `METRICS_TOKEN` is set**, and then answers only to callers presenting it as a bearer token.
+
+| Metric family | Answers |
+| --- | --- |
+| `http_requests_total`, `http_request_duration_seconds` | Traffic, error rate and latency per route (route patterns only, so label cardinality stays bounded) |
+| `ai_service_requests_total`, `ai_service_response_seconds` | How the Go API sees the AI service |
+| `llm_requests_total`, `llm_request_duration_seconds` | Model calls by outcome (`ok`, `provider_error`, `model_missing`, `circuit_open`, `cancelled`) and latency |
+| `llm_tokens_total` | Prompt and completion tokens, for cost tracking |
+| `summary_cache_lookups_total`, `llm_circuit_open` | Cache hit ratio and circuit-breaker state |
+| `account_events_total`, `quota_rejections_total` | Logins, failed logins, sign-ups, users hitting their daily limits |
+
+For a ready-made dashboard, start Prometheus and Grafana next to the normal stack:
+
+`````````bash
+docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+# Grafana:    http://localhost:3001   (the "AI Summarizer" dashboard opens by default)
+# Prometheus: http://localhost:9090
+`````````
+
+The dashboard covers overview, traffic, latency, the language model (including tokens per call and an estimated spend using prices you set), account events and resources. Both tools are bound to localhost, and the token in that file is a fixed development value.
+
+**Error reporting** is opt-in: set `SENTRY_DSN` and unhandled errors and panics are sent to Sentry with their stack trace and request ID. Request bodies, headers, cookies, local variables and breadcrumbs are never attached, because here they would be people's documents.
 
 ---
 
@@ -314,6 +345,7 @@ What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactl
 | Injection and XSS | Parameterized SQL only; nonce-based Content-Security-Policy with `strict-dynamic`; the API serves a `default-src 'none'` CSP. |
 | Abuse | Per-IP and per-user rate limits, atomic daily quotas, optional Turnstile, request and upload size caps. |
 | Privacy | Source text never returned to clients; logs contain route patterns and IDs, not content; one-click export and hard deletion. |
+| Service to service | The AI service can require a shared secret (`AI_SERVICE_TOKEN`) so it is safe on a public URL; `/metrics` needs its own bearer token and is off by default; compose binds the database and AI service to localhost only. |
 | Containers | Non-root users; the Go API ships as a static binary in a `scratch` image with nothing else in it; health checks on every service. |
 | Dependencies | Versions pinned in `go.sum`, `pnpm-lock.yaml` and `requirements.txt`. CI fails on known vulnerabilities (`govulncheck`, `pip-audit`, `pnpm audit`), and Dependabot opens weekly update PRs. |
 
@@ -324,6 +356,8 @@ To report a vulnerability, please open a private security advisory on GitHub ins
 ## Deployment
 
 The backend is a standard 12-factor stack: build the `go-api` and `python-ai-service` images, provide a Postgres database, and set the environment variables above. The frontend is a standard Next.js app (for example on Vercel).
+
+A [`render.yaml`](render.yaml) Blueprint describes the backend for [Render](https://render.com) (both services and a Postgres database), and **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** is a step-by-step guide covering Vercel, free-tier limits, monitoring, a staging copy and rollback. When the AI service is publicly reachable, set the same `AI_SERVICE_TOKEN` on both backends; without it the AI service would accept requests from anyone.
 
 **Frontend and API on different sites** (for example `vercel.app` and `onrender.com`): set `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, `CORS_ALLOWED_ORIGINS` and `FRONTEND_URL` to the frontend origin, and `TRUSTED_PROXIES` to your proxy's CIDRs. Browsers that block third-party cookies (Safari, Firefox) will not keep a login across two unrelated domains, so for production put both under one parent domain (`app.example.com` and `api.example.com`) and use `COOKIE_SAMESITE=lax` with `COOKIE_DOMAIN=.example.com`.
 
@@ -345,6 +379,7 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 │   ├── server/               Router: every route and the middleware in front of it
 │   ├── controllers/          Handlers: auth, account, summaries, chat, streaming proxy
 │   ├── middleware/           Sessions, CSRF, quotas, rate limits, Turnstile, logging
+│   ├── metrics/              Prometheus metrics
 │   ├── auth/                 Tokens, sessions, cookies, single-use email tokens
 │   ├── mailer/               log / Brevo / Resend providers and email templates
 │   ├── migrations/           Embedded SQL migrations
@@ -355,8 +390,14 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 │   ├── prompts.py            Styles, languages, prompt construction
 │   ├── retrieval.py          BM25 chunk retrieval for chat
 │   ├── cache.py              Summary cache
-│   └── logging_setup.py      JSON logs and request IDs
-├── docs/demo.gif
+│   ├── logging_setup.py      JSON logs and request IDs
+│   ├── metrics.py            Prometheus metrics
+│   ├── internal_auth.py      Shared-secret check for the AI service
+│   └── error_reporting.py    Opt-in Sentry
+├── observability/            Prometheus config and the Grafana dashboard
+├── docs/                     DEPLOYMENT.md and the demo GIF
+├── render.yaml               Render Blueprint
+├── docker-compose.observability.yml   Prometheus + Grafana add-on
 └── docker-compose.yml
 ```
 
