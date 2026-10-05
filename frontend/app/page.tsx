@@ -1,3 +1,5 @@
+"use client";
+
 import dynamic from "next/dynamic";
 import { API_URL } from "../lib/api";
 

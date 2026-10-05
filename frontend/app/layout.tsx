@@ -10,14 +10,14 @@ export const metadata: Metadata = {
   description: "Summarize your documents with AI",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // Reading the per-request nonce makes every page render dynamically, which a nonce-based
   // Content-Security-Policy requires (a pre-rendered page has no nonce to put on its scripts).
-  const nonce = headers().get("x-nonce") ?? undefined;
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="en">
