@@ -1,0 +1,127 @@
+# Deployment guide
+
+This walks through putting the app on the internet using free tiers: the **frontend on Vercel**, the **Go API and AI service on Render**, and **Postgres on Render** (or Neon). It also covers monitoring and a staging copy.
+
+> `render.yaml` was written against Render's Blueprint format but has not been applied to a real Render account by the author of this repository. If Render rejects a field, its error message names it; the settings are all ordinary service settings you can also enter by hand in the dashboard.
+
+## What runs where
+
+```text
+Browser ──► Vercel (Next.js)  ──►  Render: summarizer-api (Go)  ──►  Render: summarizer-ai (Python)  ──►  Groq
+                                              │
+                                              └──►  Postgres (Render or Neon)
+```
+
+| Part | Host | Why |
+| --- | --- | --- |
+| Frontend | Vercel (free) | Built for Next.js, global CDN |
+| Go API | Render web service | Docker, health checks, free tier |
+| AI service | Render web service | Same; protected by a shared secret because it is public on free plans |
+| Database | Render Postgres or [Neon](https://neon.tech) | See "Database" below |
+
+## Before you start
+
+You need accounts and keys for:
+
+1. **Groq**: an API key from [console.groq.com/keys](https://console.groq.com/keys).
+2. **Google sign-in**: an OAuth client ID ([Google Cloud Console](https://console.cloud.google.com/apis/credentials)). Add your Vercel address as an authorized JavaScript origin once you know it.
+3. **Render** and **Vercel**, both connected to your GitHub repository.
+
+## 1. Backend on Render
+
+1. In Render choose **New > Blueprint**, pick this repository, and apply `render.yaml`.
+2. Render asks for the values marked `sync: false`. Enter at least `GROQ_API_KEY` and `GOOGLE_CLIENT_ID`. The rest can be filled in during the next steps.
+3. When both services exist, open **summarizer-ai** and copy two things:
+   - its public address (`https://summarizer-ai-xxxx.onrender.com`)
+   - the generated `AI_SERVICE_TOKEN` value (Environment tab)
+4. Open **summarizer-api > Environment** and set:
+   - `AI_SERVICE_URL` = the address from step 3
+   - `AI_SERVICE_TOKEN` = the token from step 3 (it must be identical on both services)
+5. Save. Render redeploys the API.
+
+The shared secret is what keeps strangers from calling the AI service directly and spending your Groq quota. Without it the service refuses every request except the health check.
+
+### Check it works
+
+```bash
+# Replace with your API address. Expect {"status":"ok"} then "ready".
+curl https://summarizer-api-xxxx.onrender.com/healthz
+curl https://summarizer-api-xxxx.onrender.com/readyz
+
+# The AI service must refuse callers without the secret (expect 401):
+curl -i -X POST https://summarizer-ai-xxxx.onrender.com/summarize-text -H 'Content-Type: application/json' -d '{"text":"hello"}'
+```
+
+The first request after a quiet period can take 30 to 60 seconds: free services sleep when idle.
+
+## 2. Frontend on Vercel
+
+1. **Add New > Project**, import the repository, and set the **Root Directory** to `frontend`.
+2. Environment variables:
+   - `NEXT_PUBLIC_API_URL` = your Go API address
+   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = the Google client ID
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (optional, if you use Turnstile)
+3. Deploy, then go back to Render and set on **summarizer-api**:
+   - `CORS_ALLOWED_ORIGINS` = your Vercel address (for example `https://ai-summarizer.vercel.app`)
+   - `FRONTEND_URL` = the same address (used for the links in emails)
+4. Add the Vercel address to your Google OAuth client's authorized JavaScript origins.
+
+`NEXT_PUBLIC_*` values are baked in when the site is built, so changing one means redeploying the frontend.
+
+## 3. Cookies and domains
+
+The login session is a cookie. With the frontend on `vercel.app` and the API on `onrender.com` the two are different sites, so the blueprint sets `COOKIE_SECURE=true` and `COOKIE_SAMESITE=none`. That works in Chrome and Edge, but **Safari and Firefox block third-party cookies by default**, so people on those browsers may be unable to stay logged in.
+
+The robust fix is one domain for both: for example `app.example.com` (Vercel) and `api.example.com` (Render, via a custom domain). Then set `COOKIE_SAMESITE=lax` and `COOKIE_DOMAIN=.example.com`. Do this before inviting real users.
+
+## 4. Client addresses and rate limits
+
+Rate limits are per client address. Behind Render's proxy the API only sees the proxy's address unless it is told whom to trust. Set `TRUSTED_PROXIES` on **summarizer-api** to the comma-separated address ranges of Render's proxy (see Render's documentation for current ranges). Until you do, the API logs a warning and trusts the forwarding header from anyone, which means a determined user could dodge the per-address limits (the per-user limits and daily quotas still apply).
+
+## 5. Email
+
+Verification and password-reset emails need a provider. Out of the box (`MAIL_PROVIDER=log`) they are only written to the logs. Create a [Brevo](https://www.brevo.com) or [Resend](https://resend.com) account, then set `MAIL_PROVIDER`, `MAIL_FROM` and the matching API key on **summarizer-api**. Set `REQUIRE_EMAIL_VERIFICATION=true` once mail works if you want confirmed addresses only.
+
+## Database
+
+- **Render free Postgres** is deleted after 30 days. Fine for a trial, not for anything you want to keep.
+- **Neon** has a free tier without that expiry. Create a project, copy its connection string (it contains `sslmode=require`) and set it as `DSN` on **summarizer-api**, replacing the one from the Blueprint.
+- Database migrations run automatically when the API starts, so there is nothing to apply by hand.
+
+Back up whatever you choose. The app has a "download my data" export for individual users, but that is not a backup.
+
+## Monitoring
+
+| What | How |
+| --- | --- |
+| **Is it up?** | A free uptime monitor such as [UptimeRobot](https://uptimerobot.com) or Better Stack pinging `https://<api>/healthz` every 5 minutes. Use `/readyz` instead if you also want to know the database and AI service are reachable. Note that pinging also keeps a free service awake, and two always-on free services use more than Render's monthly free hours. |
+| **What went wrong?** | Create a Sentry project (free tier) and set `SENTRY_DSN` on both services. Only errors and stack traces are sent. Request bodies, cookies, headers and document text never are. |
+| **How is it doing?** | Set `METRICS_TOKEN` on both services to switch on `/metrics` (Prometheus format, bearer token required). Point a Prometheus or Grafana Cloud agent at them. Locally, `docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d` gives a ready dashboard (see the README). |
+| **Logs** | JSON, one line per request, with a request ID that is the same in both services. Search for it in Render's log viewer. |
+
+### What to watch
+
+- **Server error rate (5xx)** above a percent or two.
+- **Model circuit breaker open**: the model provider is failing; users get a clear "busy" message.
+- **Model calls by outcome**: a growing share of anything other than `ok`.
+- **Quota rejections** and **Estimated spend**: your Groq usage. Set the prices on the dashboard to your provider's current rates.
+- **`login_failed` spikes** on the account events panel: possible password guessing.
+
+## Staging
+
+To test changes before production, create a second copy:
+
+1. Copy `render.yaml` to `render.staging.yaml` and change every name (`summarizer-api` becomes `summarizer-api-staging`, and so on).
+2. In Render choose **New > Blueprint**, pick the same repository, set the file path to `render.staging.yaml` and the branch to `staging`.
+3. Create a second Vercel project (or use Vercel's preview deployments) with `NEXT_PUBLIC_API_URL` pointing at the staging API, and set the staging API's `CORS_ALLOWED_ORIGINS` to match.
+4. Use a different `SENTRY_ENVIRONMENT` (for example `staging`) and a separate database.
+
+## Releases and rollback
+
+CI must be green before merging to `main` (see `.github/workflows/ci.yml`). Render and Vercel redeploy on each push to the branch they watch. To roll back, use **Rollback** on the service's Deploys page in Render, or redeploy a previous deployment in Vercel. Database migrations only move forward, so a rollback after a schema change needs a matching down-migration; keep schema changes backward compatible for one release.
+
+## Free-tier limits worth knowing
+
+- Render free web services sleep after 15 minutes idle, and each workspace gets a fixed number of free instance-hours per month.
+- Groq's free tier has per-minute and per-day limits; when reached, users see the "busy" message and the circuit breaker may open.
+- The in-memory summary cache and rate limiters reset whenever a service restarts or sleeps, and are per instance. That is fine for one instance, but running several means limits are applied per instance.
