@@ -38,7 +38,7 @@ jobs:
       TEST_DSN: host=localhost port=5432 user=user password=password dbname=summarizer_test sslmode=disable
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
           cache-dependency-path: go-api/go.sum
@@ -133,7 +133,7 @@ jobs:
       E2E_DSN: host=localhost port=5432 user=user password=password dbname=summarizer_e2e sslmode=disable
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
           cache-dependency-path: go-api/go.sum
