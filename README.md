@@ -8,7 +8,7 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 
 [![CI](https://github.com/Oblutack/Ai-Summarizer/actions/workflows/ci.yml/badge.svg)](https://github.com/Oblutack/Ai-Summarizer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
@@ -154,7 +154,7 @@ Failures before the first byte are ordinary JSON errors; once streaming has star
 | Service | Stack | Responsibility |
 | --- | --- | --- |
 | [`frontend/`](frontend) | Next.js 15, TypeScript, Tailwind CSS, Framer Motion | UI, streaming reader, account pages, per-request CSP |
-| [`go-api/`](go-api) | Go 1.26, Gin, GORM, pgx, golang-migrate | Auth and sessions, quotas, rate limits, proxying and streaming, persistence |
+| [`go-api/`](go-api) | Go 1.27, Gin, GORM, pgx, golang-migrate | Auth and sessions, quotas, rate limits, proxying and streaming, persistence |
 | [`python-ai-service/`](python-ai-service) | FastAPI, LangChain (OpenAI client and text splitter), pypdf, httpx | PDF text extraction, summarization pipeline, chat retrieval, LLM client |
 | PostgreSQL | Postgres 15 | Users, sessions, documents, usage, email tokens |
 | LLM | Groq (OpenAI-compatible), default `openai/gpt-oss-20b` | Language model, configurable with automatic fallback |
