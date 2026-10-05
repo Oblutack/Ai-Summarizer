@@ -8,8 +8,8 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 
 [![CI](https://github.com/Oblutack/Ai-Summarizer/actions/workflows/ci.yml/badge.svg)](https://github.com/Oblutack/Ai-Summarizer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
@@ -95,7 +95,7 @@ Open **http://localhost:3000**. Compose waits for each service's health check, s
 ```mermaid
 flowchart LR
     B([Browser])
-    subgraph FE [Frontend: Next.js 14]
+    subgraph FE [Frontend: Next.js 15]
         N[App Router<br/>nonce CSP middleware]
     end
     subgraph API [API gateway: Go + Gin]
@@ -153,9 +153,9 @@ Failures before the first byte are ordinary JSON errors; once streaming has star
 
 | Service | Stack | Responsibility |
 | --- | --- | --- |
-| [`frontend/`](frontend) | Next.js 14, TypeScript, Tailwind CSS, Framer Motion | UI, streaming reader, account pages, per-request CSP |
-| [`go-api/`](go-api) | Go 1.24, Gin, GORM, pgx, golang-migrate | Auth and sessions, quotas, rate limits, proxying and streaming, persistence |
-| [`python-ai-service/`](python-ai-service) | FastAPI, LangChain, pypdf, httpx | PDF text extraction, summarization pipeline, chat retrieval, LLM client |
+| [`frontend/`](frontend) | Next.js 15, TypeScript, Tailwind CSS, Framer Motion | UI, streaming reader, account pages, per-request CSP |
+| [`go-api/`](go-api) | Go 1.26, Gin, GORM, pgx, golang-migrate | Auth and sessions, quotas, rate limits, proxying and streaming, persistence |
+| [`python-ai-service/`](python-ai-service) | FastAPI, LangChain (OpenAI client and text splitter), pypdf, httpx | PDF text extraction, summarization pipeline, chat retrieval, LLM client |
 | PostgreSQL | Postgres 15 | Users, sessions, documents, usage, email tokens |
 | LLM | Groq (OpenAI-compatible), default `openai/gpt-oss-20b` | Language model, configurable with automatic fallback |
 
@@ -244,6 +244,7 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN` | `false` (compose), `lax` | Session cookie attributes. See [Deployment](#deployment). |
 | `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL` | `http://localhost:3000` | Allowed browser origins and the base URL of emailed links. |
 | `TRUSTED_PROXIES` | unset | CIDRs of your reverse proxy, so client IPs (and rate limits) cannot be spoofed. |
+| `RATE_LIMIT_MULTIPLIER` | `1` | Multiplies every request rate limit, for deployments with many users behind one address. |
 | `LOG_FORMAT`, `LOG_LEVEL` | `json`, `info` | Structured logging. `LOG_FORMAT=text` is easier to read locally. |
 | `SUMMARY_CACHE_SIZE`, `SUMMARY_CACHE_TTL_SECONDS` | `256`, `3600` | In-memory summary cache (`0` disables). |
 | `LLM_BREAKER_THRESHOLD`, `LLM_BREAKER_COOLDOWN_SECONDS` | `5`, `30` | Circuit breaker around the LLM provider. |
@@ -265,9 +266,16 @@ Check each provider's current terms when you sign up.
 
 ## Testing
 
-The project has **250+ automated tests** across the three services, all run in CI on every push and pull request.
+The project has **300+ automated tests** across the stack, and every one runs in CI on each push and pull request, together with linting, type checking and vulnerability scanning.
 
-```bash
+| Layer | What runs | Where |
+| --- | --- | --- |
+| Go API | Unit and Postgres integration tests with the race detector, `golangci-lint`, `govulncheck` | `go-api/` |
+| AI service | `pytest` with coverage, `ruff` (lint and format), `mypy`, `pip-audit` | `python-ai-service/` |
+| Frontend | `eslint`, `tsc`, Vitest unit tests with coverage, production build, `pnpm audit` | `frontend/` |
+| End to end | Playwright drives the whole stack in a real browser (sign-up, login, reset, summaries, chat, account, CSP) | `frontend/e2e/` |
+
+`````````bash
 # Go: unit tests (integration tests are skipped without a database)
 cd go-api && go test ./...
 
@@ -278,11 +286,19 @@ TEST_DSN="host=localhost port=5433 user=user password=... dbname=summarizer_test
 # Python
 cd python-ai-service
 pip install -r requirements.txt -r requirements-dev.txt
-pytest
+pytest --cov && ruff check . && ruff format --check . && mypy .
 
 # Frontend
-cd frontend && pnpm lint && pnpm build
-```
+cd frontend
+pnpm lint && pnpm typecheck && pnpm test
+
+# End to end (starts its own stack on ports 13000, 18080 and 18081; needs Go, Docker for Postgres,
+# and Chrome. Reuses the compose database with a separate "summarizer_e2e" database.)
+pnpm exec playwright install chromium   # once, if you do not have Chrome
+pnpm test:e2e
+`````````
+
+The end-to-end suite replaces the LLM with a small stub that speaks the AI service's HTTP contract, so it is fast, free and deterministic; the real model is covered by the Python tests and by manual runs.
 
 What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactly 3 of 12 simultaneous requests), single-use tokens under races, session revocation, CSRF and CORS, streaming edge cases (failures mid-stream, large events, cancellation), migrations applied to a legacy-shaped database, circuit-breaker state transitions, and log hygiene (no query strings, bodies or recipient addresses in logs).
 
@@ -299,7 +315,7 @@ What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactl
 | Abuse | Per-IP and per-user rate limits, atomic daily quotas, optional Turnstile, request and upload size caps. |
 | Privacy | Source text never returned to clients; logs contain route patterns and IDs, not content; one-click export and hard deletion. |
 | Containers | Non-root users; the Go API ships as a static binary in a `scratch` image with nothing else in it; health checks on every service. |
-| Dependencies | Versions pinned in `go.sum`, `pnpm-lock.yaml` and `requirements.txt`. |
+| Dependencies | Versions pinned in `go.sum`, `pnpm-lock.yaml` and `requirements.txt`. CI fails on known vulnerabilities (`govulncheck`, `pip-audit`, `pnpm audit`), and Dependabot opens weekly update PRs. |
 
 To report a vulnerability, please open a private security advisory on GitHub instead of a public issue.
 
@@ -348,7 +364,7 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a PR, please make sure all three suites pass (`go test ./...`, `pytest`, `pnpm lint && pnpm build`). Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
+Issues and pull requests are welcome. Before opening a PR, please make sure the suites for the parts you touched pass (see [Testing](#testing)); CI runs all of them. Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
 
 ## License
 
