@@ -100,7 +100,11 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
           <div ref={bottomRef} />
         </div>
 
-        {error && <p className="text-red-500 text-lg mt-2">{error}</p>}
+        {error && (
+          <p className="text-red-500 text-lg mt-2" role="alert">
+            {error}
+          </p>
+        )}
 
         <form onSubmit={handleSend} className="flex gap-3 mt-3">
           <input

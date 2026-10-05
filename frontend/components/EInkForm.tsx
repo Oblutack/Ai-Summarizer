@@ -75,7 +75,11 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
 
           {needsHumanCheck && <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />}
 
-          {s.error && <p className="text-red-500 text-lg">{s.error}</p>}
+          {s.error && (
+            <p className="text-red-500 text-lg" role="alert">
+              {s.error}
+            </p>
+          )}
 
           <OutputPanel
             summary={s.summary}
