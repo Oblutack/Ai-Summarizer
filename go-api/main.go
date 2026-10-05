@@ -8,6 +8,7 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,7 +26,11 @@ func listenAddr() string {
 func runHealthcheck() {
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get("http://127.0.0.1" + listenAddr() + "/healthz")
-	if err != nil || resp.StatusCode != http.StatusOK {
+	if err != nil {
+		os.Exit(1)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -58,7 +63,18 @@ func main() {
 		logger.Warn("MAIL_PROVIDER is not set: emails are only written to the log, never sent")
 	}
 
-	r, err := server.NewRouter(logger, server.DefaultRates)
+	rates := server.DefaultRates
+	if v := os.Getenv("RATE_LIMIT_MULTIPLIER"); v != "" {
+		factor, err := strconv.Atoi(v)
+		if err != nil || factor < 1 {
+			logger.Error("RATE_LIMIT_MULTIPLIER must be a whole number of at least 1", "value", v)
+			os.Exit(1)
+		}
+		rates = rates.Scaled(factor)
+		logger.Info("rate limits scaled", "factor", factor)
+	}
+
+	r, err := server.NewRouter(logger, rates)
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)
 		os.Exit(1)

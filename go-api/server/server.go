@@ -32,6 +32,22 @@ var DefaultRates = Rates{
 	ExportPerMinute: 2, ExportBurst: 2,
 }
 
+// Scaled returns the limits multiplied by factor (RATE_LIMIT_MULTIPLIER), for deployments that need
+// more headroom than the defaults, such as many users behind one corporate address. A factor
+// below 1 leaves the limits unchanged.
+func (r Rates) Scaled(factor int) Rates {
+	if factor <= 1 {
+		return r
+	}
+	return Rates{
+		AuthPerMinute: r.AuthPerMinute * factor, AuthBurst: r.AuthBurst * factor,
+		SummarizeIPPerMinute: r.SummarizeIPPerMinute * factor, SummarizeIPBurst: r.SummarizeIPBurst * factor,
+		SummarizeUserPerMinute: r.SummarizeUserPerMinute * factor, SummarizeUserBurst: r.SummarizeUserBurst * factor,
+		ChatPerMinute: r.ChatPerMinute * factor, ChatBurst: r.ChatBurst * factor,
+		ExportPerMinute: r.ExportPerMinute * factor, ExportBurst: r.ExportBurst * factor,
+	}
+}
+
 // NewRouter returns the configured router. Rate limiters are created fresh for each router, so
 // every router (and every test) starts with full allowances.
 func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {

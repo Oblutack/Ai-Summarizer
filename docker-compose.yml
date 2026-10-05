@@ -58,6 +58,8 @@ services:
       - TURNSTILE_SECRET=${TURNSTILE_SECRET:-}
       - QUOTA_SUMMARIES_PER_DAY=${QUOTA_SUMMARIES_PER_DAY:-50}
       - QUOTA_CHAT_PER_DAY=${QUOTA_CHAT_PER_DAY:-200}
+      # Multiplies every request rate limit (default 1).
+      - RATE_LIMIT_MULTIPLIER=${RATE_LIMIT_MULTIPLIER:-1}
     restart: unless-stopped
 
 volumes:
