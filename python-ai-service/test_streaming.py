@@ -58,7 +58,7 @@ def events(response):
     for block in response.text.split("\n\n"):
         if block.strip():
             assert block.startswith("data: "), block
-            out.append(json.loads(block[len("data: "):]))
+            out.append(json.loads(block[len("data: ") :]))
     return out
 
 
@@ -75,7 +75,9 @@ def test_text_stream_emits_status_deltas_and_done(client, monkeypatch):
     assert {"type": "status", "stage": "writing"} in evts
     assert deltas(evts) == "Hello world"
     assert evts[-1] == {"type": "done"}
-    assert evts.index({"type": "status", "stage": "writing"}) < next(i for i, e in enumerate(evts) if e["type"] == "delta")
+    assert evts.index({"type": "status", "stage": "writing"}) < next(
+        i for i, e in enumerate(evts) if e["type"] == "delta"
+    )
 
 
 def test_stream_and_plain_responses_use_the_same_prompt(client, monkeypatch):

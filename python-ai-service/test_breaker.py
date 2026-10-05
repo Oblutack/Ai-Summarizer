@@ -66,8 +66,18 @@ def test_successful_probe_closes_and_failed_probe_reopens():
 
 @pytest.mark.parametrize(
     "status,outage",
-    [(500, True), (502, True), (503, True), (429, True), (408, True),
-     (400, False), (401, False), (403, False), (404, False), (422, False)],
+    [
+        (500, True),
+        (502, True),
+        (503, True),
+        (429, True),
+        (408, True),
+        (400, False),
+        (401, False),
+        (403, False),
+        (404, False),
+        (422, False),
+    ],
 )
 def test_only_provider_side_statuses_count_as_outages(status, outage):
     exc = Exception("x")

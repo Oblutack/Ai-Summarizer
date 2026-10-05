@@ -83,10 +83,13 @@ def test_call_llm_fails_when_every_model_is_retired(monkeypatch):
         asyncio.run(main.call_llm("hi"))
 
 
-@pytest.mark.parametrize("available,expected_active", [
-    ({"openai/gpt-oss-20b", "openai/gpt-oss-120b"}, "openai/gpt-oss-20b"),
-    ({"openai/gpt-oss-120b"}, "openai/gpt-oss-120b"),
-])
+@pytest.mark.parametrize(
+    "available,expected_active",
+    [
+        ({"openai/gpt-oss-20b", "openai/gpt-oss-120b"}, "openai/gpt-oss-20b"),
+        ({"openai/gpt-oss-120b"}, "openai/gpt-oss-120b"),
+    ],
+)
 def test_verify_models_picks_first_available(monkeypatch, available, expected_active):
     async def fake_list():
         return available
@@ -137,3 +140,12 @@ def test_readyz_requires_key_and_a_live_model(monkeypatch):
 
     monkeypatch.setattr(main, "verify_models", not_ready)
     assert client.get("/readyz").status_code == 503
+
+
+def test_content_text_handles_strings_and_content_blocks():
+    from main import content_text
+
+    assert content_text("  hello ") == "  hello "
+    assert content_text(None) == ""
+    assert content_text([]) == ""
+    assert content_text(["a", {"type": "text", "text": "b"}, {"type": "image"}, {"text": 3}]) == "ab"

@@ -56,10 +56,25 @@ def test_empty_and_oversized_values_are_not_stored():
 
 
 def test_key_changes_with_every_input():
-    base = dict(kind="text", material="hello", target_words=100, style="default", language="English", model="m", prompt_version="1")
+    base = {
+        "kind": "text",
+        "material": "hello",
+        "target_words": 100,
+        "style": "default",
+        "language": "English",
+        "model": "m",
+        "prompt_version": "1",
+    }
     keys = {summary_key(**base)}
-    for field, value in [("kind", "docs"), ("material", "hello!"), ("target_words", 101), ("style", "bullets"),
-                         ("language", "German"), ("model", "m2"), ("prompt_version", "2")]:
+    for field, value in [
+        ("kind", "docs"),
+        ("material", "hello!"),
+        ("target_words", 101),
+        ("style", "bullets"),
+        ("language", "German"),
+        ("model", "m2"),
+        ("prompt_version", "2"),
+    ]:
         keys.add(summary_key(**{**base, field: value}))
     assert len(keys) == 8, "every option must change the key"
     assert summary_key(**base) == summary_key(**base), "and the key must be stable"

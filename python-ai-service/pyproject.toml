@@ -1,0 +1,36 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "C4",       # comprehensions
+]
+ignore = [
+    "UP007", "UP045",  # keep Optional[X]: the service is on pydantic v1
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares parameters as defaults: file: UploadFile = File(...)
+extend-immutable-calls = ["fastapi.File", "fastapi.Form", "fastapi.Query", "fastapi.Depends", "fastapi.Header"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+exclude = ['^[.]venv/', '^test_', '^conftest[.]py$']
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["test_*.py", "conftest.py", ".venv/*"]

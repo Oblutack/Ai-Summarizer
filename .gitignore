@@ -24,4 +24,7 @@ npm-debug.log
 .DS_Store
 Thumbs.db
 
-*.log
+*.log.coverage
+.ruff_cache/
+.mypy_cache/
+coverage.out

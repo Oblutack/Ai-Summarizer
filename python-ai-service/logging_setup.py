@@ -3,6 +3,7 @@
 Every log line carries the id of the request that caused it. The Go API forwards its own id in the
 X-Request-ID header, so one id finds the whole story across both services.
 """
+
 import json
 import logging
 import os

@@ -5,11 +5,13 @@ call is wasted time and tokens (people re-click, retry after a network blip, or 
 document in another style tab). Entries expire and the cache is bounded, so memory stays small.
 The cache is per process: it is an optimization, never a source of truth.
 """
+
 import hashlib
 import os
 import time
 from collections import OrderedDict
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 DEFAULT_MAX_ENTRIES = 256
 DEFAULT_TTL_SECONDS = 3600
@@ -26,7 +28,7 @@ class SummaryCache:
         self.max_entries = max_entries
         self.ttl_seconds = ttl_seconds
         self._clock = clock
-        self._items: "OrderedDict[str, tuple[float, str]]" = OrderedDict()
+        self._items: OrderedDict[str, tuple[float, str]] = OrderedDict()
         self.hits = 0
         self.misses = 0
 
@@ -62,7 +64,9 @@ class SummaryCache:
         return len(self._items)
 
 
-def summary_key(kind: str, material: str, target_words: int, style: str, language: str, model: str, prompt_version: str) -> str:
+def summary_key(
+    kind: str, material: str, target_words: int, style: str, language: str, model: str, prompt_version: str
+) -> str:
     """Hashes everything that can change the output; the (possibly huge) text is never stored."""
     h = hashlib.sha256()
     for part in (kind, str(target_words), style, language, model, prompt_version):

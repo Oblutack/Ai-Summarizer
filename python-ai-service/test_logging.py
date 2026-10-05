@@ -82,7 +82,7 @@ def test_access_line_never_includes_the_query_string_or_body(client, logs, monke
     monkeypatch.setattr(main, "get_llm", lambda: type("L", (), {"ainvoke": staticmethod(lambda p: None)})())
     client.post("/summarize-text?word_count=100&secret=TOPSECRET", json={"text": "CONFIDENTIAL DOCUMENT TEXT"})
     # httpx (the test client) logs its own outgoing URL; only the service's own loggers matter here.
-    app_lines = [json.dumps(e) for e in entries(logs[0]) if e["logger"] != "httpx"]
+    app_lines = [json.dumps(e) for e in entries(logs[0]) if not e["logger"].startswith("httpx")]
     assert app_lines, "the service should have logged something"
     blob = "\n".join(app_lines)
     assert "TOPSECRET" not in blob and "CONFIDENTIAL" not in blob
@@ -132,7 +132,9 @@ def test_streaming_requests_get_the_id_header_and_one_access_line(client, logs, 
                 yield type("M", (), {"content": piece})()
 
     monkeypatch.setattr(main, "get_llm", lambda: Streamer())
-    r = client.post("/summarize-text?stream=true", json={"text": "some text"}, headers={"X-Request-ID": "req-stream-1234"})
+    r = client.post(
+        "/summarize-text?stream=true", json={"text": "some text"}, headers={"X-Request-ID": "req-stream-1234"}
+    )
     assert r.headers["x-request-id"] == "req-stream-1234"
     [line] = access_lines(logs[0])
     assert line["status"] == 200 and line["request_id"] == "req-stream-1234"

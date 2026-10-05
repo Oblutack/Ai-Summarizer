@@ -1,6 +1,5 @@
 import pytest
 
-import cache
 import llm
 import main
 

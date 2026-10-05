@@ -4,13 +4,16 @@ Hosted providers retire models over time (llama-3.1-8b-instant did), so the conf
 is verified against the provider's model list, and calls fall over to the next candidate when
 the provider reports the current one as missing.
 """
+
 import logging
 import os
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 import httpx
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
 logger = logging.getLogger("ai-summarizer")
 
@@ -78,15 +81,15 @@ def is_model_missing(exc: BaseException) -> bool:
 def get_llm() -> ChatOpenAI:
     model = active_model()
     if model not in _clients:
-        extra = {"reasoning_effort": REASONING_EFFORT} if "gpt-oss" in model else {}
         _clients[model] = ChatOpenAI(
             model=model,
-            api_key=api_key(),
+            api_key=SecretStr(api_key()),
             base_url=BASE_URL,
             timeout=TIMEOUT_SECONDS,
             max_retries=MAX_RETRIES,
-            max_tokens=MAX_OUTPUT_TOKENS,
-            model_kwargs=extra,
+            max_completion_tokens=MAX_OUTPUT_TOKENS,
+            # Only reasoning models (gpt-oss) accept this parameter.
+            reasoning_effort=REASONING_EFFORT if "gpt-oss" in model else None,
         )
     return _clients[model]
 
@@ -140,6 +143,7 @@ async def verify_models() -> Optional[str]:
 # When the provider is down or rate limiting us, every request would otherwise burn through the
 # client's retries and timeouts (minutes per request) before failing. After a run of failures the
 # breaker opens and requests fail immediately for a cooldown, then a single probe is let through.
+
 
 class ServiceUnavailable(Exception):
     """Raised instead of calling the provider while the circuit breaker is open."""

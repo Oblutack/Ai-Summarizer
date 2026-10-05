@@ -1,9 +1,10 @@
 """Dependency-free BM25 retrieval used to pick relevant document chunks for chat."""
+
 import math
 import re
 from collections import Counter
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 CHUNK_SIZE = 1_500
 CHUNK_OVERLAP = 150
@@ -44,7 +45,8 @@ def select_context(text: str, question: str, max_chars: int) -> str:
 
     ranked = sorted(range(n), key=lambda i: (-score(tokenized[i]), i))  # ties keep document order
 
-    chosen, used = [], 0
+    chosen: list[int] = []
+    used = 0
     for i in ranked:
         if used + len(chunks[i]) > max_chars and chosen:
             continue

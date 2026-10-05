@@ -3,15 +3,16 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Awaitable, Callable, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
+from pypdf import PdfReader
 
 from cache import from_env as cache_from_env
 from cache import summary_key
@@ -126,6 +127,21 @@ def to_http_error(exc: Exception, failure_message: str = SUMMARY_FAILED) -> HTTP
     return HTTPException(502, failure_message)
 
 
+def content_text(content: str | list[str | dict] | None) -> str:
+    """The text of a model reply. Providers may return a plain string or a list of content blocks."""
+    if not content:
+        return ""
+    if isinstance(content, str):
+        return content
+    parts = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict) and isinstance(block.get("text"), str):
+            parts.append(block["text"])
+    return "".join(parts)
+
+
 async def call_llm(prompt: str) -> str:
     async with _slots():
         # If the provider says the model no longer exists, move to the next candidate and retry.
@@ -136,7 +152,7 @@ async def call_llm(prompt: str) -> str:
             try:
                 response = await get_llm().ainvoke(prompt)
                 breaker.success()
-                return (response.content or "").strip()
+                return content_text(response.content).strip()
             except Exception as exc:
                 if is_model_missing(exc):
                     mark_unavailable(model)
@@ -157,7 +173,7 @@ async def stream_llm(prompt: str) -> AsyncIterator[str]:
             started = False
             try:
                 async for chunk in get_llm().astream(prompt):
-                    text = chunk.content or ""
+                    text = content_text(chunk.content)
                     if text:
                         started = True
                         yield text
@@ -215,7 +231,7 @@ def validate_options(word_count: int, page_limit: int, style: str, language: str
 
 
 def extract_pdf_text(path: str) -> str:
-    return "\n".join(doc.page_content for doc in PyPDFLoader(path).load())
+    return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
 
 
 async def read_pdf_upload(file: UploadFile) -> str:
@@ -231,11 +247,11 @@ async def read_pdf_upload(file: UploadFile) -> str:
             temp_pdf_path = temp_pdf.name
         try:
             return await asyncio.to_thread(extract_pdf_text, temp_pdf_path)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to parse PDF")
             raise HTTPException(
                 422, f"Could not read {file.filename}. It may be corrupted or password-protected."
-            )
+            ) from exc
     finally:
         if temp_pdf_path and os.path.exists(temp_pdf_path):
             os.unlink(temp_pdf_path)
@@ -259,6 +275,7 @@ def check_documents(docs: list[tuple[str, str]]) -> None:
 
 # ---- Server-sent events -------------------------------------------------------------------
 # Each event is one line of JSON: {"type": "status" | "delta" | "done" | "error", ...}.
+
 
 def sse(event: dict) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
@@ -289,11 +306,11 @@ async def summary_event_stream(
             yield sse({"type": "done", **(done_extra or {})})
             return
 
-        task = asyncio.create_task(prepare(lambda done, total: progress.put_nowait((done, total))))
+        task = asyncio.ensure_future(prepare(lambda done, total: progress.put_nowait((done, total))))
         while not task.done() or not progress.empty():
             try:
                 done, total = await asyncio.wait_for(progress.get(), timeout=0.2)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             yield sse({"type": "status", "stage": "summarizing", "done": done, "total": total})
         prompt = task.result()
@@ -327,6 +344,7 @@ def sse_response(stream: AsyncIterator[str]) -> StreamingResponse:
 
 # ---- Endpoints ----------------------------------------------------------------------------
 
+
 @app.post("/summarize")
 async def summarize_file(
     file: UploadFile = File(...),
@@ -341,7 +359,10 @@ async def summarize_file(
     check_text(text)
 
     if stream:
-        prepare = lambda progress: prepare_summary_prompt(text, word_count, page_limit, style, language, progress)
+
+        def prepare(progress):
+            return prepare_summary_prompt(text, word_count, page_limit, style, language, progress)
+
         key = text_cache_key(text, word_count, page_limit, style, language)
         return sse_response(summary_event_stream(prepare, {"filename": file.filename, "text": text}, key))
 
@@ -362,7 +383,10 @@ async def summarize_text(
     check_text(payload.text)
 
     if stream:
-        prepare = lambda progress: prepare_summary_prompt(payload.text, word_count, page_limit, style, language, progress)
+
+        def prepare(progress):
+            return prepare_summary_prompt(payload.text, word_count, page_limit, style, language, progress)
+
         key = text_cache_key(payload.text, word_count, page_limit, style, language)
         return sse_response(summary_event_stream(prepare, None, key))
 
@@ -389,7 +413,10 @@ async def summarize_multiple(
 
     key = multi_cache_key(docs, word_count, page_limit, style, language)
     if stream:
-        prepare = lambda progress: prepare_multi_prompt(docs, word_count, page_limit, style, language, progress)
+
+        def prepare(progress):
+            return prepare_multi_prompt(docs, word_count, page_limit, style, language, progress)
+
         return sse_response(summary_event_stream(prepare, extra, key))
 
     try:
@@ -398,7 +425,7 @@ async def summarize_multiple(
             summary = await process_multi_summary(docs, word_count, page_limit, style, language)
             summary_cache.put(key, summary)
     except Exception as exc:
-        raise to_http_error(exc)
+        raise to_http_error(exc) from exc
     return {"filename": extra["filename"], "summary": summary, "text": extra["text"]}
 
 
@@ -424,13 +451,14 @@ async def chat(payload: ChatPayload):
         context = select_context(payload.text, question, CHAT_CONTEXT_CHARS)
         answer = await call_llm(chat_prompt(context, history, question))
     except Exception as exc:
-        raise to_http_error(exc, "The language model failed to answer. Please try again.")
+        raise to_http_error(exc, "The language model failed to answer. Please try again.") from exc
     if not answer:
         raise HTTPException(502, "The language model returned an empty answer. Please try again.")
     return {"answer": answer}
 
 
 # ---- Summarization pipeline ---------------------------------------------------------------
+
 
 def label_for(docs: list[tuple[str, str]]) -> str:
     names = [name for name, _ in docs]
@@ -453,17 +481,27 @@ async def summarize_or_fail(text: str, word_count: int, page_limit: int, style: 
     try:
         summary = await process_summary(text, word_count, page_limit, style, language)
     except Exception as exc:
-        raise to_http_error(exc)
+        raise to_http_error(exc) from exc
     summary_cache.put(key, summary)
     return summary
 
 
 def text_cache_key(text: str, word_count: int, page_limit: int, style: str, language: str) -> str:
-    return summary_key("text", text, target_words_for(word_count, page_limit), style, language, active_model_or_none(), PROMPT_VERSION)
+    return summary_key(
+        "text", text, target_words_for(word_count, page_limit), style, language, active_model_or_none(), PROMPT_VERSION
+    )
 
 
 def multi_cache_key(docs: list[tuple[str, str]], word_count: int, page_limit: int, style: str, language: str) -> str:
-    return summary_key("docs", combine_documents(docs), target_words_for(word_count, page_limit), style, language, active_model_or_none(), PROMPT_VERSION)
+    return summary_key(
+        "docs",
+        combine_documents(docs),
+        target_words_for(word_count, page_limit),
+        style,
+        language,
+        active_model_or_none(),
+        PROMPT_VERSION,
+    )
 
 
 def active_model_or_none() -> str:
@@ -486,17 +524,17 @@ async def condense(text: str, progress: Optional[ProgressCallback] = None) -> st
         chunks = split_text(text)
         finished = 0
 
-        async def summarize_chunk(chunk: str) -> str:
+        async def summarize_chunk(chunk: str, total: int) -> str:
             nonlocal finished
             result = await call_llm(
                 "Summarize the following text concisely, focusing on the key points:\n\n---\n\n" + chunk
             )
             finished += 1
             if progress:
-                progress(finished, len(chunks))
+                progress(finished, total)
             return result
 
-        results = await asyncio.gather(*(summarize_chunk(chunk) for chunk in chunks))
+        results = await asyncio.gather(*(summarize_chunk(chunk, len(chunks)) for chunk in chunks))
         combined = "\n\n".join(r for r in results if r)
         if not combined:
             raise ValueError("Failed to generate intermediate summaries from the document.")
