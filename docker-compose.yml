@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-summarizer_db}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"  # localhost only: never expose the database to the network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,9 +22,16 @@ services:
     build:
       context: ./python-ai-service
     ports:
-      - "8001:10000"
+      - "127.0.0.1:8001:10000"  # localhost only: the AI service is for the Go API, not the network
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY:?set GROQ_API_KEY in .env}
+      # Optional shared secret with the Go API (same value on both). Needed when the AI service is
+      # reachable from the internet; unnecessary on this private compose network.
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
     restart: unless-stopped
 
   go-api:
@@ -42,6 +49,11 @@ services:
       - DSN=host=postgres user=${POSTGRES_USER:-user} password=${POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-summarizer_db} port=5432 sslmode=disable
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
       - AI_SERVICE_URL=http://python-ai-service:10000
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
       # Sessions: plain-http local development needs non-Secure cookies. In production use
       # COOKIE_SECURE=true, and COOKIE_SAMESITE=none when the frontend and API are on different sites.
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
