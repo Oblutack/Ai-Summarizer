@@ -1,21 +1,26 @@
 import asyncio
+import hmac
 import json
 import logging
 import os
 import tempfile
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
 from pypdf import PdfReader
 
 from cache import from_env as cache_from_env
 from cache import summary_key
+from error_reporting import setup_error_reporting
+from internal_auth import InternalAuthMiddleware
 from llm import (
     ServiceUnavailable,
     active_model,
@@ -28,6 +33,7 @@ from llm import (
     verify_models,
 )
 from logging_setup import RequestContextMiddleware, configure_logging
+from metrics import MetricsMiddleware, StateCollector, record_llm, record_rejected, record_usage, registry
 from prompts import (
     DEFAULT_LANGUAGE,
     DEFAULT_STYLE,
@@ -43,6 +49,7 @@ from retrieval import select_context
 
 load_dotenv()
 configure_logging()
+setup_error_reporting()
 
 logger = logging.getLogger("ai-summarizer")
 
@@ -75,6 +82,8 @@ SUMMARY_FAILED = "The language model failed to produce a summary. Please try aga
 BUSY_MESSAGE = "The AI service is busy right now. Please try again in a minute."
 
 summary_cache = cache_from_env()
+# Cache and breaker state are read when Prometheus scrapes, so nothing is instrumented on the hot path.
+registry.register(StateCollector(lambda: summary_cache, lambda: breaker))
 
 ProgressCallback = Callable[[int, int], None]
 
@@ -92,6 +101,9 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="AI Summarizer Service", lifespan=lifespan)
+# Added innermost first: the secret is checked inside metrics and logging, so refused calls still show up in both.
+app.add_middleware(InternalAuthMiddleware)
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestContextMiddleware)
 
 _llm_slots: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
@@ -146,19 +158,26 @@ async def call_llm(prompt: str) -> str:
     async with _slots():
         # If the provider says the model no longer exists, move to the next candidate and retry.
         for _ in candidate_models():
-            if not breaker.allow():
-                raise ServiceUnavailable("circuit open")
             model = active_model()
+            if not breaker.allow():
+                record_rejected(model)
+                raise ServiceUnavailable("circuit open")
+            started = time.perf_counter()
             try:
                 response = await get_llm().ainvoke(prompt)
                 breaker.success()
+                record_llm(model, "invoke", "ok", started)
+                record_usage(model, getattr(response, "usage_metadata", None))
                 return content_text(response.content).strip()
             except Exception as exc:
                 if is_model_missing(exc):
+                    record_llm(model, "invoke", "model_missing", started)
                     mark_unavailable(model)
                     continue
-                if counts_as_outage(exc):
+                outage = counts_as_outage(exc)
+                if outage:
                     breaker.failure()
+                record_llm(model, "invoke", "provider_error" if outage else "error", started)
                 raise
     raise RuntimeError("No configured language model is available")
 
@@ -167,26 +186,38 @@ async def stream_llm(prompt: str) -> AsyncIterator[str]:
     """Yields the model's reply piece by piece, with the same model fallback as call_llm."""
     async with _slots():
         for _ in candidate_models():
-            if not breaker.allow():
-                raise ServiceUnavailable("circuit open")
             model = active_model()
+            if not breaker.allow():
+                record_rejected(model)
+                raise ServiceUnavailable("circuit open")
             started = False
+            began = time.perf_counter()
+            usage = None
+            outcome = "cancelled"  # what it stays if the client disconnects and the stream is closed
             try:
                 async for chunk in get_llm().astream(prompt):
+                    usage = getattr(chunk, "usage_metadata", None) or usage
                     text = content_text(chunk.content)
                     if text:
                         started = True
                         yield text
                 breaker.success()
+                outcome = "ok"
+                record_usage(model, usage)
                 return
             except Exception as exc:
                 # Only fall back if nothing was sent yet; a half-written answer can't be resumed.
                 if is_model_missing(exc) and not started:
+                    outcome = "model_missing"
                     mark_unavailable(model)
                     continue
-                if counts_as_outage(exc):
+                outage = counts_as_outage(exc)
+                if outage:
                     breaker.failure()
+                outcome = "provider_error" if outage else "error"
                 raise
+            finally:
+                record_llm(model, "stream", outcome, began)
     raise RuntimeError("No configured language model is available")
 
 
@@ -199,6 +230,19 @@ def read_root():
 def healthz():
     """Liveness: the process is up. Deliberately independent of the LLM provider."""
     return {"status": "ok"}
+
+
+@app.get("/metrics", include_in_schema=False)
+def prometheus_metrics(request: Request):
+    """Prometheus metrics. Off (404) unless METRICS_TOKEN is set, and then only for callers that
+    present it as a bearer token: traffic patterns and usage are not for the public."""
+    token = os.getenv("METRICS_TOKEN", "")
+    if not token:
+        raise HTTPException(404, "Not Found")
+    given = request.headers.get("authorization", "")
+    if not given.startswith("Bearer ") or not hmac.compare_digest(given[len("Bearer ") :], token):
+        raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"})
+    return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/readyz")

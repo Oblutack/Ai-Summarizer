@@ -88,6 +88,7 @@ def get_llm() -> ChatOpenAI:
             timeout=TIMEOUT_SECONDS,
             max_retries=MAX_RETRIES,
             max_completion_tokens=MAX_OUTPUT_TOKENS,
+            stream_usage=True,  # ask for token counts on streamed replies too (for the metrics)
             # Only reasoning models (gpt-oss) accept this parameter.
             reasoning_effort=REASONING_EFFORT if "gpt-oss" in model else None,
         )
