@@ -1,0 +1,21 @@
+# Scrapes both backends every 15 seconds. The /metrics endpoints require a bearer token; for this
+# local setup it is the fixed value in metrics_token (and METRICS_TOKEN in the compose override).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: go-api
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ["go-api:8080"]
+
+  - job_name: ai-service
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ["python-ai-service:10000"]
