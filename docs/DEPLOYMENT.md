@@ -87,6 +87,7 @@ Verification and password-reset emails need a provider. Out of the box (`MAIL_PR
 - **Render free Postgres** is deleted after 30 days. Fine for a trial, not for anything you want to keep.
 - **Neon** has a free tier without that expiry. Create a project, copy its connection string (it contains `sslmode=require`) and set it as `DSN` on **summarizer-api**, replacing the one from the Blueprint.
 - Database migrations run automatically when the API starts, so there is nothing to apply by hand.
+- **Original PDFs are stored in the database** (for the document viewer), up to `STORED_FILES_MB_PER_USER` per user (the Blueprint sets 20 MB). On a small free database this is what fills it first; lower the value, or set it to `0` to keep no originals (summaries and chat still work).
 
 Back up whatever you choose. The app has a "download my data" export for individual users, but that is not a backup.
 
