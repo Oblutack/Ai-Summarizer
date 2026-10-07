@@ -107,3 +107,92 @@ func TestCleanSourcesIsNeverNil(t *testing.T) {
 		t.Error("nothing to cite must be an empty list so the JSON is [] and not null")
 	}
 }
+
+func TestCleanProofBoundsAndNormalizes(t *testing.T) {
+	strong := "strong"
+	bogus := "definitely"
+	in := proofResult{
+		Claims: -3, Found: 2,
+		Sentences: []proofSentence{
+			{Text: "Heading", Kind: "heading", Support: &strong},
+			{Text: "Backed.", Kind: "claim", Support: &strong, Coverage: 1.7, MissingNumbers: nil,
+				Passages: []proofPassage{
+					{ID: 1, Text: "one", Page: intp(2), PageEnd: intp(3), Coverage: 0.8},
+					{ID: 0, Text: "no id"},
+					{ID: 2, Text: ""},
+					{ID: 3, Text: "bad pages", Page: intp(0), PageEnd: intp(4)},
+					{ID: 4, Text: "four"},
+					{ID: 5, Text: "over the limit of three kept"},
+				}},
+			{Text: "Odd verdict.", Kind: "claim", Support: &bogus},
+			{Text: "Unknown kind.", Kind: "other"},
+			{Text: "", Kind: "claim"},
+		},
+	}
+	got := cleanProof(in)
+	if got.Claims != 0 || got.Found != 2 {
+		t.Errorf("negative counts are zeroed: %+v", got)
+	}
+	if len(got.Sentences) != 3 {
+		t.Fatalf("kept %d sentences, want 3 (unknown kinds and empty text dropped)", len(got.Sentences))
+	}
+	if got.Sentences[0].Support != nil {
+		t.Error("headings carry no verdict")
+	}
+	backed := got.Sentences[1]
+	if backed.Coverage != 0 || backed.MissingNumbers == nil {
+		t.Errorf("out-of-range coverage is reset and lists are never null: %+v", backed)
+	}
+	if len(backed.Passages) != maxProofPassages || backed.Passages[1].Page != nil {
+		t.Errorf("passages are capped at %d and impossible pages dropped: %+v", maxProofPassages, backed.Passages)
+	}
+	if got.Sentences[2].Support != nil {
+		t.Error("an unknown verdict must not reach the browser")
+	}
+}
+
+func TestCleanProofCapsTheNumberOfSentences(t *testing.T) {
+	many := make([]proofSentence, maxProofSentences+50)
+	for i := range many {
+		many[i] = proofSentence{Text: "s", Kind: "claim"}
+	}
+	if n := len(cleanProof(proofResult{Sentences: many}).Sentences); n != maxProofSentences {
+		t.Errorf("kept %d sentences, want %d", n, maxProofSentences)
+	}
+}
+
+func TestCleanPodcastKeepsOnlyRealTurnsWithinBounds(t *testing.T) {
+	long := strings.Repeat("word ", 400)
+	in := podcastScript{
+		Title: "   ",
+		Turns: []podcastTurn{
+			{Speaker: "A", Text: "  Hello there  "},
+			{Speaker: "C", Text: "a third speaker does not exist"},
+			{Speaker: "B", Text: "   "},
+			{Speaker: "B", Text: long},
+		},
+	}
+	got := cleanPodcast(in)
+	if got.Title != "Podcast" {
+		t.Errorf("an empty title gets a default: %q", got.Title)
+	}
+	if len(got.Turns) != 2 || got.Turns[0].Text != "Hello there" {
+		t.Fatalf("turns: %+v", got.Turns)
+	}
+	if n := len([]rune(got.Turns[1].Text)); n != maxPodcastTurnRunes {
+		t.Errorf("a long turn is cut to %d characters, got %d", maxPodcastTurnRunes, n)
+	}
+}
+
+func TestCleanPodcastCapsTurnsAndIsNeverNull(t *testing.T) {
+	many := make([]podcastTurn, 100)
+	for i := range many {
+		many[i] = podcastTurn{Speaker: "A", Text: "x"}
+	}
+	if n := len(cleanPodcast(podcastScript{Turns: many}).Turns); n != maxPodcastTurns {
+		t.Errorf("at most %d turns, got %d", maxPodcastTurns, n)
+	}
+	if cleanPodcast(podcastScript{}).Turns == nil {
+		t.Error("no turns must be an empty list, not null")
+	}
+}

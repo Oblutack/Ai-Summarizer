@@ -90,7 +90,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 						if label != "" {
 							title = label
 						}
-						saveDocument(c, title, &aiSummary{Filename: filename, Summary: summary.String(), Text: source})
+						saveDocument(c, title, &aiSummary{Filename: filename, Summary: summary.String(), Text: source, files: ar.files})
 					}
 
 					// The client gets the filename but never the source text.

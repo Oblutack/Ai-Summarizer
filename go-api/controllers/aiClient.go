@@ -51,6 +51,9 @@ type aiSummary struct {
 	Filename string `json:"filename"`
 	Summary  string `json:"summary"`
 	Text     string `json:"text"`
+
+	// files are the uploaded PDFs behind this summary (set by the gateway, not the AI service).
+	files []storedFile
 }
 
 func (s *aiSummary) response() summaryResponse {
@@ -121,8 +124,14 @@ func (o summaryOptions) fields() map[string]string {
 // The secret matters when the AI service is reachable from the internet, as on most hosting
 // platforms' free tiers: without it anyone who found the URL could spend the model quota.
 func prepareAIRequest(c *gin.Context, req *http.Request) {
-	if id := middleware.RequestIDFrom(c); id != "" {
-		req.Header.Set(middleware.RequestIDHeader, id)
+	setAIHeaders(req, middleware.RequestIDFrom(c))
+}
+
+// setAIHeaders is prepareAIRequest for work that outlives a request (indexing a saved document),
+// where only the request id is at hand.
+func setAIHeaders(req *http.Request, requestID string) {
+	if requestID != "" {
+		req.Header.Set(middleware.RequestIDHeader, requestID)
 	}
 	if token := os.Getenv("AI_SERVICE_TOKEN"); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -200,8 +209,9 @@ func callForSummary(req *http.Request) (*aiSummary, *apiError) {
 
 // multipartRequest builds a POST to the AI service with form fields and PDF files
 // (sent under fileField, once per file).
-func multipartRequest(c *gin.Context, path string, fields map[string]string, fileField string, files []*multipart.FileHeader) (*http.Request, *apiError) {
+func multipartRequest(c *gin.Context, path string, fields map[string]string, fileField string, files []*multipart.FileHeader) (*aiRequest, *apiError) {
 	prepErr := &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
+	var kept []storedFile
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
@@ -215,14 +225,19 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 		if err != nil {
 			return nil, &apiError{http.StatusBadRequest, "Could not read the uploaded file."}
 		}
-		part, err := w.CreateFormFile(fileField, fh.Filename)
-		if err == nil {
-			_, err = io.Copy(part, src)
-		}
+		data, err := io.ReadAll(src)
 		_ = src.Close()
 		if err != nil {
 			return nil, prepErr
 		}
+		part, err := w.CreateFormFile(fileField, fh.Filename)
+		if err == nil {
+			_, err = part.Write(data)
+		}
+		if err != nil {
+			return nil, prepErr
+		}
+		kept = append(kept, storedFile{Name: fh.Filename, Data: data}) // saved with the summary, if it is saved
 	}
 	if err := w.Close(); err != nil {
 		return nil, prepErr
@@ -234,7 +249,7 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	prepareAIRequest(c, req)
-	return req, nil
+	return &aiRequest{req: req, files: kept}, nil
 }
 
 // aiRequest is a prepared call to the AI service. sourceText is set when the caller already
@@ -242,6 +257,8 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 type aiRequest struct {
 	req        *http.Request
 	sourceText string
+	// files are the uploaded PDFs, kept so they can be stored with the summary.
+	files []storedFile
 }
 
 // summaryBuilder validates a client request and prepares the matching AI service call.
@@ -269,6 +286,7 @@ func buffered(build summaryBuilder) func(*gin.Context) (*aiSummary, *apiError) {
 		if ar.sourceText != "" {
 			result.Text = ar.sourceText
 		}
+		result.files = ar.files
 		return result, nil
 	}
 }
@@ -287,11 +305,7 @@ func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, &apiError{http.StatusBadRequest, "Only PDF files are supported."}
 	}
 
-	req, apiErr := multipartRequest(c, withStream("/summarize", stream), opts.fields(), "file", []*multipart.FileHeader{file})
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	return &aiRequest{req: req}, nil
+	return multipartRequest(c, withStream("/summarize", stream), opts.fields(), "file", []*multipart.FileHeader{file})
 }
 
 func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
@@ -322,11 +336,7 @@ func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, &apiError{http.StatusRequestEntityTooLarge, "The files are too large together (max 25 MB)."}
 	}
 
-	req, apiErr := multipartRequest(c, withStream("/summarize-multiple", stream), opts.fields(), "files", files)
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	return &aiRequest{req: req}, nil
+	return multipartRequest(c, withStream("/summarize-multiple", stream), opts.fields(), "files", files)
 }
 
 func buildTextRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {

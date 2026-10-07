@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // respond runs a summary request and writes the result. When save is set, the summary and its
@@ -61,7 +62,10 @@ func saveDocument(c *gin.Context, title string, result *aiSummary) {
 	}
 	if err := initializers.DB.Create(&document).Error; err != nil {
 		_ = c.Error(err)
+		return
 	}
+	storeFiles(user.ID, document.ID, result.files)
+	indexAfterSave(middleware.RequestIDFrom(c), document)
 }
 
 const (
@@ -117,6 +121,11 @@ func ListDocuments(c *gin.Context) {
 		return
 	}
 
+	if err := attachFiles(documents); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load documents"})
+		return
+	}
+
 	next := ""
 	if len(documents) > size {
 		documents = documents[:size]
@@ -146,7 +155,18 @@ func DeleteDocument(c *gin.Context) {
 		return
 	}
 
-	if err := initializers.DB.Delete(&document).Error; err != nil {
+	// The document is only soft-deleted, so its original PDFs (which the database would remove along
+	// with a hard delete) are removed explicitly, together with the document, or neither.
+	err = initializers.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("DELETE FROM document_files WHERE document_id = ?", document.ID).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM document_passages WHERE document_id = ?", document.ID).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&document).Error
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete document"})
 		return
 	}

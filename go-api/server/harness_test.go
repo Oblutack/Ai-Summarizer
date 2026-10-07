@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -90,12 +91,32 @@ func tokenIn(t *testing.T, m sentMail) string {
 
 type fakeAI struct {
 	calls atomic.Int32
-	fail  atomic.Bool
+	// indexCalls counts /passages calls, kept apart so tests can count the work that costs a model call.
+	indexCalls atomic.Int32
+	fail       atomic.Bool
+	// lastAsk is the most recent /ask request body, to see which passages were sent.
+	lastAsk atomic.Value
 	// streamError makes streamed summaries end with an error event.
 	streamError atomic.Bool
 }
 
 func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/passages" {
+		f.indexCalls.Add(1)
+		var in struct {
+			Text string `json:"text"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		// One passage per blank-line-separated paragraph; page numbers follow form feeds like the real service.
+		var passages []map[string]any
+		for i, para := range strings.Split(in.Text, "\n\n") {
+			if strings.TrimSpace(para) != "" {
+				passages = append(passages, map[string]any{"text": para, "page": i + 1, "pageEnd": i + 1, "document": nil})
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"passages": passages})
+		return
+	}
 	f.calls.Add(1)
 	if f.fail.Load() {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -119,6 +140,28 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/chat":
 		_, _ = w.Write([]byte(`{"answer":"fake answer [1]","sources":[{"id":1,"text":"the cited passage","page":2,"pageEnd":3,"document":"report.pdf"}]}`))
+	case "/podcast":
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"title": "Fake episode",
+			"turns": []map[string]string{
+				{"speaker": "A", "text": "So what is this about?"}, {"speaker": "B", "text": "It is a fake document."},
+				{"speaker": "A", "text": "Anything else?"}, {"speaker": "B", "text": "Not really."},
+			},
+		})
+	case "/ask":
+		raw, _ := io.ReadAll(r.Body)
+		f.lastAsk.Store(raw)
+		var in struct {
+			Passages []map[string]any `json:"passages"`
+		}
+		_ = json.Unmarshal(raw, &in)
+		cited := []map[string]any{}
+		if len(in.Passages) > 0 {
+			cited = append(cited, in.Passages[0])
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"answer": "library answer [1]", "sources": cited})
+	case "/proof":
+		_, _ = w.Write([]byte(`{"sentences":[{"text":"Overview","kind":"heading","support":null,"coverage":0,"missingNumbers":[],"passages":[]},{"text":"A claim that is backed.","kind":"claim","support":"strong","coverage":0.9,"missingNumbers":[],"passages":[{"id":1,"text":"The backing passage.","page":2,"pageEnd":2,"coverage":0.9}]}],"claims":1,"found":1,"partly":0,"notFound":0,"verifiable":true}`))
 	case "/healthz":
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	default:

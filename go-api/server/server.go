@@ -81,6 +81,8 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	authLimit := middleware.RateLimit(middleware.NewRateLimiter(rates.AuthPerMinute, rates.AuthBurst))
 	summarizeUserLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.SummarizeUserPerMinute, rates.SummarizeUserBurst))
 	chatUserLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ChatPerMinute, rates.ChatBurst))
+	// Checking a summary against its document costs no model call, but it is real work: its own bucket.
+	proofUserLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ChatPerMinute, rates.ChatBurst))
 	exportLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ExportPerMinute, rates.ExportBurst))
 	turnstile := middleware.Turnstile()
 
@@ -133,6 +135,8 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		// Saved documents.
 		authorized.GET("/documents", controllers.ListDocuments)
 		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
+		authorized.GET("/documents/:id/files/:fileId", controllers.DocumentFile)
+		authorized.POST("/documents/:id/proof", proofUserLimit, controllers.CheckDocumentSummary)
 
 		// Work that costs an LLM call: signed in (and verified, when required), rate limited, then
 		// charged against the daily quota last so rejected requests don't use up allowance.
@@ -141,6 +145,8 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		verified.POST("/summarize-multiple", summarizeUserLimit, multiBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryMultiple)
 		verified.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryText)
 		verified.POST("/documents/:id/chat", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.ChatWithDocument)
+		verified.POST("/documents/:id/podcast", chatUserLimit, smallBody, controllers.ReplayStoredPodcast, middleware.Quota(middleware.QuotaChats), controllers.PodcastDocument)
+		verified.POST("/library/ask", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.AskLibrary)
 	}
 
 	return r, nil

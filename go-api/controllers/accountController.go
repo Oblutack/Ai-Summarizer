@@ -43,11 +43,17 @@ func ExportAccount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export your data"})
 		return
 	}
+	if err := attachFiles(documents); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export your data"})
+		return
+	}
 	docs := make([]gin.H, 0, len(documents))
 	for _, d := range documents {
+		// The original PDFs themselves are not in the export (the user uploaded them and still has
+		// them); their names and sizes are listed so nothing we keep goes unmentioned.
 		docs = append(docs, gin.H{
 			"id": d.ID, "filename": d.Filename, "createdAt": d.CreatedAt,
-			"summary": d.Summary, "sourceText": d.Content,
+			"summary": d.Summary, "sourceText": d.Content, "originalFiles": d.Files,
 		})
 	}
 
