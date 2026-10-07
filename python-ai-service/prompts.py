@@ -98,11 +98,16 @@ def describe_passage(passage) -> str:
     return f"[{passage.id}]" + (f" ({' of '.join(where)})" if where else "")
 
 
-def chat_prompt(passages: list, history: list[dict], question: str) -> str:
+def chat_prompt(passages: list, history: list[dict], question: str, library: bool = False) -> str:
     turns = "\n".join(f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}" for m in history)
     history_block = f"Conversation so far:\n{turns}\n\n" if turns else ""
     excerpts = "\n\n".join(f"{describe_passage(p)}\n{p.text}" for p in passages)
-    return f"""You answer questions about a document. Use only the numbered document excerpts below.
+    subject = (
+        "the user's saved documents. The excerpts come from different documents; each heading names its document"
+        if library
+        else "a document"
+    )
+    return f"""You answer questions about {subject}. Use only the numbered excerpts below.
 If the answer is not in the excerpts, say you could not find it in the document; do not guess, and do not cite.
 Cite your sources: right after each statement taken from an excerpt, put that excerpt's number in square
 brackets, like [2], or [1][3] when several excerpts support it. Cite only excerpts you actually used. Never

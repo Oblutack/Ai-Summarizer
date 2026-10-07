@@ -17,6 +17,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
 from pypdf import PdfReader
 
+from attribution import check_summary
 from cache import from_env as cache_from_env
 from cache import summary_key
 from citations import clean_citations, strip_citations
@@ -35,6 +36,7 @@ from llm import (
 )
 from logging_setup import RequestContextMiddleware, configure_logging
 from metrics import MetricsMiddleware, StateCollector, record_llm, record_rejected, record_usage, registry
+from podcast import normalize_script, parse_reply, podcast_prompt
 from prompts import (
     DEFAULT_LANGUAGE,
     DEFAULT_STYLE,
@@ -46,7 +48,7 @@ from prompts import (
     is_valid_style,
     summary_prompt,
 )
-from retrieval import PAGE_BREAK, select_passages
+from retrieval import PAGE_BREAK, Passage, select_passages
 
 load_dotenv()
 configure_logging()
@@ -123,6 +125,37 @@ class ChatPayload(BaseModel):
     text: str
     question: str
     history: Optional[list[ChatMessage]] = None
+
+
+class LibraryPassage(BaseModel):
+    """A passage the Go API found for a question across the user's documents."""
+
+    id: int
+    text: str
+    page: Optional[int] = None
+    pageEnd: Optional[int] = None
+    document: Optional[str] = None
+
+
+class AskPayload(BaseModel):
+    question: str
+    history: Optional[list[ChatMessage]] = None
+    passages: list[LibraryPassage]
+
+
+class PassagesPayload(BaseModel):
+    text: str
+
+
+class PodcastPayload(BaseModel):
+    summary: str
+    text: str = ""
+    language: Optional[str] = None
+
+
+class ProofPayload(BaseModel):
+    summary: str
+    text: str
 
 
 def _slots() -> asyncio.Semaphore:
@@ -475,27 +508,29 @@ async def summarize_multiple(
     return {"filename": extra["filename"], "summary": summary, "text": extra["text"]}
 
 
-@app.post("/chat")
-async def chat(payload: ChatPayload):
-    question = payload.question.strip()
+def validated_question(raw: str) -> str:
+    question = raw.strip()
     if not question:
         raise HTTPException(422, "Question is required")
     if len(question) > MAX_QUESTION_CHARS:
         raise HTTPException(422, f"Question is too long (max {MAX_QUESTION_CHARS} characters)")
-    if not payload.text.strip():
-        raise HTTPException(422, "This document has no text to chat with")
-    if len(payload.text) > MAX_MULTI_TEXT_CHARS + 10_000:
-        raise HTTPException(413, "Document is too long")
+    return question
 
-    history = [
+
+def clean_history(messages: Optional[list[ChatMessage]]) -> list[dict]:
+    """The recent conversation, limited in size, without roles we did not define, and without the old
+    citation numbers (they would not match the excerpts numbered for the new question)."""
+    return [
         {"role": m.role, "content": strip_citations(m.content).strip()[:MAX_HISTORY_MESSAGE_CHARS]}
-        for m in (payload.history or [])[-MAX_HISTORY_MESSAGES:]
+        for m in (messages or [])[-MAX_HISTORY_MESSAGES:]
         if m.role in ("user", "assistant") and m.content.strip()
     ]
 
+
+async def answer_from_passages(passages: list[Passage], history: list[dict], question: str, library: bool = False):
+    """Asks the model to answer from numbered passages and returns the answer with the passages it cites."""
     try:
-        passages = select_passages(payload.text, question, CHAT_CONTEXT_CHARS)
-        answer = await call_llm(chat_prompt(passages, history, question))
+        answer = await call_llm(chat_prompt(passages, history, question, library))
     except Exception as exc:
         raise to_http_error(exc, "The language model failed to answer. Please try again.") from exc
     if not answer:
@@ -515,6 +550,103 @@ async def chat(payload: ChatPayload):
         for n in cited
     ]
     return {"answer": answer, "sources": sources}
+
+
+@app.post("/chat")
+async def chat(payload: ChatPayload):
+    question = validated_question(payload.question)
+    if not payload.text.strip():
+        raise HTTPException(422, "This document has no text to chat with")
+    if len(payload.text) > MAX_MULTI_TEXT_CHARS + 10_000:
+        raise HTTPException(413, "Document is too long")
+
+    passages = select_passages(payload.text, question, CHAT_CONTEXT_CHARS)
+    return await answer_from_passages(passages, clean_history(payload.history), question)
+
+
+MAX_LIBRARY_PASSAGES = 30
+MAX_LIBRARY_PASSAGE_CHARS = 5_000
+
+
+@app.post("/ask")
+async def ask(payload: AskPayload):
+    """Answers a question from passages the Go API found across all of a user's documents."""
+    question = validated_question(payload.question)
+    if not payload.passages:
+        raise HTTPException(422, "No passages to answer from")
+    if len(payload.passages) > MAX_LIBRARY_PASSAGES:
+        raise HTTPException(413, "Too many passages")
+    ids = [p.id for p in payload.passages]
+    if len(set(ids)) != len(ids) or any(i < 1 for i in ids):
+        raise HTTPException(422, "Passage numbers must be unique and positive")
+    passages = [
+        Passage(
+            id=p.id,
+            text=p.text[:MAX_LIBRARY_PASSAGE_CHARS],
+            page=p.page,
+            page_end=p.pageEnd if p.pageEnd is not None else p.page,
+            document=p.document,
+        )
+        for p in payload.passages
+    ]
+    return await answer_from_passages(passages, clean_history(payload.history), question, library=True)
+
+
+@app.post("/passages")
+async def passages_of(payload: PassagesPayload):
+    """Cuts a document into the page-aware passages used for citations, so they can be indexed for search."""
+    if not payload.text.strip():
+        raise HTTPException(422, "This document has no text")
+    if len(payload.text) > MAX_MULTI_TEXT_CHARS + 10_000:
+        raise HTTPException(413, "Document is too long")
+    found = await asyncio.to_thread(select_passages, payload.text, "", len(payload.text) + 1)
+    return {
+        "passages": [{"text": p.text, "page": p.page, "pageEnd": p.page_end, "document": p.document} for p in found]
+    }
+
+
+MAX_PROOF_SUMMARY_CHARS = 30_000
+PODCAST_ATTEMPTS = 3
+
+
+@app.post("/podcast")
+async def podcast(payload: PodcastPayload):
+    """Writes a short two-host conversation about a document, as a script of speaker turns."""
+    if not payload.summary.strip():
+        raise HTTPException(422, "A summary is required")
+    if payload.language and not is_valid_language(payload.language):
+        raise HTTPException(422, "Unsupported language")
+    if len(payload.summary) > MAX_PROOF_SUMMARY_CHARS or len(payload.text) > MAX_MULTI_TEXT_CHARS + 10_000:
+        raise HTTPException(413, "The document is too long")
+
+    prompt = podcast_prompt(payload.summary, payload.text, payload.language)
+    # Models often ignore the format (one-sided scripts, wrong shape); trying again is cheaper than failing.
+    for _ in range(PODCAST_ATTEMPTS):
+        try:
+            reply = await call_llm(prompt)
+        except Exception as exc:
+            raise to_http_error(exc, "The language model failed to write the script. Please try again.") from exc
+        parsed = parse_reply(reply)
+        script = normalize_script(parsed) if parsed else None
+        if script:
+            return script
+    raise HTTPException(502, "The language model did not return a usable script. Please try again.")
+
+
+@app.post("/proof")
+async def proof(payload: ProofPayload):
+    """Checks each sentence of a summary against the document it came from (see attribution.py).
+    No language model is involved, so it is free and gives the same answer every time."""
+    if not payload.summary.strip():
+        raise HTTPException(422, "A summary is required")
+    if not payload.text.strip():
+        raise HTTPException(422, "This document has no text to check against")
+    if len(payload.summary) > MAX_PROOF_SUMMARY_CHARS:
+        raise HTTPException(413, "The summary is too long to check")
+    if len(payload.text) > MAX_MULTI_TEXT_CHARS + 10_000:
+        raise HTTPException(413, "Document is too long")
+    # Pure computation, so it runs in a thread rather than holding up other requests.
+    return await asyncio.to_thread(check_summary, payload.summary, payload.text)
 
 
 # ---- Summarization pipeline ---------------------------------------------------------------
