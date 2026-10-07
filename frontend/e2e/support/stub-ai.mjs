@@ -82,7 +82,17 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/chat") {
     const { question = "", text = "" } = JSON.parse(body.toString("utf8") || "{}");
-    return json(res, 200, { answer: `Stub answer to "${question}" (the document has ${words(text).length} words).` });
+    const answer = `Stub answer to "${question}" (the document has ${words(text).length} words)`;
+    // Magic questions: NOCITE gets an answer with no citations; INVENTED also uses a marker that
+    // matches no source (the real service strips those; the UI must still never link them).
+    if (question.includes("NOCITE")) return json(res, 200, { answer: `${answer}.`, sources: [] });
+    const invented = question.includes("INVENTED") ? " and [9]" : "";
+    return json(res, 200, {
+      answer: `${answer} [1]${invented}.`,
+      sources: [
+        { id: 1, text: "Stub passage that the answer cites.", page: 2, pageEnd: 2, document: null },
+      ],
+    });
   }
 
   return json(res, 404, { detail: "not found" });

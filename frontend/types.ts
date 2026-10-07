@@ -6,9 +6,22 @@ export interface Document {
   hasContent?: boolean;
 }
 
+// A passage of the document that an answer cites.
+export interface ChatSource {
+  id: number;
+  text: string;
+  // Pages are counted within each file; null when the document has no page information.
+  page: number | null;
+  pageEnd: number | null;
+  // The file name, when several files were summarized together.
+  document?: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  // Only on assistant messages: the passages the answer cites.
+  sources?: ChatSource[];
 }
 
 export interface User {

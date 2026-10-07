@@ -4,6 +4,9 @@ import axios from "axios";
 import Markdown from "markdown-to-jsx";
 import type { ChatMessage } from "../types";
 import { API_URL, apiError } from "../lib/api";
+import { linkifyCitations } from "../lib/citations";
+import CitationLink from "./CitationLink";
+import SourceList from "./SourceList";
 
 const MAX_QUESTION_CHARS = 1000;
 const HISTORY_SENT = 10;
@@ -17,18 +20,29 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
   const [question, setQuestion] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
+  // The cited source currently expanded: which answer it belongs to, and its number.
+  const [openSource, setOpenSource] = useState<{ message: number; id: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, isSending]);
 
+  // Bring a source into view when a citation is clicked.
+  useEffect(() => {
+    if (!openSource) return;
+    document
+      .getElementById(`source-${documentId}-${openSource.message}-${openSource.id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [openSource, documentId]);
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = question.trim();
     if (!text || isSending) return;
 
-    const history = messages.slice(-HISTORY_SENT);
+    // Only the role and text go back to the server; the sources of earlier answers do not.
+    const history = messages.slice(-HISTORY_SENT).map(({ role, content }) => ({ role, content }));
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setQuestion("");
     setError("");
@@ -41,7 +55,7 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
       });
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: response.data.answer },
+        { role: "assistant", content: response.data.answer, sources: response.data.sources ?? [] },
       ]);
     } catch (err) {
       setError(apiError(err, "Something went wrong. Please try again."));
@@ -77,6 +91,7 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
                 <Markdown
                   options={{
                     overrides: {
+                      a: { component: CitationLink, props: { onSelect: (id: number) => setOpenSource({ message: i, id }) } },
                       p: { props: { className: "mb-2" } },
                       ul: {
                         props: { className: "list-disc list-inside mb-2 ml-4" },
@@ -89,8 +104,16 @@ export default function DocumentChat({ documentId }: DocumentChatProps) {
                     },
                   }}
                 >
-                  {m.content}
+                  {linkifyCitations(m.content, m.sources)}
                 </Markdown>
+              )}
+              {m.role === "assistant" && m.sources && (
+                <SourceList
+                  sources={m.sources}
+                  idPrefix={`source-${documentId}-${i}`}
+                  openId={openSource?.message === i ? openSource.id : null}
+                  onToggle={(id, open) => setOpenSource(open ? { message: i, id } : null)}
+                />
               )}
             </div>
           ))}

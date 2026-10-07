@@ -131,6 +131,52 @@ test.describe("summarizing while signed in", () => {
     await expect(page.getByText(/Stub answer to "And who pays\?"/)).toBeVisible();
   });
 
+  test("answers cite their sources: a chip opens the passage and its page", async ({ page }) => {
+    await newSignedInUser(page);
+    await summarizeTextAndWaitForCard(page);
+    await page.getByRole("button", { name: "Chat With Document" }).first().click();
+    await page.getByPlaceholder("Type a question").fill("When does work start?");
+    await page.keyboard.press("Enter");
+
+    // The answer carries a clickable marker, and the source list starts collapsed.
+    const chip = page.getByRole("button", { name: "Show source 1" });
+    await expect(chip).toBeVisible();
+    const sources = page.getByTestId("sources");
+    await expect(sources).toContainText("Page 2");
+    await expect(page.getByText("Stub passage that the answer cites.")).toBeHidden();
+
+    await chip.click();
+    await expect(page.getByText("Stub passage that the answer cites.")).toBeVisible();
+
+    // It can be closed again from the list itself.
+    await sources.getByText("Page 2").click();
+    await expect(page.getByText("Stub passage that the answer cites.")).toBeHidden();
+  });
+
+  test("a citation marker that matches no source is never turned into a link", async ({ page }) => {
+    await newSignedInUser(page);
+    await summarizeTextAndWaitForCard(page);
+    await page.getByRole("button", { name: "Chat With Document" }).first().click();
+    await page.getByPlaceholder("Type a question").fill("INVENTED reference please");
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByRole("button", { name: "Show source 1" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show source 9" })).toHaveCount(0);
+    await expect(page.getByText("[9]")).toBeVisible();
+  });
+
+  test("an answer without citations shows no source list", async ({ page }) => {
+    await newSignedInUser(page);
+    await summarizeTextAndWaitForCard(page);
+    await page.getByRole("button", { name: "Chat With Document" }).first().click();
+    await page.getByPlaceholder("Type a question").fill("NOCITE what is this?");
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByText(/Stub answer to "NOCITE what is this\?"/)).toBeVisible();
+    await expect(page.getByTestId("sources")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Show source/ })).toHaveCount(0);
+  });
+
   test("history shows newest first", async ({ page }) => {
     await newSignedInUser(page);
     await page.locator("#pdf-upload").setInputFiles(pdf("first.pdf"));
