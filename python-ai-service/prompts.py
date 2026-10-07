@@ -85,16 +85,34 @@ def summary_prompt(material: str, target_words: int, style: str, language: str, 
         {material}"""
 
 
-def chat_prompt(context: str, history: list[dict], question: str) -> str:
+def describe_passage(passage) -> str:
+    """The heading of a numbered excerpt, e.g. "[2] (page 4 of report.pdf)"."""
+    where = []
+    if passage.page is not None:
+        if passage.page_end is not None and passage.page_end != passage.page:
+            where.append(f"pages {passage.page}-{passage.page_end}")
+        else:
+            where.append(f"page {passage.page}")
+    if passage.document:
+        where.append(passage.document)
+    return f"[{passage.id}]" + (f" ({' of '.join(where)})" if where else "")
+
+
+def chat_prompt(passages: list, history: list[dict], question: str) -> str:
     turns = "\n".join(f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}" for m in history)
     history_block = f"Conversation so far:\n{turns}\n\n" if turns else ""
-    return f"""You answer questions about a document. Use only the document excerpts below.
-If the answer is not in the excerpts, say you could not find it in the document; do not guess.
-Answer in the same language as the user's question, be concise, and format with Markdown when helpful.
+    excerpts = "\n\n".join(f"{describe_passage(p)}\n{p.text}" for p in passages)
+    return f"""You answer questions about a document. Use only the numbered document excerpts below.
+If the answer is not in the excerpts, say you could not find it in the document; do not guess, and do not cite.
+Cite your sources: right after each statement taken from an excerpt, put that excerpt's number in square
+brackets, like [2], or [1][3] when several excerpts support it. Cite only excerpts you actually used. Never
+invent numbers and never use square brackets for anything else.
+Answer in the language of the user's latest question (not the document's language or an earlier answer's),
+be concise, and format with Markdown when helpful.
 
 Document excerpts:
 ---
-{context}
+{excerpts}
 ---
 
 {history_block}User: {question}

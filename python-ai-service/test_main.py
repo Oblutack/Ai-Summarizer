@@ -200,7 +200,7 @@ def test_chat_answers_with_question_and_history(client, monkeypatch):
             ],
         },
     )
-    assert r.status_code == 200 and r.json() == {"answer": "Paris."}
+    assert r.status_code == 200 and r.json() == {"answer": "Paris.", "sources": []}
     prompt = fake.prompts[0]
     assert "What is the capital?" in prompt and "France's capital is Paris." in prompt
     assert "User: Hi" in prompt and "Assistant: Hello" in prompt

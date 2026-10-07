@@ -19,6 +19,7 @@ from pypdf import PdfReader
 
 from cache import from_env as cache_from_env
 from cache import summary_key
+from citations import clean_citations, strip_citations
 from error_reporting import setup_error_reporting
 from internal_auth import InternalAuthMiddleware
 from llm import (
@@ -45,7 +46,7 @@ from prompts import (
     is_valid_style,
     summary_prompt,
 )
-from retrieval import select_context
+from retrieval import PAGE_BREAK, select_passages
 
 load_dotenv()
 configure_logging()
@@ -275,7 +276,8 @@ def validate_options(word_count: int, page_limit: int, style: str, language: str
 
 
 def extract_pdf_text(path: str) -> str:
-    return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
+    # Page breaks are kept (as form feeds) so chat answers can cite the page they came from.
+    return PAGE_BREAK.join(page.extract_text() or "" for page in PdfReader(path).pages)
 
 
 async def read_pdf_upload(file: UploadFile) -> str:
@@ -486,19 +488,33 @@ async def chat(payload: ChatPayload):
         raise HTTPException(413, "Document is too long")
 
     history = [
-        {"role": m.role, "content": m.content.strip()[:MAX_HISTORY_MESSAGE_CHARS]}
+        {"role": m.role, "content": strip_citations(m.content).strip()[:MAX_HISTORY_MESSAGE_CHARS]}
         for m in (payload.history or [])[-MAX_HISTORY_MESSAGES:]
         if m.role in ("user", "assistant") and m.content.strip()
     ]
 
     try:
-        context = select_context(payload.text, question, CHAT_CONTEXT_CHARS)
-        answer = await call_llm(chat_prompt(context, history, question))
+        passages = select_passages(payload.text, question, CHAT_CONTEXT_CHARS)
+        answer = await call_llm(chat_prompt(passages, history, question))
     except Exception as exc:
         raise to_http_error(exc, "The language model failed to answer. Please try again.") from exc
     if not answer:
         raise HTTPException(502, "The language model returned an empty answer. Please try again.")
-    return {"answer": answer}
+
+    # Only excerpts the answer actually cites are returned, and markers that point at nothing are removed.
+    answer, cited = clean_citations(answer, {p.id for p in passages})
+    by_id = {p.id: p for p in passages}
+    sources = [
+        {
+            "id": n,
+            "text": by_id[n].text,
+            "page": by_id[n].page,
+            "pageEnd": by_id[n].page_end,
+            "document": by_id[n].document,
+        }
+        for n in cited
+    ]
+    return {"answer": answer, "sources": sources}
 
 
 # ---- Summarization pipeline ---------------------------------------------------------------
