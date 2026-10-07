@@ -118,7 +118,7 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case "/chat":
-		_, _ = w.Write([]byte(`{"answer":"fake answer"}`))
+		_, _ = w.Write([]byte(`{"answer":"fake answer [1]","sources":[{"id":1,"text":"the cited passage","page":2,"pageEnd":3,"document":"report.pdf"}]}`))
 	case "/healthz":
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	default:

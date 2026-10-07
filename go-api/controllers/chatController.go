@@ -106,12 +106,53 @@ func ChatWithDocument(c *gin.Context) {
 		return
 	}
 	var out struct {
-		Answer string `json:"answer"`
+		Answer  string       `json:"answer"`
+		Sources []chatSource `json:"sources"`
 	}
 	if err := json.Unmarshal(respBody, &out); err != nil || strings.TrimSpace(out.Answer) == "" {
 		middleware.RefundQuota(c)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "The AI service returned an empty answer."})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"answer": out.Answer})
+	c.JSON(http.StatusOK, gin.H{"answer": out.Answer, "sources": cleanSources(out.Sources)})
+}
+
+// Limits on the citations passed on to the browser. The AI service is trusted, but what reaches a
+// user's screen is bounded here regardless.
+const (
+	maxSources    = 20
+	maxSourceText = 3_000
+)
+
+// chatSource is a passage of the document that an answer cites.
+type chatSource struct {
+	ID       int    `json:"id"`
+	Text     string `json:"text"`
+	Page     *int   `json:"page"`
+	PageEnd  *int   `json:"pageEnd"`
+	Document string `json:"document,omitempty"`
+}
+
+// cleanSources drops malformed citations and bounds the rest. It always returns a slice, so the
+// JSON is [] rather than null when there is nothing to cite.
+func cleanSources(in []chatSource) []chatSource {
+	out := make([]chatSource, 0, len(in))
+	seen := map[int]bool{}
+	for _, s := range in {
+		if s.ID <= 0 || seen[s.ID] || strings.TrimSpace(s.Text) == "" || len(out) >= maxSources {
+			continue
+		}
+		seen[s.ID] = true
+		if utf8.RuneCountInString(s.Text) > maxSourceText {
+			s.Text = string([]rune(s.Text)[:maxSourceText]) + "…"
+		}
+		if s.Page != nil && *s.Page < 1 {
+			s.Page, s.PageEnd = nil, nil
+		}
+		if s.PageEnd != nil && (s.Page == nil || *s.PageEnd < *s.Page) {
+			s.PageEnd = s.Page
+		}
+		out = append(out, s)
+	}
+	return out
 }
