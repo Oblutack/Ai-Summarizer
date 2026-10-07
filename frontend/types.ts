@@ -1,9 +1,18 @@
+// An original PDF kept with a saved summary.
+export interface FileInfo {
+  id: number;
+  name: string;
+  size: number;
+}
+
 export interface Document {
   ID: number;
   CreatedAt: string;
   Filename: string;
   Summary: string;
   hasContent?: boolean;
+  // Empty for pasted text and for documents saved before originals were kept.
+  files?: FileInfo[];
 }
 
 // A passage of the document that an answer cites.
@@ -15,6 +24,60 @@ export interface ChatSource {
   pageEnd: number | null;
   // The file name, when several files were summarized together.
   document?: string;
+  // Only on answers drawn from the whole library: which saved document the passage is in, when it was
+  // saved, and the stored original PDF to open it in (if one was kept).
+  documentId?: number;
+  documentTitle?: string;
+  savedAt?: string;
+  fileId?: number | null;
+  fileName?: string;
+}
+
+// How well a sentence of a summary is backed by the original document (see the proof check).
+export type Support = "strong" | "weak" | "none";
+
+export interface ProofPassage {
+  id: number;
+  text: string;
+  page: number | null;
+  pageEnd: number | null;
+  document?: string;
+  coverage: number;
+}
+
+export interface ProofSentence {
+  text: string;
+  kind: "claim" | "heading";
+  // null for headings, which are not judged.
+  support: Support | null;
+  coverage: number;
+  // Numbers in the sentence that the document never mentions, and ones it has but elsewhere.
+  missingNumbers: string[];
+  elsewhereNumbers: string[];
+  passages: ProofPassage[];
+}
+
+export interface ProofResult {
+  sentences: ProofSentence[];
+  claims: number;
+  found: number;
+  partly: number;
+  notFound: number;
+  // False when almost nothing matched: the summary is probably in another language than the document.
+  verifiable: boolean;
+}
+
+// A podcast script: a short conversation between two hosts, A and B, about a document.
+export interface PodcastTurn {
+  speaker: "A" | "B";
+  text: string;
+}
+
+export interface PodcastScript {
+  title: string;
+  // The language the script was written in; empty means that of the document.
+  language: string;
+  turns: PodcastTurn[];
 }
 
 export interface ChatMessage {

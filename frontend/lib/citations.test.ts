@@ -59,3 +59,32 @@ describe("describeSource", () => {
     expect(describeSource(source())).toBe("");
   });
 });
+
+describe("describeSource for answers from the whole library", () => {
+  it("names the saved document and when it was saved", () => {
+    expect(
+      describeSource(source({ page: 3, pageEnd: 3, documentTitle: "atlas-manual.pdf", savedAt: "2026-10-08T10:00:00Z" }))
+    ).toBe("atlas-manual.pdf (8 Oct 2026), page 3");
+  });
+
+  it("tells apart documents that share a title by their date", () => {
+    const first = describeSource(source({ documentTitle: "Pasted Text", savedAt: "2026-10-08T10:00:00Z" }));
+    const second = describeSource(source({ documentTitle: "Pasted Text", savedAt: "2026-10-09T10:00:00Z" }));
+    expect(first).toBe("Pasted Text (8 Oct 2026)");
+    expect(second).not.toBe(first);
+  });
+
+  it("adds the file when a combined document contains several", () => {
+    expect(describeSource(source({ page: 2, pageEnd: 2, documentTitle: "a.pdf, b.pdf", document: "b.pdf" }))).toBe(
+      "a.pdf, b.pdf, b.pdf, page 2"
+    );
+  });
+
+  it("does not repeat a file name that is the title", () => {
+    expect(describeSource(source({ documentTitle: "x.pdf", document: "x.pdf" }))).toBe("x.pdf");
+  });
+
+  it("ignores an unreadable date", () => {
+    expect(describeSource(source({ documentTitle: "Notes", savedAt: "not a date" }))).toBe("Notes");
+  });
+});

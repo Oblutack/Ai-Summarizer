@@ -23,6 +23,8 @@ export function middleware(request: NextRequest) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${google} ${turnstile}${isDev ? " 'unsafe-eval'" : ""}`,
     // Inline style attributes (React, framer-motion, Tailwind arbitrary values) can't carry a nonce.
     `style-src 'self' 'unsafe-inline' ${google}`,
+    // The PDF viewer runs PDF.js in a worker served from this site.
+    "worker-src 'self' blob:",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     `connect-src 'self' ${apiOrigin} ${google} ${turnstile}${isDev ? " ws:" : ""}`.replace(/\s+/g, " ").trim(),

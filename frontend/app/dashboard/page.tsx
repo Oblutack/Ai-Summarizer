@@ -21,6 +21,9 @@ const DocumentCard = dynamic(() => import("../../components/DocumentCard"), {
   loading: () => <p>Loading document...</p>,
 });
 
+// Chat across every saved document.
+const LibraryChat = dynamic(() => import("../../components/LibraryChat"), { ssr: false });
+
 const PAGE_SIZE = 20;
 
 export default function DashboardPage() {
@@ -120,6 +123,9 @@ export default function DashboardPage() {
           onSummaryCreated={fetchDocuments}
         />
       </div>
+
+      {/* One question across everything saved */}
+      {documents.some((d) => d.hasContent) && <LibraryChat />}
 
       {/* Saved summaries */}
       <div>

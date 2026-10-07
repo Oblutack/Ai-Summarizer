@@ -266,7 +266,11 @@ export default function AccountPage() {
       </Section>
 
       <Section title="Your data">
-        <p>Download everything we store about you: your account, your saved summaries and the text they came from.</p>
+        <p>
+          Download everything we store about you: your account, your saved summaries and the text they came from. The
+          original PDFs we keep for the document viewer are listed by name; the files themselves are not included, as
+          you uploaded them.
+        </p>
         <SecondaryButton onClick={exportData}>Download my data</SecondaryButton>
       </Section>
 

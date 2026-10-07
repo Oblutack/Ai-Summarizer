@@ -9,10 +9,21 @@ interface SourceListProps {
   onToggle: (id: number, open: boolean) => void;
   // Makes element ids unique when several chats are on the page.
   idPrefix: string;
+  // Present when originals can be shown: opens one at the source's page.
+  onOpenDocument?: (source: ChatSource) => void;
+  // Whether this particular source has an original to open (default: yes, when onOpenDocument is given).
+  canOpenDocument?: (source: ChatSource) => boolean;
 }
 
 // The passages an answer cites, each collapsed to a one-line label until opened.
-export default function SourceList({ sources, openId, onToggle, idPrefix }: SourceListProps) {
+export default function SourceList({
+  sources,
+  openId,
+  onToggle,
+  idPrefix,
+  onOpenDocument,
+  canOpenDocument,
+}: SourceListProps) {
   if (sources.length === 0) return null;
   return (
     <div className="mt-2 border-t border-dashed border-ink/40 pt-2" data-testid="sources">
@@ -38,6 +49,15 @@ export default function SourceList({ sources, openId, onToggle, idPrefix }: Sour
                 <blockquote className="mt-1 mb-2 border-l-2 border-ink/40 pl-3 text-base whitespace-pre-wrap">
                   {s.text}
                 </blockquote>
+                {onOpenDocument && s.page != null && (canOpenDocument?.(s) ?? true) && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDocument(s)}
+                    className="mb-2 rounded border-2 border-ink px-3 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
+                  >
+                    Open page {s.page} in the document
+                  </button>
+                )}
               </details>
             </li>
           );

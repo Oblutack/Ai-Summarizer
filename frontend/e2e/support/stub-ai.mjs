@@ -80,6 +80,65 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { filename, summary, text });
   }
 
+  if (url.pathname === "/passages") {
+    const { text = "" } = JSON.parse(body.toString("utf8") || "{}");
+    // The text of a stubbed PDF is a placeholder; give it one passage that matches the e2e PDF's page 2.
+    if (text.startsWith("(stub) extracted text of")) {
+      return json(res, 200, {
+        passages: [{ text: "Stub passage that the answer cites.", page: 2, pageEnd: 2, document: null }],
+      });
+    }
+    const passages = text
+      .split(/\n\n/)
+      .filter((p) => p.trim())
+      .map((p) => ({ text: p, page: null, pageEnd: null, document: null }));
+    return json(res, 200, { passages });
+  }
+
+  if (url.pathname === "/ask") {
+    const { question = "", passages = [] } = JSON.parse(body.toString("utf8") || "{}");
+    // Cite the first passage the gateway chose: that is how a test sees which documents were searched.
+    const cited = passages.slice(0, 1);
+    return json(res, 200, {
+      answer: `Stub library answer to "${question}" from ${passages.length} passage(s)${cited.length ? " [1]" : ""}.`,
+      sources: cited,
+    });
+  }
+
+  if (url.pathname === "/podcast") {
+    const { language = "" } = JSON.parse(body.toString("utf8") || "{}");
+    return json(res, 200, {
+      title: `Stub episode about the document${language ? ` (${language})` : ""}`,
+      turns: [
+        { speaker: "A", text: "So what is this document about?" },
+        { speaker: "B", text: "It is a stub document used in tests." },
+        { speaker: "A", text: "What is the main point?" },
+        { speaker: "B", text: "That the player reads every line in order." },
+        { speaker: "A", text: "Anything to remember?" },
+        { speaker: "B", text: "Yes: two voices, one conversation." },
+      ],
+    });
+  }
+
+  if (url.pathname === "/proof") {
+    const { text = "" } = JSON.parse(body.toString("utf8") || "{}");
+    const passage = { id: 1, text: "Stub passage that the answer cites.", page: 2, pageEnd: 2, coverage: 0.92 };
+    const sentence = (text, support, extra = {}) => ({
+      text, kind: "claim", support, coverage: 0.8, missingNumbers: [], elsewhereNumbers: [], passages: [passage], ...extra,
+    });
+    return json(res, 200, {
+      sentences: [
+        { text: "Stub summary", kind: "heading", support: null, coverage: 0, missingNumbers: [], elsewhereNumbers: [], passages: [] },
+        sentence("The first claim is backed word for word.", "strong"),
+        sentence("The second claim is paraphrased.", "weak", { coverage: 0.5 }),
+        sentence("The third claim says 99 things.", "none", { coverage: 0.1, missingNumbers: ["99"], passages: [] }),
+      ],
+      claims: 3, found: 1, partly: 1, notFound: 1,
+      // Magic text: pretend the summary is in another language than the document.
+      verifiable: !text.includes("LANGUAGE_MISMATCH"),
+    });
+  }
+
   if (url.pathname === "/chat") {
     const { question = "", text = "" } = JSON.parse(body.toString("utf8") || "{}");
     const answer = `Stub answer to "${question}" (the document has ${words(text).length} words)`;

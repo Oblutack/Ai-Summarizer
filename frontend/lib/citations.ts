@@ -22,11 +22,25 @@ export function citationId(href: string | undefined): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// "8 Oct 2026": enough to tell apart documents with the same title (several pasted texts, say).
+function shortDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
 // Where a passage comes from, for people: "Page 2", "Pages 2-3", "report.pdf, page 2", or "" when
-// nothing is known (pasted text, or documents saved before page numbers were kept).
+// nothing is known (pasted text, or documents saved before page numbers were kept). Answers drawn
+// from the whole library also name the saved document and when it was saved.
 export function describeSource(source: ChatSource): string {
   const parts: string[] = [];
-  if (source.document) parts.push(source.document);
+  if (source.documentTitle) {
+    const saved = source.savedAt ? shortDate(source.savedAt) : "";
+    parts.push(saved ? `${source.documentTitle} (${saved})` : source.documentTitle);
+    if (source.document && source.document !== source.documentTitle) parts.push(source.document);
+  } else if (source.document) {
+    parts.push(source.document);
+  }
   if (source.page != null) {
     const range = source.pageEnd != null && source.pageEnd !== source.page;
     const label = range ? `pages ${source.page}-${source.pageEnd}` : `page ${source.page}`;

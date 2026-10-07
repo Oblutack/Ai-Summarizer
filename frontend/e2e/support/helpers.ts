@@ -75,3 +75,30 @@ export function pdf(name: string) {
 export function alertOf(page: Page): Locator {
   return page.locator('[role="alert"]:not(#__next-route-announcer__)');
 }
+
+// A small but valid PDF with one line of text per page, so PDF.js has something real to draw.
+export function realPdf(pages: string[]): Buffer {
+  const escape = (text: string) => text.replace(/[\()]/g, (c) => `\${c}`);
+  const objects: string[] = [];
+  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objects[2] = `<< /Type /Pages /Kids [${pages.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`;
+  objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  pages.forEach((text, i) => {
+    const stream = `BT /F1 18 Tf 72 700 Td (${escape(text)}) Tj ET`;
+    objects[4 + i * 2] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${5 + i * 2} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`;
+    objects[5 + i * 2] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  });
+
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  for (let id = 1; id < objects.length; id++) {
+    offsets[id] = out.length;
+    out += `${id} 0 obj\n${objects[id]}\nendobj\n`;
+  }
+  const xref = out.length;
+  out += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  out += offsets.slice(1).map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
+  out += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
