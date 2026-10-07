@@ -38,6 +38,7 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 
 ### Chat with your documents
 - Ask questions about any saved summary. The original text is kept server-side, and for long documents a built-in BM25 search picks only the relevant passages for the model, so answers stay grounded and cheap.
+- **Answers cite their sources.** Each statement carries a small numbered marker; click it to see the exact passage and the page it came from (and the file, when several PDFs were combined). Markers are checked on the server, so one can never point at a passage that does not exist, and answers that cannot be found in the document say so instead of citing.
 - Conversation history is supported, and the model is told to say so when the answer is not in the document.
 
 ### Accounts and privacy
@@ -182,7 +183,7 @@ All endpoints are served by the Go gateway on port `8080`. Authenticated routes 
 | `POST` | `/public/summarize-multiple` | none | Summarize up to 5 PDFs (multipart `files`). |
 | `POST` | `/public/summarize-text` | none | Summarize pasted text (`{"text": "..."}`). |
 | `POST` | `/summarize`, `/summarize-multiple`, `/summarize-text` | session | Same, but the result is saved to the user's history. Counts against the daily quota. |
-| `POST` | `/documents/:id/chat` | session | Ask a question about a saved document (`{"question", "history"}`). |
+| `POST` | `/documents/:id/chat` | session | Ask a question about a saved document (`{"question", "history"}`). Replies with `{"answer", "sources"}`: the answer has `[1]`-style markers, and `sources` lists the cited passages (`id`, `text`, `page`, `pageEnd`, `document`). |
 | `GET` | `/documents?limit=20&before=<id>` | session | List saved documents, newest first. The next cursor is in the `X-Next-Cursor` header. |
 | `DELETE` | `/documents/:id` | session | Delete a saved document. |
 
@@ -388,7 +389,8 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 │   ├── main.py               Endpoints and the summarization pipeline
 │   ├── llm.py                Model verification, fallback, circuit breaker
 │   ├── prompts.py            Styles, languages, prompt construction
-│   ├── retrieval.py          BM25 chunk retrieval for chat
+│   ├── retrieval.py          BM25 retrieval; numbered passages with page and file for citations
+│   ├── citations.py          Cleans the model's [n] markers so each points at a real passage
 │   ├── cache.py              Summary cache
 │   ├── logging_setup.py      JSON logs and request IDs
 │   ├── metrics.py            Prometheus metrics
