@@ -72,6 +72,8 @@ services:
       - QUOTA_CHAT_PER_DAY=${QUOTA_CHAT_PER_DAY:-200}
       # Multiplies every request rate limit (default 1).
       - RATE_LIMIT_MULTIPLIER=${RATE_LIMIT_MULTIPLIER:-1}
+      # How much original PDF data each user may keep for the document viewer (0 = keep none).
+      - STORED_FILES_MB_PER_USER=${STORED_FILES_MB_PER_USER:-100}
     restart: unless-stopped
 
 volumes:

@@ -81,6 +81,9 @@ services:
         sync: false # optional
       - key: LOG_FORMAT
         value: json
+      # Original PDFs live in the database, which is small on free plans: keep the per-user cap low there.
+      - key: STORED_FILES_MB_PER_USER
+        value: "20"
       - key: SENTRY_DSN
         sync: false # optional
       - key: SENTRY_ENVIRONMENT
