@@ -107,6 +107,11 @@ type fakeAI struct {
 	embedOn    atomic.Bool
 	embedCalls atomic.Int32
 	embedModel atomic.Value
+	// lastSummary is the query string and body of the most recent /summarize* call, to see which options
+	// reached the AI service. suggestCalls and studyCalls count the calls that make questions and study material.
+	lastSummary  atomic.Value
+	suggestCalls atomic.Int32
+	studyCalls   atomic.Int32
 }
 
 // meaningOf stands in for an embedding model: words of the same group ("cat", "dog", "pet") share a
@@ -191,6 +196,16 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.calls.Add(1)
+	if strings.HasPrefix(r.URL.Path, "/summarize") {
+		raw, _ := io.ReadAll(r.Body)
+		f.lastSummary.Store(r.URL.RawQuery + "\n" + string(raw))
+	}
+	switch r.URL.Path {
+	case "/suggest":
+		f.suggestCalls.Add(1)
+	case "/study":
+		f.studyCalls.Add(1)
+	}
 	if f.fail.Load() {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"detail":"internal traceback"}`))
@@ -233,12 +248,27 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 			cited = append(cited, in.Passages[0])
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"answer": "library answer [1]", "sources": cited})
+	case "/suggest":
+		_, _ = w.Write([]byte(`{"questions":["What is this about?","Who wrote it?","When was it written?","Why does it matter?"]}`))
+	case "/study":
+		var in struct {
+			Kind string `json:"kind"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		if in.Kind == "quiz" {
+			_, _ = w.Write([]byte(`{"kind":"quiz","questions":[` +
+				`{"question":"One?","options":["a","b","c","d"],"answer":1,"explanation":"Because."},` +
+				`{"question":"Two?","options":["e","f","g","h"],"answer":3,"explanation":"Since."},` +
+				`{"question":"Three?","options":["i","j","k","l"],"answer":0,"explanation":"As."}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"kind":"flashcards","cards":[{"front":"Front one","back":"Back one"},{"front":"Front two","back":"Back two"},{"front":"Front three","back":"Back three"}]}`))
 	case "/proof":
 		_, _ = w.Write([]byte(`{"sentences":[{"text":"Overview","kind":"heading","support":null,"coverage":0,"missingNumbers":[],"passages":[]},{"text":"A claim that is backed.","kind":"claim","support":"strong","coverage":0.9,"missingNumbers":[],"passages":[{"id":1,"text":"The backing passage.","page":2,"pageEnd":2,"coverage":0.9}]}],"claims":1,"found":1,"partly":0,"notFound":0,"verifiable":true}`))
 	case "/healthz":
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	default:
-		_, _ = w.Write([]byte(`{"summary":"fake summary"}`))
+		_, _ = w.Write([]byte(`{"summary":"fake summary (` + r.URL.RawQuery + `)"}`))
 	}
 }
 
@@ -389,6 +419,7 @@ func (cl *client) req(method, path string, body any, headers ...string) reply {
 
 func (cl *client) get(path string) reply              { return cl.req(http.MethodGet, path, nil) }
 func (cl *client) post(path string, body any) reply   { return cl.req(http.MethodPost, path, body) }
+func (cl *client) put(path string, body any) reply    { return cl.req(http.MethodPut, path, body) }
 func (cl *client) delete(path string, body any) reply { return cl.req(http.MethodDelete, path, body) }
 
 // sessionToken returns the raw session token the client currently holds.
