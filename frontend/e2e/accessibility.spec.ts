@@ -44,6 +44,26 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await violations(page)).toEqual([]);
     });
 
+    test("a collection with its overview written has no accessibility violations", async ({ page }) => {
+      await newSignedInUser(page);
+      // Two documents: a title line, then a line of words (a title is taken from the first line).
+      for (const [index, title] of ["Alpha notes", "Bravo plans"].entries()) {
+        await summarizeText(page, `${title}. Some words about ${title.split(" ")[0].toLowerCase()}.`);
+        await expect(page.getByTestId("document-card")).toHaveCount(index + 1);
+      }
+      for (const title of ["Alpha notes", "Bravo plans"]) {
+        const card = page.getByTestId("document-card").filter({ has: page.getByRole("heading", { name: title }) });
+        await card.getByLabel("Add a tag").fill("course");
+        await page.keyboard.press("Enter");
+        await expect(card.getByTestId("tags")).toContainText("course");
+      }
+      const library = page.getByTestId("library");
+      await library.getByLabel("Search in").selectOption("course");
+      await library.getByRole("button", { name: "Write an overview" }).click();
+      await expect(library.getByText("Written from the saved summaries of these 2 documents.")).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
     test("the account page has no accessibility violations", async ({ page }) => {
       await newSignedInUser(page);
       await page.getByRole("link", { name: "Account" }).click();

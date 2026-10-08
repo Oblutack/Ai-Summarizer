@@ -2,6 +2,7 @@
 // It speaks the same HTTP contract the Go gateway expects (see python-ai-service/main.py):
 //   GET  /healthz
 //   POST /summarize-text[?stream=true]   JSON {text}
+//   POST /overview[?stream=true]         JSON {name, documents}: a briefing that lists them
 //   POST /summarize-url[?stream=true]    JSON {url}: the page is titled "Page from <host>"
 //   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s)
 //   POST /chat                           JSON {text, question, history}
@@ -111,6 +112,22 @@ const server = http.createServer(async (req, res) => {
     if (stream) return streamSummary(res, summary, { text }, flags);
     if (flags.fail) return json(res, 502, { detail: "The language model is unavailable. Please try again." });
     return json(res, 200, { summary, text });
+  }
+
+  if (url.pathname === "/overview") {
+    const { name = "", documents = [] } = JSON.parse(body.toString("utf8") || "{}");
+    const summary = [
+      "## Stub overview",
+      "",
+      `- Collection: ${name}`,
+      `- Documents: ${documents.length}`,
+      `- Names: ${documents.map((d) => d.name.split("\n")[0]).join(" / ")}`,
+      `- Options: ${url.searchParams.get("style") ?? "default"}, ${url.searchParams.get("word_count") ?? "300"} words, ${url.searchParams.get("language") ?? "English"}`,
+    ].join("\n");
+    const flags = { slow: name.includes("slow"), fail: name.includes("fail") };
+    if (stream) return streamSummary(res, summary, { filename: `Overview: ${name}` }, flags);
+    if (flags.fail) return json(res, 502, { detail: "The language model is unavailable. Please try again." });
+    return json(res, 200, { filename: `Overview: ${name}`, summary });
   }
 
   if (url.pathname === "/summarize-url") {
