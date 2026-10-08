@@ -44,6 +44,18 @@ Inkling turns PDFs and text into streaming summaries, answers questions about on
 - **Open the original.** When the PDF was kept, a citation can open it at the cited page in a built-in viewer with the passage highlighted. Originals are stored per user (capped, `STORED_FILES_MB_PER_USER`), only ever served to their owner, and deleted with the document or the account.
 - **Answers cite their sources.** Each statement carries a small numbered marker; click it to see the exact passage and the page it came from (and the file, when several PDFs were combined). Markers are checked on the server, so one can never point at a passage that does not exist, and answers that cannot be found in the document say so instead of citing.
 - Conversation history is supported, and the model is told to say so when the answer is not in the document.
+- **Suggested questions and highlight-to-ask.** Opening the chat offers questions worth asking about that document (written once, kept), and selecting a few words of a summary offers to ask what they mean.
+
+### Working with your summaries
+- **Search, rename and tag.** Find saved summaries by title or text, rename them, and put up to eight tags on each to filter by.
+- **Write it again.** Re-summarize a saved document in another style, length (TL;DR, short, one page, detailed) or language, from the text kept with it.
+- **Study it.** Flashcards and a multiple-choice quiz made from the document (written once and kept, so opening them again is free and works even after the daily allowance is used up).
+- **Share, send and export.** A public read-only link to the summary (never the source text), revocable at any time; email a summary to yourself; save it as PDF, Markdown or a Word document; copy it; or have your browser read it aloud.
+- **Standing instructions.** Tell Inkling once, on the account page, how you like your summaries ("focus on costs and deadlines") and every summary follows.
+
+### The interface
+- **Light and dark themes** (following your system until you choose), and the interface in **English, Spanish, German, French and Bosnian** (chosen from your browser's language, or from the switcher; summaries can be written in 15 languages whatever the interface language).
+- **Installable.** On a phone or computer, "Install" puts Inkling on your home screen or desktop; a small service worker shows a friendly page when you are offline and never stores your documents.
 
 ### Accounts and privacy
 - Email/password (bcrypt) and **Google sign-in**, with email confirmation and password reset.
@@ -190,6 +202,14 @@ All endpoints are served by the Go gateway on port `8080`. Authenticated routes 
 | `POST` | `/documents/:id/chat` | session | Ask a question about a saved document (`{"question", "history"}`). Replies with `{"answer", "sources"}`: the answer has `[1]`-style markers, and `sources` lists the cited passages (`id`, `text`, `page`, `pageEnd`, `document`). |
 | `GET` | `/documents?limit=20&before=<id>` | session | List saved documents, newest first. The next cursor is in the `X-Next-Cursor` header. |
 | `DELETE` | `/documents/:id` | session | Delete a saved document (and its stored original PDFs). |
+| `PUT` | `/documents/:id` | session | Rename a document and/or replace its tags (`{"filename"?, "tags"?}`; up to 8 tags of 30 characters). `GET /documents` also takes `?q=` (title or summary) and `?tag=`, and `GET /documents/tags` lists your tags with counts. |
+| `POST` | `/documents/:id/rewrite` | session | Write the summary again (`{"style"?, "wordCount"?, "language"?}`) from the stored text. Replaces the summary, the podcast and the study material. Counts as a summary. |
+| `POST` | `/documents/:id/suggestions` | session | Questions worth asking about a document. Written once and kept; does not use the allowance. |
+| `POST` | `/documents/:id/study` | session | Flashcards or a quiz (`{"kind": "flashcards" or "quiz", "regenerate"?}`). Stored material is replayed free; new material counts as a chat question. |
+| `POST` / `DELETE` | `/documents/:id/share` | session | Create (or fetch) / remove the public link of a summary. |
+| `POST` | `/documents/:id/email` | session | Email the summary to your own address (never to anyone else). |
+| `GET` | `/shared/:token` | public | A shared summary: its title and text only. Never cached or indexed. |
+| `PUT` | `/account/instructions` | session | Standing instructions added to every summary prompt (`{"customInstructions"}`, up to 500 characters). |
 | `POST` | `/documents/:id/podcast` | session | A two-host conversation about a saved document (`{"language"?, "regenerate"?}`). Replies with `{"title", "language", "turns": [{"speaker": "A"|"B", "text"}], "cached"}`. The script is stored: replays are free and work even after the daily allowance is used up; writing a new one counts as a chat question. |
 | `POST` | `/library/ask` | session | Ask a question across all of your saved documents (`{"question", "history"}`). Replies with `{"answer", "sources"}`; each source names its document (`documentId`, `documentTitle`, `savedAt`), page, and the stored original (`fileId`) when there is one. Counts as a chat question. |
 | `POST` | `/documents/:id/proof` | session | Check each sentence of a saved summary against its document. Replies with the sentences, a verdict (`strong`, `weak`, `none`) for each, the matching passages with their pages, and counts. Uses no model call, so it does not count against the daily quota. |
@@ -308,7 +328,7 @@ The dashboard covers overview, traffic, latency, the language model (including t
 
 ## Testing
 
-The project has **300+ automated tests** across the stack, and every one runs in CI on each push and pull request, together with linting, type checking and vulnerability scanning.
+The project has **800+ automated tests** across the stack, and every one runs in CI on each push and pull request, together with linting, type checking and vulnerability scanning.
 
 | Layer | What runs | Where |
 | --- | --- | --- |
@@ -401,6 +421,7 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 │   ├── prompts.py            Styles, languages, prompt construction
 │   ├── retrieval.py          BM25 retrieval; numbered passages with page and file for citations
 │   ├── embeddings.py         Local embedding model: vectors for searching documents by meaning
+│   ├── study.py              Suggested questions, flashcards and quizzes: prompts and tolerant parsers
 │   ├── evals/search/         Test library and questions for measuring search quality (run before changing the model)
 │   ├── citations.py          Cleans the model's [n] markers so each points at a real passage
 │   ├── attribution.py        Checks each summary sentence against the document (the proof check)
