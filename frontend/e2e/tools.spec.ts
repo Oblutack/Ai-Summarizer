@@ -138,6 +138,7 @@ test.describe("questions, rewriting and study", () => {
     await saveDoc(page, "Alpha notes\nSome words about alpha.", 1);
     const card = page.getByTestId("document-card");
 
+    await card.getByRole("button", { name: "More" }).click();
     await card.getByRole("button", { name: "Rewrite" }).click();
     await card.getByLabel("Length").selectOption({ label: "Detailed (500 words)" });
     await card.getByLabel("Style").selectOption({ label: "Bullet Points" });
@@ -201,6 +202,7 @@ test.describe("sharing, email and exports", () => {
     await newSignedInUser(page);
     await saveDoc(page, "Alpha notes\none two three four five six seven eight nine ZEBRAMARKER source text.", 1);
 
+    await page.getByRole("button", { name: "More" }).click();
     await page.getByRole("button", { name: "Share a link" }).click();
     const link = await page.getByLabel("Public link").inputValue();
     expect(link).toMatch(/\/s\/[A-Za-z0-9_-]{43}$/);
@@ -231,6 +233,7 @@ test.describe("sharing, email and exports", () => {
     const email = await newSignedInUser(page);
     await saveDoc(page, "Alpha notes\nSome words about alpha.", 1);
 
+    await page.getByRole("button", { name: "More" }).click();
     await page.getByRole("button", { name: "Email me this" }).click();
     await expect(page.getByText(`on its way to ${email}`)).toBeVisible();
   });
@@ -239,6 +242,7 @@ test.describe("sharing, email and exports", () => {
     await newSignedInUser(page);
     await saveDoc(page, "Alpha notes\nSome words about alpha.", 1);
 
+    await page.getByRole("button", { name: "More" }).click();
     const markdown = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save as Markdown" }).click();
     const md = await markdown;
@@ -284,6 +288,7 @@ test.describe("sharing, email and exports", () => {
     await newSignedInUser(page);
     await saveDoc(page, "Alpha notes\nSome words about alpha.", 1);
 
+    await page.getByRole("button", { name: "More" }).click();
     await page.getByRole("button", { name: "Read aloud" }).click();
     await expect(page.getByRole("button", { name: "Stop reading" })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken.join(" "))).toContain("Stub summary");
@@ -373,6 +378,9 @@ test.describe("installable app", () => {
     await page.reload();
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
 
+    // The worker stores its offline page while it installs; going offline before that would prove nothing.
+    await expect.poll(() => page.evaluate(async () => !!(await caches.match("/offline.html")))).toBe(true);
+
     await context.setOffline(true);
     await page.goto("/login").catch(() => undefined);
     await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
@@ -424,6 +432,7 @@ test.describe("languages of the interface", () => {
     await summarizeText(page, "Alpha notes\nSome words about alpha.");
     await expect(page.getByTestId("document-card")).toHaveCount(1);
 
+    await page.getByTestId("document-card").getByRole("button", { name: "More" }).click();
     await page.locator("header").getByLabel("Language").selectOption("es");
     await expect(page.getByRole("heading", { name: "Tu panel" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Resúmenes guardados" })).toBeVisible();
