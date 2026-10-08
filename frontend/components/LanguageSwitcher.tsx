@@ -11,7 +11,7 @@ export default function LanguageSwitcher() {
       value={language}
       onChange={(e) => isUiLanguage(e.target.value) && setLanguage(e.target.value)}
       aria-label={t("nav.language")}
-      className="bg-transparent border-2 border-ink rounded-md px-1 text-lg uppercase tracking-wider cursor-pointer"
+      className="h-11 cursor-pointer rounded-lg border border-ink/30 bg-transparent px-2 text-sm font-medium hover:bg-ink/10"
     >
       {UI_LANGUAGES.map((l) => (
         <option key={l.code} value={l.code} className="bg-canvas text-ink">

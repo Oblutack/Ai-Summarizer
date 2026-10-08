@@ -30,11 +30,11 @@ export function Field({
 }: FieldProps) {
   return (
     <div className="w-full">
-      <label className="block uppercase tracking-wider mb-1" htmlFor={id}>
+      <label className="label" htmlFor={id}>
         {label}
       </label>
       <input
-        className="w-full p-3 bg-canvas border-2 border-ink rounded-md focus:outline-none"
+        className="field"
         id={id}
         type={type}
         value={value}
@@ -43,8 +43,13 @@ export function Field({
         required={required}
         minLength={minLength}
         maxLength={maxLength}
+        aria-describedby={hint ? `${id}-hint` : undefined}
       />
-      {hint && <p className="mt-1 text-base opacity-70">{hint}</p>}
+      {hint && (
+        <p id={`${id}-hint`} className="muted mt-1 text-sm">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -52,36 +57,21 @@ export function Field({
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function PrimaryButton({ className = "", ...props }: ButtonProps) {
-  return (
-    <button
-      {...props}
-      className={`bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-    />
-  );
+  return <button {...props} className={`btn btn-primary ${className}`} />;
 }
 
 export function SecondaryButton({ className = "", ...props }: ButtonProps) {
-  return (
-    <button
-      {...props}
-      className={`bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-    />
-  );
+  return <button {...props} className={`btn btn-secondary ${className}`} />;
 }
 
 export function DangerButton({ className = "", ...props }: ButtonProps) {
-  return (
-    <button
-      {...props}
-      className={`bg-red-600 text-white text-xl uppercase font-bold py-2 px-6 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-    />
-  );
+  return <button {...props} className={`btn btn-danger ${className}`} />;
 }
 
 export function ErrorText({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
   return (
-    <p className="text-red-500 text-lg" role="alert">
+    <p className="text-base font-medium text-danger" role="alert">
       {children}
     </p>
   );
@@ -90,7 +80,7 @@ export function ErrorText({ children }: { children?: React.ReactNode }) {
 export function SuccessText({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
   return (
-    <p className="text-lg text-ink" role="status">
+    <p className="text-base text-ink" role="status">
       {children}
     </p>
   );

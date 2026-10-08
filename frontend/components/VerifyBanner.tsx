@@ -27,10 +27,10 @@ export default function VerifyBanner() {
   };
 
   return (
-    <div className="bg-ink text-canvas text-center py-2 px-4 text-lg" role="status">
+    <div className="bg-accent px-4 py-2.5 text-center text-sm font-medium text-accent-fg" role="status">
       {message || t("verify.banner")}{" "}
       {!message && (
-        <button onClick={resend} disabled={sending} className="underline hover:opacity-80 disabled:opacity-50">
+        <button onClick={resend} disabled={sending} className="font-semibold underline underline-offset-2 hover:opacity-80 disabled:opacity-50">
           {sending ? t("verify.sending") : t("verify.resend")}
         </button>
       )}

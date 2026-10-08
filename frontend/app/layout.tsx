@@ -1,10 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/source-serif-4";
 import "./globals.css";
 import { THEME_SCRIPT } from "../lib/theme";
+import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import Providers from "../components/Providers";
 import RegisterServiceWorker from "../components/RegisterServiceWorker";
+import SkipLink from "../components/SkipLink";
 import VerifyBanner from "../components/VerifyBanner";
 
 export const metadata: Metadata = {
@@ -33,16 +37,19 @@ export default async function RootLayout({
     // The theme script sets data-theme before React hydrates, so the attribute may differ from the server's.
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* Browsers hide a script's nonce once it has run, so the client always sees it empty: expected. */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="font-bebas bg-canvas text-ink">
-        <div className="fixed top-0 left-0 w-full h-full bg-[url('/noise.png')] opacity-10 pointer-events-none z-[-1] texture-div-for-pdf-export"></div>
-
+      <body className="flex min-h-screen flex-col bg-canvas font-sans text-ink">
         <RegisterServiceWorker />
         <Providers nonce={nonce}>
+          <SkipLink />
           <Navbar />
           <VerifyBanner />
-          <main>{children}</main>
+          <main id="main" className="flex-1">
+            {children}
+          </main>
+          <Footer />
         </Providers>
       </body>
     </html>
