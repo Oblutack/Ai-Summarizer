@@ -1,0 +1,194 @@
+"use client";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useAuth } from "../contexts/AuthContext";
+import { API_URL } from "../lib/api";
+import type { MessageKey } from "../lib/i18n";
+import { useT } from "./I18nProvider";
+import { SkeletonLine } from "./Skeleton";
+
+const EInkForm = dynamic(() => import("./EInkForm"), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-4" aria-hidden="true">
+      <SkeletonLine className="h-44 rounded-xl" />
+      <SkeletonLine className="h-10" />
+    </div>
+  ),
+});
+
+// A few icons, drawn the same way: 24 units, a round 2-unit stroke.
+function Icon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+const FEATURES: { key: "cited" | "proof" | "library" | "listen" | "languages" | "share"; icon: React.ReactNode }[] = [
+  { key: "cited", icon: <path d="M7 8h3v4H7zm7 0h3v4h-3zM7 12c0 3 1 4 3 4M14 12c0 3 1 4 3 4" /> },
+  { key: "proof", icon: <path d="M20 6L9 17l-5-5" /> },
+  { key: "library", icon: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></> },
+  { key: "listen", icon: <path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v6H4zm13 0h3v6h-3z" /> },
+  { key: "languages", icon: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" /></> },
+  { key: "share", icon: <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13" /> },
+];
+
+// A picture of the main idea: a summary whose sentences have been checked against the original, and an
+// answer that names its source. It is an illustration, not live data, so it is hidden from screen readers.
+function Preview() {
+  const t = useT();
+  return (
+    <div className="card relative mx-auto w-full max-w-md" aria-hidden="true">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-semibold">{t("preview.title")}</p>
+        <span className="chip pointer-events-none text-xs">{t("preview.checked")}</span>
+      </div>
+      <ul className="mt-4 space-y-3">
+        {(
+          [
+            ["s1", "found"],
+            ["s2", "found"],
+            ["s3", "notFound"],
+          ] as const
+        ).map(([sentence, state]) => (
+          <li key={sentence} className="flex gap-3">
+            <span
+              className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                state === "found" ? "bg-accent text-accent-fg" : "bg-danger text-danger-fg"
+              }`}
+            >
+              {state === "found" ? "✓" : "✕"}
+            </span>
+            <span>
+              <span className="reading block text-base">{t(`preview.${sentence}`)}</span>
+              <span className={`text-sm font-medium ${state === "found" ? "text-ink/70" : "text-danger"}`}>
+                {t(state === "found" ? "preview.found" : "preview.notFound")}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-5 space-y-2 border-t border-ink/15 pt-4">
+        <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-ink/10 px-4 py-2 text-sm">{t("preview.question")}</p>
+        <p className="reading w-fit max-w-[90%] rounded-2xl rounded-bl-sm border border-ink/20 px-4 py-2 text-base">
+          {t("preview.answer")}{" "}
+          <span className="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-ink/50 px-1 font-sans text-xs">1</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function Landing() {
+  const { user } = useAuth();
+  const t = useT();
+
+  const accountButton = user ? (
+    <Link href="/dashboard" className="btn btn-secondary">
+      {t("hero.toDashboard")}
+    </Link>
+  ) : (
+    <Link href="/signup" className="btn btn-secondary">
+      {t("hero.createAccount")}
+    </Link>
+  );
+
+  return (
+    <>
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-10 md:grid-cols-[1.15fr_1fr] md:pt-16">
+        <div>
+          <h1 className="text-4xl leading-[1.08] sm:text-5xl lg:text-6xl">{t("hero.title")}</h1>
+          <p className="reading mt-5 max-w-xl text-ink/80">{t("hero.subtitle")}</p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <a href="#try" className="btn btn-primary text-lg">
+              {t("hero.tryNow")}
+            </a>
+            {accountButton}
+          </div>
+          <p className="muted mt-3 text-sm">{t("hero.note")}</p>
+        </div>
+        <Preview />
+      </section>
+
+      <section id="try" className="mx-auto max-w-4xl scroll-mt-20 px-4 pb-16" aria-labelledby="try-heading">
+        <h2 id="try-heading" className="text-3xl md:text-4xl">
+          {t("tool.title")}
+        </h2>
+        <p className="muted mb-5 mt-1">{t("tool.subtitle")}</p>
+        <div className="card md:p-8">
+          <EInkForm endpoint={`${API_URL}/public/summarize`} />
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16" aria-labelledby="features-heading">
+        <h2 id="features-heading" className="text-3xl md:text-4xl">
+          {t("features.title")}
+        </h2>
+        <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map(({ key, icon }) => (
+            <li key={key} className="card">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent">
+                <Icon>{icon}</Icon>
+              </span>
+              <h3 className="mt-4 text-lg font-semibold">{t(`features.${key}.title` as MessageKey)}</h3>
+              <p className="muted mt-1">{t(`features.${key}.text` as MessageKey)}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16" aria-labelledby="steps-heading">
+        <h2 id="steps-heading" className="text-3xl md:text-4xl">
+          {t("steps.title")}
+        </h2>
+        <ol className="mt-6 grid gap-6 md:grid-cols-3">
+          {(["one", "two", "three"] as const).map((step, i) => (
+            <li key={step} className="flex gap-4">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ink text-base font-bold text-canvas">{i + 1}</span>
+              <div>
+                <h3 className="text-lg font-semibold">{t(`steps.${step}.title`)}</h3>
+                <p className="muted mt-1">{t(`steps.${step}.text`)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16" aria-labelledby="privacy-heading">
+        <div className="card flex flex-col gap-4 md:flex-row md:items-center md:gap-8 md:p-8">
+          <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+            <Icon>
+              <path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z" />
+              <path d="M9 12l2 2 4-4" />
+            </Icon>
+          </span>
+          <div>
+            <h2 id="privacy-heading" className="text-2xl md:text-3xl">
+              {t("privacy.title")}
+            </h2>
+            <p className="muted mt-1 max-w-3xl">{t("privacy.text")}</p>
+          </div>
+        </div>
+      </section>
+
+      {!user && (
+        <section className="mx-auto max-w-3xl px-4 text-center" aria-labelledby="cta-heading">
+          <h2 id="cta-heading" className="text-3xl md:text-4xl">
+            {t("cta.title")}
+          </h2>
+          <p className="muted mt-2">{t("cta.text")}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link href="/signup" className="btn btn-primary text-lg">
+              {t("hero.createAccount")}
+            </Link>
+            <Link href="/login" className="btn btn-secondary">
+              {t("nav.login")}
+            </Link>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
