@@ -29,6 +29,10 @@ for (const scheme of ["light", "dark"] as const) {
       await summarizeText(page, "Alpha notes\nSome words about alpha.");
       const card = page.getByTestId("document-card");
       await expect(card).toHaveCount(1);
+      // A tag makes a collection, which shows the "Search in" picker on the library chat.
+      await card.getByLabel("Add a tag").fill("course");
+      await page.keyboard.press("Enter");
+      await expect(page.getByTestId("library").getByLabel("Search in")).toBeVisible();
       await card.getByRole("button", { name: "More" }).click();
       await card.getByRole("button", { name: "Chat With Document" }).click();
       await expect(page.getByTestId("suggestions")).toBeVisible();
