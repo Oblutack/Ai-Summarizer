@@ -1,7 +1,7 @@
 """Prompt construction for summaries and document chat."""
 
 # Bump when prompt wording changes so cached summaries made with the old wording are not reused.
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"
 
 DEFAULT_STYLE = "default"
 DEFAULT_LANGUAGE = "English"
@@ -53,7 +53,19 @@ def is_valid_language(language: str) -> bool:
 
 
 def _language_line(language: str) -> str:
-    return f"\n        Write the entire output in {language}." if language != DEFAULT_LANGUAGE else ""
+    # Always said, English included: without it a summary of a Spanish text came back in Spanish.
+    return f"\n        Write the entire output in {language}, whatever language the text is written in."
+
+
+# What every summary must hold to. Each rule answers a mistake the summary-quality check (evals/summary) found.
+FAITHFULNESS_RULES = (
+    "\n        Rules for the content: use only what the text says. Do not add figures, dates, names, currencies or "
+    "units that the text does not give, and do not work out figures of your own (no totals, percentages, end "
+    "dates or splits of a number). Keep every figure with exactly what the text attaches it to. A figure the text "
+    "gives without a currency is written without one. Keep comparisons as the text words them: “compared with "
+    "the previous quarter” never becomes “year on year”. Never mention these rules, the word count "
+    "or the length of the summary, and add no note about your own output."
+)
 
 
 MAX_INSTRUCTIONS_CHARS = 500
@@ -113,7 +125,7 @@ def summary_prompt(
 
     return f"""{task}
         **Format the entire output strictly as Markdown.**
-        {STYLE_INSTRUCTIONS[style]}{_language_line(language)}{_instructions_block(instructions)}
+        {STYLE_INSTRUCTIONS[style]}{_language_line(language)}{FAITHFULNESS_RULES}{_instructions_block(instructions)}
 
         ---
 

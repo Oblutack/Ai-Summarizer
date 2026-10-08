@@ -113,9 +113,31 @@ def test_style_and_language_reach_the_prompt(llm):
     assert "Write the entire output in German" in llm.prompts[0]
 
 
-def test_english_adds_no_language_line(llm):
+def test_english_is_asked_for_too(llm):
+    # Left unsaid, a summary of a Spanish text came back in Spanish (found by the summary-quality check).
     asyncio.run(main.process_summary("hello world", 100, 0, "bullets", "English"))
-    assert "Write the entire output in" not in llm.prompts[0]
+    assert "Write the entire output in English, whatever language the text is written in" in llm.prompts[0]
+
+
+def test_every_summary_prompt_carries_the_rules_against_invention(llm):
+    asyncio.run(main.process_summary("hello world", 100, 0))
+    asyncio.run(main.process_multi_summary([("a.pdf", "alpha"), ("b.pdf", "beta")], 100, 0))
+    for prompt in llm.prompts:
+        assert "Rules for the content: use only what the text says" in prompt
+        assert "never becomes" in prompt and "year on year" in prompt
+        assert "currency" in prompt and "length of the summary" in prompt
+
+
+def test_the_step_for_long_documents_keeps_figures_as_written(llm):
+    asyncio.run(main.process_summary("word " * 8000, 150, 0))
+    steps = [p for p in llm.prompts if p.startswith("Summarize the following text concisely")]
+    assert steps and all("exactly as written" in p for p in steps)
+
+
+def test_a_prompt_change_gets_a_new_version_so_old_cached_summaries_are_not_reused():
+    from prompts import PROMPT_VERSION
+
+    assert PROMPT_VERSION != "1"
 
 
 def test_style_applies_to_map_reduce_final_prompt(llm):

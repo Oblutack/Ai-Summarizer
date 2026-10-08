@@ -594,6 +594,30 @@ async def summarize_url(
     return {"filename": title, "summary": summary, "text": text}
 
 
+async def prepare_overview_prompt(
+    name: str,
+    docs: list[tuple[str, str]],
+    word_count: int,
+    style: str = DEFAULT_STYLE,
+    language: str = DEFAULT_LANGUAGE,
+    progress: Optional[ProgressCallback] = None,
+    instructions: str = "",
+) -> str:
+    """The prompt for a briefing on a collection, from the (already short) summaries of its documents."""
+    material = "\n\n".join(f"### {doc_name}\n{text}" for doc_name, text in docs)
+    if len(material) > REDUCE_MAX_CHARS:
+        material = await condense(material, progress)
+    return summary_prompt(
+        material,
+        target_words_for(word_count, 0),
+        style,
+        language,
+        kind="collection",
+        instructions=instructions,
+        subject=name,
+    )
+
+
 class OverviewDocument(BaseModel):
     name: str
     text: str
@@ -635,19 +659,8 @@ async def overview_collection(
         instructions,
     )
 
-    async def prepare(progress: Optional[ProgressCallback] = None) -> str:
-        material = "\n\n".join(f"### {doc_name}\n{text}" for doc_name, text in docs)
-        if len(material) > REDUCE_MAX_CHARS:
-            material = await condense(material, progress)
-        return summary_prompt(
-            material,
-            target_words_for(word_count, 0),
-            style,
-            language,
-            kind="collection",
-            instructions=instructions,
-            subject=name,
-        )
+    def prepare(progress: Optional[ProgressCallback] = None) -> Awaitable[str]:
+        return prepare_overview_prompt(name, docs, word_count, style, language, progress, instructions)
 
     if stream:
         return sse_response(summary_event_stream(prepare, done_extra, key))
@@ -995,7 +1008,9 @@ async def condense(text: str, progress: Optional[ProgressCallback] = None) -> st
         async def summarize_chunk(chunk: str, total: int) -> str:
             nonlocal finished
             result = await call_llm(
-                "Summarize the following text concisely, focusing on the key points:\n\n---\n\n" + chunk
+                "Summarize the following text concisely, focusing on the key points. Keep every figure, name and "
+                "date exactly as written, with what it belongs to, and add nothing that is not in the text:"
+                "\n\n---\n\n" + chunk
             )
             finished += 1
             if progress:
