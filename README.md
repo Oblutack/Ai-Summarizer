@@ -269,6 +269,7 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `GROQ_API_KEY` | *required* | Language model access. |
 | `GOOGLE_CLIENT_ID` | *required* | Google sign-in (any placeholder to skip). |
 | `LLM_MODEL`, `LLM_FALLBACK_MODELS` | `openai/gpt-oss-20b`, `openai/gpt-oss-120b` | Primary model and ordered fallbacks; a retired model is skipped automatically. |
+| `LLM_TEMPERATURE`, `LLM_REASONING_EFFORT` | `0.3`, `low` | How freely the model writes (`default` asks for the provider's own value) and how long it thinks first. A low temperature keeps summaries closer to the text; the summary-quality check below is how these were chosen. |
 | `MAIL_PROVIDER` | `log` | `log`, `brevo` or `resend`. See [Email](#email). |
 | `MAIL_FROM`, `BREVO_API_KEY`, `RESEND_API_KEY` | - | Sender and provider credentials. |
 | `REQUIRE_EMAIL_VERIFICATION` | `false` | Require a confirmed email before summarizing. |
@@ -364,6 +365,15 @@ pnpm test:e2e
 `````````
 
 The end-to-end suite replaces the LLM with a small stub that speaks the AI service's HTTP contract, so it is fast, free and deterministic; the real model is covered by the Python tests and by manual runs.
+
+**Summary quality.** Passing tests say the code works; they cannot say whether a summary is *right*. `python-ai-service/evals/summary` summarizes twelve made-up documents whose facts are known (a lease, a quarterly report, a slide deck, a C++ explainer, meeting notes, a warranty, a table of figures, a Spanish article, a 40,000-character report that needs several passes, three documents together, and the overview of a collection), several times each, with the real model, and scores every summary without another model: did it keep the facts, did it make the mistakes that kind of document invites (a currency the text never names, "year on year" for "on the previous quarter", a figure moved to the wrong month, a warranty exclusion turned into cover), did it invent a number or a date, does it have the format, language and length it was asked for, does it mention its own word count. The share of *clean* runs is the headline number. It found real problems in the first run (57% clean: a currency invented on a slide deck every time, an impossible "31 February", a Spanish article "summarized in English" that came back in Spanish, "(about 150 words)" printed into the summary), which prompt rules against inventing figures and always naming the output language fixed (95% clean over 126 summaries), and it picked the model's temperature (92% clean at the provider's default, 97% at 0.2, 98% at 0.4). The scoring and the documents are unit-tested offline in CI (every hand-written reference summary must score clean, and known-bad summaries must be caught); the model runs are manual, since every call counts against your provider key (the runner says how many it is about to make and refuses more than 150 unless you add `--yes`):
+
+`````````bash
+cd python-ai-service
+python evals/summary/run_eval.py                       # every case, 3 samples each: about 100 model calls
+python evals/summary/run_eval.py --samples 6 --yes --label my-change --baseline evals/summary/baseline.json   # about 200 calls
+python evals/summary/run_eval.py --compare evals/summary/results/a.json evals/summary/results/b.json
+`````````
 
 What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactly 3 of 12 simultaneous requests), single-use tokens under races, session revocation, CSRF and CORS, streaming edge cases (failures mid-stream, large events, cancellation), migrations applied to a legacy-shaped database, circuit-breaker state transitions, and log hygiene (no query strings, bodies or recipient addresses in logs).
 
