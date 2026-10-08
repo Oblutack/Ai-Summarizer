@@ -179,13 +179,17 @@ func embedNewPassages(ctx context.Context, requestID string, passages []passageT
 // ensureEmbedded embeds some of the user's passages that have no vector from the current model (older
 // documents, ones whose embedding failed, or ones made by a model that has since been replaced), so a
 // library gains search by meaning gradually without any one question waiting for all of it.
-func ensureEmbedded(ctx context.Context, requestID string, userID uint, model string) {
+//
+// With docIDs set, only the passages of those documents are looked at (a question about one collection
+// should not spend its allowance on documents outside it).
+func ensureEmbedded(ctx context.Context, requestID string, userID uint, model string, docIDs []uint) {
 	var pending []passageText
+	scope, args := scopeClause(docIDs, userID, model)
 	err := initializers.DB.WithContext(ctx).Raw(`
 		SELECT p.id, p.text FROM document_passages p
 		JOIN documents d ON d.id = p.document_id AND d.deleted_at IS NULL
-		WHERE p.user_id = ? AND (p.embedding IS NULL OR p.embedding_model <> ?)
-		ORDER BY p.id DESC LIMIT ?`, userID, model, embedBackfillPerQuestion).Scan(&pending).Error
+		WHERE p.user_id = ? AND (p.embedding IS NULL OR p.embedding_model <> ?)`+scope+`
+		ORDER BY p.id DESC LIMIT ?`, append(args, embedBackfillPerQuestion)...).Scan(&pending).Error
 	if err != nil {
 		slog.Error("looking for passages to embed failed", "user_id", userID, "error", err, "request_id", requestID)
 		return
@@ -198,14 +202,25 @@ func ensureEmbedded(ctx context.Context, requestID string, userID uint, model st
 	}
 }
 
+// scopeClause restricts a passage query to a set of documents (nil means all of the user's), and returns
+// the query arguments so far: the user, the model, then the documents when there are any.
+func scopeClause(docIDs []uint, userID uint, model string) (string, []any) {
+	args := []any{userID, model}
+	if docIDs == nil {
+		return "", args
+	}
+	return " AND p.document_id IN ?", append(args, docIDs)
+}
+
 // semanticSearch returns the ids of the user's passages whose meaning is closest to the question,
 // best first, keeping only those at least minScore similar.
-func semanticSearch(ctx context.Context, userID uint, model string, question []byte, minScore float64) ([]uint, error) {
+func semanticSearch(ctx context.Context, userID uint, model string, question []byte, minScore float64, docIDs []uint) ([]uint, error) {
+	scope, args := scopeClause(docIDs, userID, model)
 	rows, err := initializers.DB.WithContext(ctx).Raw(`
 		SELECT p.id, p.embedding FROM document_passages p
 		JOIN documents d ON d.id = p.document_id AND d.deleted_at IS NULL
-		WHERE p.user_id = ? AND p.embedding_model = ? AND p.embedding IS NOT NULL
-		ORDER BY p.id DESC LIMIT ?`, userID, model, semanticScanLimit).Rows()
+		WHERE p.user_id = ? AND p.embedding_model = ? AND p.embedding IS NOT NULL`+scope+`
+		ORDER BY p.id DESC LIMIT ?`, append(args, semanticScanLimit)...).Rows()
 	if err != nil {
 		return nil, err
 	}

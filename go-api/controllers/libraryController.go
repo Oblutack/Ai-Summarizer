@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -37,6 +38,7 @@ const (
 	maxQueryTerms        = 12
 	prefixMinLength      = 4 // words at least this long match by prefix
 	noMatchAnswer        = "I couldn't find anything about that in your saved documents."
+	noCollectionAnswer   = "None of your documents has that tag, or they have no text to search."
 	noQueryTermsAnswer   = "Please ask something more specific: I couldn't find searchable words in that question."
 	insertPassagesBatch  = 100
 	maxPassagesPerDocRow = 2_000 // a safety bound on what one document may add to the index
@@ -136,12 +138,17 @@ func indexAfterSave(requestID string, document models.Document) {
 
 // ensureIndexed indexes some of the user's documents that have not been (older ones, or ones whose
 // indexing failed), so a question covers them too.
-func ensureIndexed(ctx context.Context, requestID string, userID uint) {
+//
+// With docIDs set, only those documents are considered (a question about one collection).
+func ensureIndexed(ctx context.Context, requestID string, userID uint, docIDs []uint) {
 	var pending []models.Document
-	err := initializers.DB.WithContext(ctx).
+	query := initializers.DB.WithContext(ctx).
 		Select("id", "user_id", "content", "has_content").
-		Where("user_id = ? AND has_content = true AND indexed_at IS NULL", userID).
-		Order("id DESC").Limit(indexBackfillBatch).Find(&pending).Error
+		Where("user_id = ? AND has_content = true AND indexed_at IS NULL", userID)
+	if docIDs != nil {
+		query = query.Where("id IN ?", docIDs)
+	}
+	err := query.Order("id DESC").Limit(indexBackfillBatch).Find(&pending).Error
 	if err != nil {
 		slog.Error("looking for unindexed documents failed", "user_id", userID, "error", err, "request_id", requestID)
 		return
@@ -199,18 +206,25 @@ SELECT p.id, p.document_id, p.page, p.page_end, p.doc_name, p.text, d.filename A
 FROM document_passages p
 JOIN documents d ON d.id = p.document_id AND d.deleted_at IS NULL
 CROSS JOIN q
-WHERE p.user_id = @user AND %[1]s @@ q.query
+WHERE p.user_id = @user AND %[1]s @@ q.query%[2]s
 ORDER BY ts_rank_cd(%[1]s, q.query) DESC, p.id
 LIMIT @limit`
 
-// searchPassages finds the passages of the user's own documents that best match the question. English
+// searchPassages finds the passages of the user's own documents (only those in docIDs, when set) that best match the question. English
 // stemming is tried first; if nothing matches, a plain word match is tried (other languages).
-func searchPassages(ctx context.Context, userID uint, query string) ([]libraryHit, error) {
+func searchPassages(ctx context.Context, userID uint, query string, docIDs []uint) ([]libraryHit, error) {
+	scope := ""
+	args := []any{}
+	if docIDs != nil {
+		scope = " AND p.document_id IN @docs"
+		args = append(args, sql.Named("docs", docIDs))
+	}
 	run := func(config, vector string) ([]libraryHit, error) {
 		var hits []libraryHit
-		err := initializers.DB.WithContext(ctx).Raw(fmt.Sprintf(searchSQL, vector),
+		args := append([]any{
 			sql.Named("config", config), sql.Named("query", query), sql.Named("user", userID), sql.Named("limit", candidateRows),
-		).Scan(&hits).Error
+		}, args...)
+		err := initializers.DB.WithContext(ctx).Raw(fmt.Sprintf(searchSQL, vector, scope), args...).Scan(&hits).Error
 		return hits, err
 	}
 	hits, err := run("english", "p.tsv")
@@ -256,15 +270,15 @@ type questionVector struct {
 
 // searchLibrary finds the passages that best answer a question, best first: by meaning and by keyword
 // combined when there is a question vector, else by keyword alone.
-func searchLibrary(ctx context.Context, userID uint, keywordQuery string, question *questionVector) ([]libraryHit, error) {
-	byKeyword, err := searchPassages(ctx, userID, keywordQuery)
+func searchLibrary(ctx context.Context, userID uint, keywordQuery string, question *questionVector, docIDs []uint) ([]libraryHit, error) {
+	byKeyword, err := searchPassages(ctx, userID, keywordQuery, docIDs)
 	if err != nil {
 		return nil, err
 	}
 	if question == nil {
 		return byKeyword, nil
 	}
-	bySemantic, err := semanticSearch(ctx, userID, question.model, question.vector, question.minScore)
+	bySemantic, err := semanticSearch(ctx, userID, question.model, question.vector, question.minScore, docIDs)
 	if err != nil {
 		// Keyword search still works, so a failure here costs quality and not the answer.
 		slog.Error("searching by meaning failed; using keyword search", "user_id", userID, "error", err)
@@ -350,12 +364,32 @@ type librarySource struct {
 	FileName      string    `json:"fileName,omitempty"`
 }
 
-// AskLibrary answers a question from all of the signed-in user's saved documents.
+// libraryRequest is a question for all of the user's documents, or only for the ones with one tag (a
+// collection: tags group documents, and a group can be asked as a whole).
+type libraryRequest struct {
+	chatRequest
+	Tag string `json:"tag"`
+}
+
+// documentsWithTag lists the ids of the user's documents that carry the tag and have text to search.
+func documentsWithTag(ctx context.Context, userID uint, tag string) ([]uint, error) {
+	wanted, err := json.Marshal([]string{tag})
+	if err != nil {
+		return nil, err
+	}
+	ids := []uint{}
+	err = initializers.DB.WithContext(ctx).Model(&models.Document{}).
+		Where("user_id = ? AND has_content = true AND tags @> ?::jsonb", userID, string(wanted)).
+		Order("id").Pluck("id", &ids).Error
+	return ids, err
+}
+
+// AskLibrary answers a question from the signed-in user's saved documents: all of them, or one collection.
 func AskLibrary(c *gin.Context) {
 	user := middleware.CurrentUser(c)
 	requestID := middleware.RequestIDFrom(c)
 
-	var body chatRequest
+	var body libraryRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		middleware.RefundQuota(c)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body."})
@@ -374,16 +408,39 @@ func AskLibrary(c *gin.Context) {
 		return
 	}
 
-	ensureIndexed(c.Request.Context(), requestID, user.ID)
+	// A collection narrows the search to its documents (nil means everything the user has saved).
+	var scope []uint
+	if tag := strings.ToLower(cleanLine(body.Tag)); tag != "" {
+		if utf8.RuneCountInString(tag) > maxTagRunes {
+			middleware.RefundQuota(c)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid collection."})
+			return
+		}
+		ids, err := documentsWithTag(c.Request.Context(), user.ID, tag)
+		if err != nil {
+			middleware.RefundQuota(c)
+			slog.Error("finding the documents of a collection failed", "user_id", user.ID, "error", err, "request_id", requestID)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search your documents."})
+			return
+		}
+		if len(ids) == 0 {
+			middleware.RefundQuota(c) // nothing to search, so no model call was made
+			c.JSON(http.StatusOK, gin.H{"answer": noCollectionAnswer, "sources": []librarySource{}})
+			return
+		}
+		scope = ids
+	}
+
+	ensureIndexed(c.Request.Context(), requestID, user.ID, scope)
 
 	// Searching by meaning is a bonus: when the AI service gives no embeddings, only keywords are used.
 	var question *questionVector
 	if embedded, err := embedTexts(c.Request.Context(), requestID, []string{body.Question}, kindQuery); err == nil {
 		question = &questionVector{model: embedded.Model, minScore: embedded.MinScore, vector: embedded.Vectors[0]}
-		ensureEmbedded(c.Request.Context(), requestID, user.ID, embedded.Model)
+		ensureEmbedded(c.Request.Context(), requestID, user.ID, embedded.Model, scope)
 	}
 
-	found, err := searchLibrary(c.Request.Context(), user.ID, query, question)
+	found, err := searchLibrary(c.Request.Context(), user.ID, query, question, scope)
 	if err != nil {
 		middleware.RefundQuota(c)
 		slog.Error("searching documents failed", "user_id", user.ID, "error", err, "request_id", requestID)
