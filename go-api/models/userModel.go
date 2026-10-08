@@ -17,6 +17,8 @@ type User struct {
 	// HasPassword is false for accounts created through Google sign-in, which never chose one.
 	// No gorm default tag on purpose: GORM would turn a deliberate false into the default.
 	HasPassword bool
+	// CustomInstructions are standing preferences added to every summary prompt.
+	CustomInstructions string
 }
 
 func (u User) EmailVerified() bool { return u.EmailVerifiedAt != nil }

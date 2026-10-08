@@ -4,8 +4,11 @@ import (
 	"ai-summarizer/go-api/initializers"
 	"ai-summarizer/go-api/middleware"
 	"ai-summarizer/go-api/models"
+	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -112,6 +115,23 @@ func ListDocuments(c *gin.Context) {
 	query := initializers.DB.Omit("content").Where("user_id = ?", user.ID)
 	if before > 0 {
 		query = query.Where("id < ?", before)
+	}
+	// ?q= finds documents by title or summary (as typed, not as a pattern), ?tag= keeps one tag.
+	if search := cleanLine(c.Query("q")); search != "" {
+		if utf8.RuneCountInString(search) > maxSearchRunes {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "The search is too long."})
+			return
+		}
+		pattern := likePattern(search)
+		query = query.Where("(filename ILIKE ? OR summary ILIKE ?)", pattern, pattern)
+	}
+	if tag := strings.ToLower(cleanLine(c.Query("tag"))); tag != "" {
+		wanted, err := json.Marshal([]string{tag})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag"})
+			return
+		}
+		query = query.Where("tags @> ?::jsonb", string(wanted))
 	}
 
 	// Fetch one extra row to learn whether another page exists without a second count query.

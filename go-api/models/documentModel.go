@@ -20,6 +20,11 @@ type Document struct {
 	// IndexedAt is when the document was cut into searchable passages; nil until then.
 	IndexedAt *time.Time `json:"-"`
 
+	// Tags are labels the owner puts on the document. ShareToken is set while the summary has a public
+	// link; it is only ever sent to the owner (the list endpoint is scoped to them).
+	Tags       StringList `gorm:"type:jsonb" json:"tags"`
+	ShareToken *string    `json:"shareToken,omitempty"`
+
 	// Files are the original PDFs, when they were kept (documents saved earlier have none).
 	// Filled in by the list endpoint; not a database column.
 	Files []FileInfo `gorm:"-" json:"files"`
