@@ -3,6 +3,7 @@ package controllers
 import (
 	"ai-summarizer/go-api/metrics"
 	"ai-summarizer/go-api/middleware"
+	"ai-summarizer/go-api/models"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -65,6 +66,21 @@ type summaryOptions struct {
 	Pages    int
 	Style    string
 	Language string
+	// Instructions are the signed-in user's standing preferences; empty for anonymous summaries.
+	Instructions string
+}
+
+// maxInstructionRunes is the longest set of standing preferences a user can keep.
+const maxInstructionRunes = 500
+
+// instructionsOf returns the signed-in user's standing summary preferences, if there is a signed-in user.
+func instructionsOf(c *gin.Context) string {
+	if v, ok := c.Get(middleware.UserKey); ok {
+		if user, ok := v.(models.User); ok {
+			return user.CustomInstructions
+		}
+	}
+	return ""
 }
 
 // apiError is a failure that can be reported to the client as-is.
@@ -111,12 +127,16 @@ func parseSummaryParams(wordCount, pageLimit, style, language string) (summaryOp
 }
 
 func (o summaryOptions) fields() map[string]string {
-	return map[string]string{
+	fields := map[string]string{
 		"word_count": strconv.Itoa(o.Words),
 		"page_limit": strconv.Itoa(o.Pages),
 		"style":      o.Style,
 		"language":   o.Language,
 	}
+	if o.Instructions != "" {
+		fields["instructions"] = o.Instructions
+	}
+	return fields
 }
 
 // prepareAIRequest adds what the AI service expects on every call from the gateway: the request id,
@@ -296,6 +316,7 @@ func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	if perr != nil {
 		return nil, perr
 	}
+	opts.Instructions = instructionsOf(c)
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -313,6 +334,7 @@ func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	if perr != nil {
 		return nil, perr
 	}
+	opts.Instructions = instructionsOf(c)
 
 	form, err := c.MultipartForm()
 	if err != nil {
@@ -344,6 +366,7 @@ func buildTextRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	if perr != nil {
 		return nil, perr
 	}
+	opts.Instructions = instructionsOf(c)
 
 	var payload TextPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {

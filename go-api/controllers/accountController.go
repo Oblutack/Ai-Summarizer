@@ -53,7 +53,7 @@ func ExportAccount(c *gin.Context) {
 		// them); their names and sizes are listed so nothing we keep goes unmentioned.
 		docs = append(docs, gin.H{
 			"id": d.ID, "filename": d.Filename, "createdAt": d.CreatedAt,
-			"summary": d.Summary, "sourceText": d.Content, "originalFiles": d.Files,
+			"summary": d.Summary, "sourceText": d.Content, "originalFiles": d.Files, "tags": d.Tags,
 		})
 	}
 
@@ -116,4 +116,9 @@ func DeleteAccount(c *gin.Context) {
 	auth.ClearSessionCookie(c)
 	securityEvent(c, "account_deleted", user.ID)
 	c.JSON(http.StatusOK, gin.H{"message": "Your account and all its data were deleted."})
+}
+
+// updateInstructions stores a user's standing summary preferences.
+func updateInstructions(userID uint, instructions string) error {
+	return initializers.DB.Model(&models.User{}).Where("id = ?", userID).Update("custom_instructions", instructions).Error
 }

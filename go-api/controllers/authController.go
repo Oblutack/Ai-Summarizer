@@ -44,7 +44,10 @@ type credentials struct {
 
 // userView is the only shape in which a user is returned to clients.
 func userView(u models.User) gin.H {
-	return gin.H{"id": u.ID, "email": u.Email, "emailVerified": u.EmailVerified(), "hasPassword": u.HasPassword}
+	return gin.H{
+		"id": u.ID, "email": u.Email, "emailVerified": u.EmailVerified(), "hasPassword": u.HasPassword,
+		"customInstructions": u.CustomInstructions,
+	}
 }
 
 // Per-account throttles, on top of the per-IP limits on the routes. Keyed by email, they stop a

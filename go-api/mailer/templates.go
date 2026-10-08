@@ -49,3 +49,16 @@ func PasswordChanged(to string) Message {
 	body := `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#222"><h2>Your password was changed</h2><p>All your other devices were signed out.</p><p style="font-size:13px;color:#555">If this wasn't you, reset your password immediately.</p></div>`
 	return Message{To: to, Subject: "Your password was changed", Text: text, HTML: body}
 }
+
+// SummaryEmail sends a saved summary to its owner. The summary is Markdown; it is sent as it is, in a
+// block that keeps its line breaks, rather than being rendered, so nothing in it can become markup.
+func SummaryEmail(to, title, summary string) Message {
+	title = strings.Join(strings.Fields(title), " ")
+	text := fmt.Sprintf("%s\n\n%s\n\n%s", title, summary, appName)
+	body := fmt.Sprintf(`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#222">
+<h2>%s</h2>
+<div style="white-space:pre-wrap;line-height:1.5">%s</div>
+<p style="font-size:13px;color:#555">Sent from %s because you asked for it.</p>
+</div>`, html.EscapeString(title), html.EscapeString(summary), appName)
+	return Message{To: to, Subject: "Summary: " + title, Text: text, HTML: body}
+}
