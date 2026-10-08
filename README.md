@@ -4,7 +4,7 @@
 
 **Read your documents with a second pair of eyes: summaries, answers that cite the exact page, and a check on whether to trust them.**
 
-Inkling turns PDFs and text into streaming summaries, answers questions about one document or your whole library with page-exact citations, checks its own summaries against the original, and can even turn a document into a podcast. A full-stack, three-service application with an e-ink inspired interface: a Next.js frontend, a Go API gateway, and a Python AI service, backed by PostgreSQL.
+Inkling turns PDFs, Word and PowerPoint files, web pages and text into streaming summaries, answers questions about one document or your whole library with page-exact citations, checks its own summaries against the original, and can even turn a document into a podcast. A full-stack, three-service application with an e-ink inspired interface: a Next.js frontend, a Go API gateway, and a Python AI service, backed by PostgreSQL.
 
 [![CI](https://github.com/Oblutack/Inkling/actions/workflows/ci.yml/badge.svg)](https://github.com/Oblutack/Inkling/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -29,7 +29,7 @@ Inkling turns PDFs and text into streaming summaries, answers questions about on
 ## Features
 
 ### Summarization
-- **PDF or pasted text.** Drop in up to **5 PDFs** (10 MB each) and get one combined summary that calls out overlaps and differences between them.
+- **PDFs, Word, PowerPoint, web links or pasted text.** Drop in up to **5 files** (PDF, `.docx` or `.pptx`, 10 MB each, mixed freely) and get one combined summary that calls out overlaps and differences between them, or paste a web address and Inkling reads the page (articles, documentation, even a link straight to a PDF). Slides count as pages, so answers can cite a slide.
 - **Live streaming.** Words appear as the model writes them, with real progress ("Summarized 3 of 8 sections") for long documents, and a Cancel button that actually stops the work.
 - **Five styles and 15 languages.** Standard, bullet points, executive brief, explain-it-simply, or takeaways with action items, in any of 15 output languages regardless of the source language.
 - **Length control.** A word-count slider for short summaries, or a page limit for long documents.
@@ -120,7 +120,7 @@ flowchart LR
         G[Auth, sessions, quotas<br/>rate limits, CSRF, Turnstile]
     end
     subgraph AI [AI service: FastAPI]
-        P[PDF parsing, map-reduce<br/>BM25 retrieval, cache<br/>circuit breaker, fallback]
+        P[Text extraction (PDF, Word, PowerPoint, web pages)<br/>map-reduce, BM25 retrieval<br/>cache, circuit breaker, fallback]
     end
     DB[(PostgreSQL 15)]
     L{{Groq LLM}}
@@ -173,7 +173,7 @@ Failures before the first byte are ordinary JSON errors; once streaming has star
 | --- | --- | --- |
 | [`frontend/`](frontend) | Next.js 15, TypeScript, Tailwind CSS, Framer Motion | UI, streaming reader, account pages, per-request CSP |
 | [`go-api/`](go-api) | Go 1.27, Gin, GORM, pgx, golang-migrate | Auth and sessions, quotas, rate limits, proxying and streaming, persistence |
-| [`python-ai-service/`](python-ai-service) | FastAPI, LangChain (OpenAI client and text splitter), pypdf, httpx | PDF text extraction, summarization pipeline, chat retrieval, LLM client |
+| [`python-ai-service/`](python-ai-service) | FastAPI, LangChain (OpenAI client and text splitter), pypdf, httpx | PDF, Word, PowerPoint and web page text extraction, summarization pipeline, chat retrieval, LLM client |
 | PostgreSQL | Postgres 15 | Users, sessions, documents, usage, email tokens |
 | LLM | Groq (OpenAI-compatible), default `openai/gpt-oss-20b` | Language model, configurable with automatic fallback |
 
@@ -198,7 +198,8 @@ All endpoints are served by the Go gateway on port `8080`. Authenticated routes 
 | `POST` | `/public/summarize` | none | Summarize one PDF (multipart `file`). Nothing is saved. |
 | `POST` | `/public/summarize-multiple` | none | Summarize up to 5 PDFs (multipart `files`). |
 | `POST` | `/public/summarize-text` | none | Summarize pasted text (`{"text": "..."}`). |
-| `POST` | `/summarize`, `/summarize-multiple`, `/summarize-text` | session | Same, but the result is saved to the user's history. Counts against the daily quota. |
+| `POST` | `/public/summarize-url` | none | Summarize the web page (or PDF) at an address (`{"url": "https://..."}`). |
+| `POST` | `/summarize`, `/summarize-multiple`, `/summarize-text`, `/summarize-url` | session | Same, but the result is saved to the user's history. Counts against the daily quota. |
 | `POST` | `/documents/:id/chat` | session | Ask a question about a saved document (`{"question", "history"}`). Replies with `{"answer", "sources"}`: the answer has `[1]`-style markers, and `sources` lists the cited passages (`id`, `text`, `page`, `pageEnd`, `document`). |
 | `GET` | `/documents?limit=20&before=<id>` | session | List saved documents, newest first. The next cursor is in the `X-Next-Cursor` header. |
 | `DELETE` | `/documents/:id` | session | Delete a saved document (and its stored original PDFs). |
@@ -375,6 +376,8 @@ What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactl
 | CSRF | `Origin` check on every state-changing request, strict credentialed CORS allowlist, `SameSite` cookies. |
 | Injection and XSS | Parameterized SQL only; nonce-based Content-Security-Policy with `strict-dynamic`; the API serves a `default-src 'none'` CSP. |
 | Abuse | Per-IP and per-user rate limits, atomic daily quotas, optional Turnstile, request and upload size caps. |
+| Fetching web pages | The AI service only opens public addresses: every address, and every redirect, must resolve to the public internet (no loopback, private ranges, cloud metadata or Docker-internal names), the address the connection really reached is checked before any of the reply is read (so DNS tricks fail), and downloads are capped in size and time, with no proxies, cookies or credentials. |
+| Uploaded Office files | `.docx` and `.pptx` are unpacked with size limits against zip bombs, and XML with entity declarations is refused. |
 | Privacy | Source text never returned to clients; logs contain route patterns and IDs, not content; one-click export and hard deletion. |
 | Service to service | The AI service can require a shared secret (`AI_SERVICE_TOKEN`) so it is safe on a public URL; `/metrics` needs its own bearer token and is off by default; compose binds the database and AI service to localhost only. |
 | Containers | Non-root users; the Go API ships as a static binary in a `scratch` image with nothing else in it; health checks on every service. |
