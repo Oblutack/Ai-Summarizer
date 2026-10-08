@@ -48,9 +48,11 @@ func respond(c *gin.Context, build summaryBuilder, save bool, label string) {
 func PublicSummarize(c *gin.Context)         { respond(c, buildFileRequest, false, "") }
 func PublicSummarizeMultiple(c *gin.Context) { respond(c, buildFilesRequest, false, "") }
 func PublicSummarizeText(c *gin.Context)     { respond(c, buildTextRequest, false, "") }
+func PublicSummarizeURL(c *gin.Context)      { respond(c, buildURLRequest, false, "") }
 func CreateSummary(c *gin.Context)           { respond(c, buildFileRequest, true, "") }
 func CreateSummaryMultiple(c *gin.Context)   { respond(c, buildFilesRequest, true, "") }
 func CreateSummaryText(c *gin.Context)       { respond(c, buildTextRequest, true, "Pasted Text") }
+func CreateSummaryURL(c *gin.Context)        { respond(c, buildURLRequest, true, "") }
 
 // saveDocument stores the summary for the authenticated user. The summary is still
 // returned to the client if saving fails, so a DB hiccup doesn't waste the LLM call.

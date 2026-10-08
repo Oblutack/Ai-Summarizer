@@ -122,6 +122,7 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r.POST("/public/summarize", summarizeIPLimit, fileBody, turnstile, controllers.PublicSummarize)
 	r.POST("/public/summarize-multiple", summarizeIPLimit, multiBody, turnstile, controllers.PublicSummarizeMultiple)
 	r.POST("/public/summarize-text", summarizeIPLimit, textBody, turnstile, controllers.PublicSummarizeText)
+	r.POST("/public/summarize-url", summarizeIPLimit, smallBody, turnstile, controllers.PublicSummarizeURL)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)
@@ -154,6 +155,7 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		verified.POST("/summarize", summarizeUserLimit, fileBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummary)
 		verified.POST("/summarize-multiple", summarizeUserLimit, multiBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryMultiple)
 		verified.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryText)
+		verified.POST("/summarize-url", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryURL)
 		verified.POST("/documents/:id/chat", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.ChatWithDocument)
 		verified.POST("/documents/:id/podcast", chatUserLimit, smallBody, controllers.ReplayStoredPodcast, middleware.Quota(middleware.QuotaChats), controllers.PodcastDocument)
 		verified.POST("/documents/:id/rewrite", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.RewriteDocument)

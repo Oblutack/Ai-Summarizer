@@ -27,6 +27,7 @@ const (
 	MaxTextBytes  = 1 << 20  // 1 MB request body for pasted text
 	maxFiles      = 5
 	maxTextChars  = 200_000
+	maxURLChars   = 2048
 	defaultWords  = 150
 	minWords      = 50
 	maxWords      = 1000
@@ -38,6 +39,25 @@ var aiHTTPClient = &http.Client{Timeout: aiCallTimeout}
 
 type TextPayload struct {
 	Text string `json:"text"`
+}
+
+// URLPayload is a request to summarize the web page at an address.
+type URLPayload struct {
+	URL string `json:"url"`
+}
+
+const unsupportedFileMessage = "Only PDF, Word (.docx) and PowerPoint (.pptx) files are supported."
+
+// documentExtensions are the file types that can be summarized. Only PDFs are kept as originals: the
+// viewer shows PDF pages.
+var documentExtensions = []string{".pdf", ".docx", ".pptx"}
+
+func isDocumentFile(name string) bool {
+	return contains(documentExtensions, strings.ToLower(filepath.Ext(name)))
+}
+
+func isPDF(name string) bool {
+	return strings.EqualFold(filepath.Ext(name), ".pdf")
 }
 
 // summaryResponse is what clients receive.
@@ -257,7 +277,9 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 		if err != nil {
 			return nil, prepErr
 		}
-		kept = append(kept, storedFile{Name: fh.Filename, Data: data}) // saved with the summary, if it is saved
+		if isPDF(fh.Filename) {
+			kept = append(kept, storedFile{Name: fh.Filename, Data: data}) // saved with the summary, if it is saved
+		}
 	}
 	if err := w.Close(); err != nil {
 		return nil, prepErr
@@ -320,10 +342,10 @@ func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		return nil, &apiError{http.StatusBadRequest, "A PDF file is required (max 10 MB)."}
+		return nil, &apiError{http.StatusBadRequest, "A PDF, Word or PowerPoint file is required (max 10 MB)."}
 	}
-	if !strings.EqualFold(filepath.Ext(file.Filename), ".pdf") {
-		return nil, &apiError{http.StatusBadRequest, "Only PDF files are supported."}
+	if !isDocumentFile(file.Filename) {
+		return nil, &apiError{http.StatusBadRequest, unsupportedFileMessage}
 	}
 
 	return multipartRequest(c, withStream("/summarize", stream), opts.fields(), "file", []*multipart.FileHeader{file})
@@ -342,12 +364,12 @@ func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	}
 	files := form.File["files"]
 	if len(files) == 0 || len(files) > maxFiles {
-		return nil, &apiError{http.StatusBadRequest, fmt.Sprintf("Upload between 1 and %d PDF files.", maxFiles)}
+		return nil, &apiError{http.StatusBadRequest, fmt.Sprintf("Upload between 1 and %d files.", maxFiles)}
 	}
 	var total int64
 	for _, f := range files {
-		if !strings.EqualFold(filepath.Ext(f.Filename), ".pdf") {
-			return nil, &apiError{http.StatusBadRequest, "Only PDF files are supported."}
+		if !isDocumentFile(f.Filename) {
+			return nil, &apiError{http.StatusBadRequest, unsupportedFileMessage}
 		}
 		if f.Size > MaxPDFBytes {
 			return nil, &apiError{http.StatusRequestEntityTooLarge, f.Filename + " is too large (max 10 MB per file)."}
@@ -359,6 +381,50 @@ func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 	}
 
 	return multipartRequest(c, withStream("/summarize-multiple", stream), opts.fields(), "files", files)
+}
+
+// buildURLRequest sends a web address to the AI service, which fetches and reads the page itself (it is
+// the one place that checks the address is on the public internet).
+func buildURLRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
+	opts, perr := parseSummaryParams(c.Query("wordCount"), c.Query("pageLimit"), c.Query("style"), c.Query("language"))
+	if perr != nil {
+		return nil, perr
+	}
+	opts.Instructions = instructionsOf(c)
+
+	var payload URLPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &apiError{http.StatusBadRequest, "Invalid request body."}
+	}
+	address := strings.TrimSpace(payload.URL)
+	if address == "" {
+		return nil, &apiError{http.StatusBadRequest, "A web address is required."}
+	}
+	if utf8.RuneCountInString(address) > maxURLChars || strings.ContainsAny(address, " \t\r\n") {
+		return nil, &apiError{http.StatusBadRequest, "That does not look like a web address."}
+	}
+	if scheme, _, found := strings.Cut(address, "://"); found && !strings.EqualFold(scheme, "http") && !strings.EqualFold(scheme, "https") {
+		return nil, &apiError{http.StatusBadRequest, "Only http and https web addresses are supported."}
+	}
+
+	body, err := json.Marshal(URLPayload{URL: address})
+	if err != nil {
+		return nil, &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
+	}
+	q := url.Values{}
+	for k, v := range opts.fields() {
+		q.Set(k, v)
+	}
+	if stream {
+		q.Set("stream", "true")
+	}
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, aiServiceURL("/summarize-url?"+q.Encode()), bytes.NewReader(body))
+	if err != nil {
+		return nil, &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	prepareAIRequest(c, req)
+	return &aiRequest{req: req}, nil
 }
 
 func buildTextRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
