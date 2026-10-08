@@ -26,8 +26,24 @@ function uploadedNames(body) {
 }
 
 const words = (text) => text.split(/\s+/).filter(Boolean);
-const summaryOf = (subject, source) =>
-  `## Stub summary\n\n- Subject: ${subject}\n- Opening words: ${words(source).slice(0, 8).join(" ")}\n- Words in source: ${words(source).length}`;
+// `options` (the query string of a text summary) lets tests see which style, length and standing instructions arrived.
+const summaryOf = (subject, source, options) => {
+  const lines = [
+    "## Stub summary",
+    "",
+    `- Subject: ${subject}`,
+    `- Opening words: ${words(source).slice(0, 8).join(" ")}`,
+    `- Words in source: ${words(source).length}`,
+  ];
+  if (options) {
+    const instructions = options.get("instructions");
+    lines.push(
+      `- Options: ${options.get("style") ?? "default"}, ${options.get("word_count") ?? "150"} words, ${options.get("language") ?? "English"}` +
+        (instructions ? `, instructions: ${instructions}` : "")
+    );
+  }
+  return lines.join("\n");
+};
 
 function json(res, status, payload) {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -90,9 +106,10 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/summarize-text") {
     const { text = "" } = JSON.parse(body.toString("utf8") || "{}");
     const flags = { slow: text.includes("SLOW_ME"), fail: text.includes("FAIL_ME") };
-    if (stream) return streamSummary(res, summaryOf("pasted text", text), { text }, flags);
+    const summary = summaryOf("pasted text", text, url.searchParams);
+    if (stream) return streamSummary(res, summary, { text }, flags);
     if (flags.fail) return json(res, 502, { detail: "The language model is unavailable. Please try again." });
-    return json(res, 200, { summary: summaryOf("pasted text", text), text });
+    return json(res, 200, { summary, text });
   }
 
   if (url.pathname === "/summarize" || url.pathname === "/summarize-multiple") {
@@ -117,6 +134,34 @@ const server = http.createServer(async (req, res) => {
       .filter((p) => p.trim())
       .map((p) => ({ text: p, page: null, pageEnd: null, document: null }));
     return json(res, 200, { passages });
+  }
+
+  if (url.pathname === "/suggest") {
+    return json(res, 200, {
+      questions: ["What is the main point?", "Who is this written for?", "What happens next?", "Why does it matter?"],
+    });
+  }
+
+  if (url.pathname === "/study") {
+    const { kind = "flashcards" } = JSON.parse(body.toString("utf8") || "{}");
+    if (kind === "quiz") {
+      return json(res, 200, {
+        kind,
+        questions: [
+          { question: "Quiz question one?", options: ["Wrong A", "Right one", "Wrong C", "Wrong D"], answer: 1, explanation: "Because one." },
+          { question: "Quiz question two?", options: ["Right two", "Wrong B", "Wrong C", "Wrong D"], answer: 0, explanation: "Because two." },
+          { question: "Quiz question three?", options: ["Wrong A", "Wrong B", "Wrong C", "Right three"], answer: 3, explanation: "Because three." },
+        ],
+      });
+    }
+    return json(res, 200, {
+      kind,
+      cards: [
+        { front: "Front of card one", back: "Back of card one" },
+        { front: "Front of card two", back: "Back of card two" },
+        { front: "Front of card three", back: "Back of card three" },
+      ],
+    });
   }
 
   if (url.pathname === "/embed") {

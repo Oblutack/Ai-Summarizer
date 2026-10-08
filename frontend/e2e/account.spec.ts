@@ -6,14 +6,14 @@ test.describe("account page", () => {
     const email = await newSignedInUser(page);
     await page.getByRole("link", { name: "Account" }).click();
     await expect(page.locator("p", { hasText: `Email: ${email}` })).toBeVisible();
-    await expect(page.getByText("0 / 50")).toBeVisible();
+    await expect(page.getByText("0 / 50", { exact: true })).toBeVisible();
 
     await page.getByRole("link", { name: "Dashboard" }).click();
     await summarizeText(page, "One short paragraph to summarize for the usage counter.");
     await expect(page.getByText("Stub summary").first()).toBeVisible();
 
     await page.getByRole("link", { name: "Account" }).click();
-    await expect(page.getByText("1 / 50")).toBeVisible();
+    await expect(page.getByText("1 / 50", { exact: true })).toBeVisible();
   });
 
   test("changing the password keeps this device and signs out the others", async ({ page, browser }) => {

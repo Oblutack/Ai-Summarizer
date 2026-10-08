@@ -29,13 +29,13 @@ test.describe("summarizing without an account", () => {
   test("the last style, language and length are remembered on the next visit", async ({ page }) => {
     await page.goto("/");
     await page.getByLabel("Style").selectOption({ label: "Bullet Points" });
-    await page.getByLabel("Language").selectOption({ label: "German" });
+    await page.locator("main").getByLabel("Language").selectOption({ label: "German" });
     await page.getByRole("slider").fill("300");
     await expect(page.getByText("300 Words")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Style")).toHaveValue("bullets");
-    await expect(page.getByLabel("Language")).toHaveValue("German");
+    await expect(page.locator("main").getByLabel("Language")).toHaveValue("German");
     await expect(page.getByText("300 Words")).toBeVisible();
   });
 
@@ -45,7 +45,7 @@ test.describe("summarizing without an account", () => {
     );
     await page.goto("/");
     await expect(page.getByLabel("Style")).toHaveValue("default");
-    await expect(page.getByLabel("Language")).toHaveValue("English");
+    await expect(page.locator("main").getByLabel("Language")).toHaveValue("English");
     await expect(page.getByText("150 Words")).toBeVisible();
   });
 
