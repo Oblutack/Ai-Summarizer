@@ -149,3 +149,23 @@ def test_content_text_handles_strings_and_content_blocks():
     assert content_text(None) == ""
     assert content_text([]) == ""
     assert content_text(["a", {"type": "text", "text": "b"}, {"type": "image"}, {"text": 3}]) == "ab"
+
+
+def test_the_temperature_setting_is_read_as_a_number_or_the_providers_own():
+    assert llm.parse_temperature("0.3") == 0.3
+    assert llm.parse_temperature("0") == 0.0
+    assert llm.parse_temperature("default") is None
+    assert llm.parse_temperature("") is None
+    assert (
+        llm.TEMPERATURE == "0.3" or "LLM_TEMPERATURE" in __import__("os").environ
+    )  # a low value unless told otherwise
+
+
+def test_the_client_is_built_with_the_configured_temperature(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setattr(llm, "_clients", {})
+    monkeypatch.setattr(llm, "TEMPERATURE", "0.6")
+    assert llm.get_llm().temperature == 0.6
+    monkeypatch.setattr(llm, "_clients", {})
+    monkeypatch.setattr(llm, "TEMPERATURE", "default")
+    assert llm.get_llm().temperature is None

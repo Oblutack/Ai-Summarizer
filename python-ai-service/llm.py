@@ -27,6 +27,15 @@ MAX_RETRIES = 5  # the OpenAI client backs off exponentially on 429/5xx
 # Low effort plus a generous cap keeps them from exhausting it and returning empty content.
 REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
 MAX_OUTPUT_TOKENS = 8192
+# A low temperature keeps summaries closer to the text. Measured with the summary-quality check (evals/summary),
+# 252 summaries each: 92% clean at the provider's default, 97% at 0.2 and 98% at 0.4. "default" asks for the provider's
+# own value.
+TEMPERATURE = os.getenv("LLM_TEMPERATURE", "0.3")
+
+
+def parse_temperature(value: str) -> Optional[float]:
+    return None if value in ("", "default") else float(value)
+
 
 MODEL_LIST_TTL_SECONDS = 60
 
@@ -88,6 +97,7 @@ def get_llm() -> ChatOpenAI:
             timeout=TIMEOUT_SECONDS,
             max_retries=MAX_RETRIES,
             max_completion_tokens=MAX_OUTPUT_TOKENS,
+            temperature=parse_temperature(TEMPERATURE),
             stream_usage=True,  # ask for token counts on streamed replies too (for the metrics)
             # Only reasoning models (gpt-oss) accept this parameter.
             reasoning_effort=REASONING_EFFORT if "gpt-oss" in model else None,
