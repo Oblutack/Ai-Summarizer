@@ -197,7 +197,7 @@ export default function DashboardPage() {
       </div>
 
       {/* One question across everything saved */}
-      {libraryAvailable && <LibraryChat />}
+      {libraryAvailable && <LibraryChat tags={tags} activeTag={tag} />}
 
       {/* Saved summaries */}
       <div>

@@ -373,4 +373,9 @@ export const es: Record<MessageKey, string> = {
   "doc.more": "Más",
   "doc.noTools": "Este resumen se guardó antes de que se conservaran los documentos, así que la comprobación, el podcast, el chat y el estudio no están disponibles. Vuelve a resumir el documento para usarlos.",
   "form.linkDetected": "Enlace web encontrado. Inkling leerá la página cuando pulses Resumir.",
+  "library.scope": "Buscar en",
+  "library.scopeAll": "Todos tus documentos",
+  "library.emptyScoped": "Pregunta sobre los {count} documentos con la etiqueta “{tag}”...",
+  "library.tagTip": "Consejo: pon etiquetas a tus resúmenes guardados (un curso, un proyecto, un cliente) y pregunta solo sobre ese grupo.",
+  "library.headingScoped": "Pregunta a «{tag}»",
 };

@@ -373,4 +373,9 @@ export const fr: Record<MessageKey, string> = {
   "doc.more": "Plus",
   "doc.noTools": "Ce résumé a été enregistré avant que les documents ne soient conservés : la vérification, le podcast, le chat et l'étude ne sont donc pas disponibles. Résumez à nouveau le document pour les utiliser.",
   "form.linkDetected": "Lien web détecté. Inkling lira la page lorsque vous appuierez sur Résumer.",
+  "library.scope": "Rechercher dans",
+  "library.scopeAll": "Tous vos documents",
+  "library.emptyScoped": "Posez une question sur les {count} documents avec l'étiquette « {tag} »...",
+  "library.tagTip": "Astuce : ajoutez des étiquettes à vos résumés enregistrés (un cours, un projet, un client), puis posez des questions sur ce groupe seulement.",
+  "library.headingScoped": "Interroger « {tag} »",
 };

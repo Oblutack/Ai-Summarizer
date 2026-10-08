@@ -373,4 +373,9 @@ export const de: Record<MessageKey, string> = {
   "doc.more": "Mehr",
   "doc.noTools": "Diese Zusammenfassung wurde gespeichert, bevor Dokumente aufbewahrt wurden. Prüfung, Podcast, Chat und Lernen sind daher nicht verfügbar. Fasse das Dokument erneut zusammen, um sie zu nutzen.",
   "form.linkDetected": "Weblink erkannt. Inkling liest die Seite, sobald Sie auf Zusammenfassen klicken.",
+  "library.scope": "Suchen in",
+  "library.scopeAll": "Alle Ihre Dokumente",
+  "library.emptyScoped": "Fragen Sie zu den {count} Dokumenten mit dem Tag „{tag}“...",
+  "library.tagTip": "Tipp: Geben Sie Ihren gespeicherten Zusammenfassungen Tags (ein Kurs, ein Projekt, ein Kunde) und stellen Sie Fragen nur zu dieser Gruppe.",
+  "library.headingScoped": "„{tag}“ befragen",
 };

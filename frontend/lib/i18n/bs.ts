@@ -373,4 +373,9 @@ export const bs: Record<MessageKey, string> = {
   "doc.more": "Više",
   "doc.noTools": "Ovaj sažetak je spremljen prije nego što su se dokumenti čuvali, pa provjera, podcast, razgovor i učenje nisu dostupni. Ponovo sažmi dokument da bi ih koristio.",
   "form.linkDetected": "Web link pronađen. Inkling će pročitati stranicu kada pritisnete Sažmi.",
+  "library.scope": "Traži u",
+  "library.scopeAll": "Svi vaši dokumenti",
+  "library.emptyScoped": "Pitajte o {count} dokumenata s oznakom „{tag}“...",
+  "library.tagTip": "Savjet: dodajte oznake svojim sačuvanim sažcima (kurs, projekt, klijent), pa postavljajte pitanja samo o toj grupi.",
+  "library.headingScoped": "Pitaj „{tag}“",
 };

@@ -43,6 +43,8 @@ interface ChatPanelProps {
   suggestionsPath?: string;
   // Text to put in the question box (and focus it). A new object each time, so the same text can be sent again.
   prefill?: { text: string };
+  // Extra fields sent with every question (for example which collection of documents to search).
+  extraBody?: Record<string, unknown>;
 }
 
 // A question-and-answer conversation whose answers cite their sources. Used for one document and
@@ -57,6 +59,7 @@ export default function ChatPanel({
   testId,
   suggestionsPath,
   prefill,
+  extraBody,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
@@ -114,7 +117,7 @@ export default function ChatPanel({
     setIsSending(true);
 
     try {
-      const response = await axios.post(`${API_URL}${path}`, { question: text, history });
+      const response = await axios.post(`${API_URL}${path}`, { ...extraBody, question: text, history });
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: response.data.answer, sources: response.data.sources ?? [] },

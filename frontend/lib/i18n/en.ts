@@ -371,6 +371,11 @@ export const en = {
   "doc.more": "More",
   "doc.noTools": "This summary was saved before documents were kept, so the check, podcast, chat and study tools are not available for it. Summarize the document again to use them.",
   "form.linkDetected": "Web link found. Inkling will read the page when you press Summarize.",
+  "library.scope": "Search in",
+  "library.scopeAll": "All your documents",
+  "library.emptyScoped": "Ask about the {count} documents tagged “{tag}”...",
+  "library.tagTip": "Tip: give your saved summaries tags (a course, a project, a client), then ask questions about just that group.",
+  "library.headingScoped": "Ask “{tag}”",
 } as const;
 
 export type MessageKey = keyof typeof en;
