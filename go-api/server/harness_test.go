@@ -217,7 +217,11 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 		if f.streamError.Load() {
 			events = append(events, `{"type":"error","status":502,"message":"The language model failed to produce a summary. Please try again."}`)
 		} else {
-			events = append(events, `{"type":"delta","text":"summary"}`, `{"type":"done","text":"the source text"}`)
+			done := `{"type":"done","text":"the source text"}`
+			if r.URL.Path == "/summarize-url" {
+				done = `{"type":"done","filename":"Fake Page Title","text":"the page text"}`
+			}
+			events = append(events, `{"type":"delta","text":"summary"}`, done)
 		}
 		for _, e := range events {
 			_, _ = w.Write([]byte("data: " + e + "\n\n"))
@@ -267,6 +271,8 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"sentences":[{"text":"Overview","kind":"heading","support":null,"coverage":0,"missingNumbers":[],"passages":[]},{"text":"A claim that is backed.","kind":"claim","support":"strong","coverage":0.9,"missingNumbers":[],"passages":[{"id":1,"text":"The backing passage.","page":2,"pageEnd":2,"coverage":0.9}]}],"claims":1,"found":1,"partly":0,"notFound":0,"verifiable":true}`))
 	case "/healthz":
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	case "/summarize-url":
+		_, _ = w.Write([]byte(`{"filename":"Fake Page Title","summary":"fake url summary","text":"the page text"}`))
 	default:
 		_, _ = w.Write([]byte(`{"summary":"fake summary (` + r.URL.RawQuery + `)"}`))
 	}
