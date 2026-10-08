@@ -1,8 +1,8 @@
 {
-  "uid": "ai-summarizer",
-  "title": "AI Summarizer",
+  "uid": "inkling",
+  "title": "Inkling",
   "tags": [
-    "ai-summarizer"
+    "inkling"
   ],
   "timezone": "browser",
   "schemaVersion": 39,

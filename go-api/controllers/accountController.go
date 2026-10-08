@@ -66,7 +66,7 @@ func ExportAccount(c *gin.Context) {
 	initializers.DB.Raw(`SELECT day::text AS day, summaries, chats FROM daily_usage WHERE user_id = ? ORDER BY day`, user.ID).Scan(&usage)
 
 	securityEvent(c, "account_exported", user.ID)
-	c.Header("Content-Disposition", `attachment; filename="ai-summarizer-export.json"`)
+	c.Header("Content-Disposition", `attachment; filename="inkling-export.json"`)
 	c.JSON(http.StatusOK, gin.H{
 		"exportedAt": time.Now().UTC(),
 		"account": gin.H{

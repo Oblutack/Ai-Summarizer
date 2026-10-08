@@ -56,8 +56,8 @@ func TestFromEnvRejectsMisconfiguration(t *testing.T) {
 }
 
 func TestParseSender(t *testing.T) {
-	name, addr, err := parseSender("AI Summarizer <noreply@example.com>")
-	if err != nil || name != "AI Summarizer" || addr != "noreply@example.com" {
+	name, addr, err := parseSender("Inkling <noreply@example.com>")
+	if err != nil || name != "Inkling" || addr != "noreply@example.com" {
 		t.Errorf("got %q %q %v", name, addr, err)
 	}
 	if name, addr, err := parseSender("bare@example.com"); err != nil || name != "" || addr != "bare@example.com" {
@@ -90,7 +90,7 @@ func TestBrevoRequestShape(t *testing.T) {
 	brevoURL = srv.URL
 	t.Cleanup(func() { brevoURL = old })
 
-	m, err := newBrevo("secret-key", "AI Summarizer <noreply@example.com>")
+	m, err := newBrevo("secret-key", "Inkling <noreply@example.com>")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestBrevoRequestShape(t *testing.T) {
 	}
 	sender := got.body["sender"].(map[string]any)
 	to := got.body["to"].([]any)[0].(map[string]any)
-	if sender["email"] != "noreply@example.com" || sender["name"] != "AI Summarizer" || to["email"] != "user@example.com" {
+	if sender["email"] != "noreply@example.com" || sender["name"] != "Inkling" || to["email"] != "user@example.com" {
 		t.Errorf("addresses: %v", got.body)
 	}
 	if got.body["subject"] != "Hi" || got.body["textContent"] != "plain" || got.body["htmlContent"] != "<b>html</b>" {
@@ -118,7 +118,7 @@ func TestResendRequestShape(t *testing.T) {
 	resendURL = srv.URL
 	t.Cleanup(func() { resendURL = old })
 
-	m, err := newResend("re_secret", "AI Summarizer <noreply@example.com>")
+	m, err := newResend("re_secret", "Inkling <noreply@example.com>")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestResendRequestShape(t *testing.T) {
 	if got.headers.Get("Authorization") != "Bearer re_secret" {
 		t.Errorf("auth header: %v", got.headers)
 	}
-	if got.body["from"] != "AI Summarizer <noreply@example.com>" || got.body["subject"] != "Hi" || got.body["text"] != "plain" || got.body["html"] != "<b>h</b>" {
+	if got.body["from"] != "Inkling <noreply@example.com>" || got.body["subject"] != "Hi" || got.body["text"] != "plain" || got.body["html"] != "<b>h</b>" {
 		t.Errorf("body: %v", got.body)
 	}
 	if to := got.body["to"].([]any); len(to) != 1 || to[0] != "user@example.com" {

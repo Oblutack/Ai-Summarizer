@@ -103,7 +103,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="AI Summarizer Service", lifespan=lifespan)
+app = FastAPI(title="Inkling AI Service", lifespan=lifespan)
 # Added innermost first: the secret is checked inside metrics and logging, so refused calls still show up in both.
 app.add_middleware(InternalAuthMiddleware)
 app.add_middleware(MetricsMiddleware)

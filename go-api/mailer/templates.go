@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const appName = "AI Summarizer"
+const appName = "Inkling"
 
 // link builds an absolute URL to a frontend page carrying the token. The base URL comes from
 // FRONTEND_URL; the token goes in the query string of our own page, which sends it to the API.

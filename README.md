@@ -1,12 +1,12 @@
 <div align="center">
 
-# AI Document Summarizer
+# Inkling
 
-**Summarize PDFs and text in seconds, watch the answer stream in live, then chat with your documents.**
+**Read your documents with a second pair of eyes: summaries, answers that cite the exact page, and a check on whether to trust them.**
 
-A full-stack, three-service application with an e-ink inspired interface: a Next.js frontend, a Go API gateway, and a Python AI service, backed by PostgreSQL.
+Inkling turns PDFs and text into streaming summaries, answers questions about one document or your whole library with page-exact citations, checks its own summaries against the original, and can even turn a document into a podcast. A full-stack, three-service application with an e-ink inspired interface: a Next.js frontend, a Go API gateway, and a Python AI service, backed by PostgreSQL.
 
-[![CI](https://github.com/Oblutack/Ai-Summarizer/actions/workflows/ci.yml/badge.svg)](https://github.com/Oblutack/Ai-Summarizer/actions/workflows/ci.yml)
+[![CI](https://github.com/Oblutack/Inkling/actions/workflows/ci.yml/badge.svg)](https://github.com/Oblutack/Inkling/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)
@@ -18,9 +18,9 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 
 <br>
 
-<img src="docs/demo.gif" alt="Demo: summarizing pasted text in Spanish, signing up and logging in, streaming a two-PDF executive brief, chatting with the saved document, and the account page" width="900">
+<img src="docs/demo.gif" alt="Demo of Inkling: a streamed summary in Spanish, sign-up and login, a PDF summary, the proof check, the cited page opened in the original PDF, chat with citations, a question across all documents, a document turned into a podcast, and the account page" width="900">
 
-<sub>A full walkthrough: public summary in another language, sign-up and login, two PDFs combined with live progress, saved history, document chat, and the account page.</sub>
+<sub>A tour of Inkling: a streamed summary in another language, sign-up and login, a PDF summary with live progress, the check that marks every sentence against the original, the cited page opened with the passage highlighted, chat with citations, one question across all documents, a podcast, and the account page.</sub>
 
 </div>
 
@@ -66,8 +66,8 @@ A full-stack, three-service application with an e-ink inspired interface: a Next
 
 ```bash
 # 1. Clone
-git clone https://github.com/Oblutack/Ai-Summarizer.git
-cd Ai-Summarizer
+git clone https://github.com/Oblutack/Inkling.git
+cd Inkling
 
 # 2. Configure the backend (Postgres password, Groq key, Google client ID)
 cp .env.example .env
@@ -295,7 +295,7 @@ For a ready-made dashboard, start Prometheus and Grafana next to the normal stac
 
 `````````bash
 docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
-# Grafana:    http://localhost:3001   (the "AI Summarizer" dashboard opens by default)
+# Grafana:    http://localhost:3001   (the "Inkling" dashboard opens by default)
 # Prometheus: http://localhost:9090
 `````````
 

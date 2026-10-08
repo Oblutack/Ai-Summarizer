@@ -159,7 +159,7 @@ export default function AccountPage() {
       const url = URL.createObjectURL(response.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "ai-summarizer-export.json";
+      link.download = "inkling-export.json";
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {

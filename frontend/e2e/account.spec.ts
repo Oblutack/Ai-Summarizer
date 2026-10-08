@@ -90,7 +90,7 @@ test.describe("account page", () => {
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download my data" }).click();
     const file = await download;
-    expect(file.suggestedFilename()).toBe("ai-summarizer-export.json");
+    expect(file.suggestedFilename()).toBe("inkling-export.json");
 
     const { readFile } = await import("node:fs/promises");
     const data = JSON.parse(await readFile((await file.path())!, "utf8"));

@@ -6,8 +6,8 @@ import Providers from "../components/Providers";
 import VerifyBanner from "../components/VerifyBanner";
 
 export const metadata: Metadata = {
-  title: "AI Summarizer",
-  description: "Summarize your documents with AI",
+  title: "Inkling",
+  description: "Read, question and verify your documents. Every answer shows its source.",
 };
 
 export default async function RootLayout({

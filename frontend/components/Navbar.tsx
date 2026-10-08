@@ -18,7 +18,7 @@ export default function Navbar() {
     <header className="border-b-2 border-ink py-4 px-4 sm:px-8">
       <nav className="container mx-auto flex flex-col sm:flex-row justify-between items-center text-2xl uppercase tracking-widest space-y-4 sm:space-y-0">
         <Link href={user ? "/dashboard" : "/"} className="font-bold">
-          AI Summarizer
+          Inkling
         </Link>
         <div className="space-x-8">
           {user ? (

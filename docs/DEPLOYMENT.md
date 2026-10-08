@@ -7,7 +7,7 @@ This walks through putting the app on the internet using free tiers: the **front
 ## What runs where
 
 ```text
-Browser ──► Vercel (Next.js)  ──►  Render: summarizer-api (Go)  ──►  Render: summarizer-ai (Python)  ──►  Groq
+Browser ──► Vercel (Next.js)  ──►  Render: inkling-api (Go)  ──►  Render: inkling-ai (Python)  ──►  Groq
                                               │
                                               └──►  Postgres (Render or Neon)
 ```
@@ -31,10 +31,10 @@ You need accounts and keys for:
 
 1. In Render choose **New > Blueprint**, pick this repository, and apply `render.yaml`.
 2. Render asks for the values marked `sync: false`. Enter at least `GROQ_API_KEY` and `GOOGLE_CLIENT_ID`. The rest can be filled in during the next steps.
-3. When both services exist, open **summarizer-ai** and copy two things:
-   - its public address (`https://summarizer-ai-xxxx.onrender.com`)
+3. When both services exist, open **inkling-ai** and copy two things:
+   - its public address (`https://inkling-ai-xxxx.onrender.com`)
    - the generated `AI_SERVICE_TOKEN` value (Environment tab)
-4. Open **summarizer-api > Environment** and set:
+4. Open **inkling-api > Environment** and set:
    - `AI_SERVICE_URL` = the address from step 3
    - `AI_SERVICE_TOKEN` = the token from step 3 (it must be identical on both services)
 5. Save. Render redeploys the API.
@@ -45,11 +45,11 @@ The shared secret is what keeps strangers from calling the AI service directly a
 
 ```bash
 # Replace with your API address. Expect {"status":"ok"} then "ready".
-curl https://summarizer-api-xxxx.onrender.com/healthz
-curl https://summarizer-api-xxxx.onrender.com/readyz
+curl https://inkling-api-xxxx.onrender.com/healthz
+curl https://inkling-api-xxxx.onrender.com/readyz
 
 # The AI service must refuse callers without the secret (expect 401):
-curl -i -X POST https://summarizer-ai-xxxx.onrender.com/summarize-text -H 'Content-Type: application/json' -d '{"text":"hello"}'
+curl -i -X POST https://inkling-ai-xxxx.onrender.com/summarize-text -H 'Content-Type: application/json' -d '{"text":"hello"}'
 ```
 
 The first request after a quiet period can take 30 to 60 seconds: free services sleep when idle.
@@ -61,8 +61,8 @@ The first request after a quiet period can take 30 to 60 seconds: free services 
    - `NEXT_PUBLIC_API_URL` = your Go API address
    - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = the Google client ID
    - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (optional, if you use Turnstile)
-3. Deploy, then go back to Render and set on **summarizer-api**:
-   - `CORS_ALLOWED_ORIGINS` = your Vercel address (for example `https://ai-summarizer.vercel.app`)
+3. Deploy, then go back to Render and set on **inkling-api**:
+   - `CORS_ALLOWED_ORIGINS` = your Vercel address (for example `https://inkling.vercel.app`)
    - `FRONTEND_URL` = the same address (used for the links in emails)
 4. Add the Vercel address to your Google OAuth client's authorized JavaScript origins.
 
@@ -76,16 +76,16 @@ The robust fix is one domain for both: for example `app.example.com` (Vercel) an
 
 ## 4. Client addresses and rate limits
 
-Rate limits are per client address. Behind Render's proxy the API only sees the proxy's address unless it is told whom to trust. Set `TRUSTED_PROXIES` on **summarizer-api** to the comma-separated address ranges of Render's proxy (see Render's documentation for current ranges). Until you do, the API logs a warning and trusts the forwarding header from anyone, which means a determined user could dodge the per-address limits (the per-user limits and daily quotas still apply).
+Rate limits are per client address. Behind Render's proxy the API only sees the proxy's address unless it is told whom to trust. Set `TRUSTED_PROXIES` on **inkling-api** to the comma-separated address ranges of Render's proxy (see Render's documentation for current ranges). Until you do, the API logs a warning and trusts the forwarding header from anyone, which means a determined user could dodge the per-address limits (the per-user limits and daily quotas still apply).
 
 ## 5. Email
 
-Verification and password-reset emails need a provider. Out of the box (`MAIL_PROVIDER=log`) they are only written to the logs. Create a [Brevo](https://www.brevo.com) or [Resend](https://resend.com) account, then set `MAIL_PROVIDER`, `MAIL_FROM` and the matching API key on **summarizer-api**. Set `REQUIRE_EMAIL_VERIFICATION=true` once mail works if you want confirmed addresses only.
+Verification and password-reset emails need a provider. Out of the box (`MAIL_PROVIDER=log`) they are only written to the logs. Create a [Brevo](https://www.brevo.com) or [Resend](https://resend.com) account, then set `MAIL_PROVIDER`, `MAIL_FROM` and the matching API key on **inkling-api**. Set `REQUIRE_EMAIL_VERIFICATION=true` once mail works if you want confirmed addresses only.
 
 ## Database
 
 - **Render free Postgres** is deleted after 30 days. Fine for a trial, not for anything you want to keep.
-- **Neon** has a free tier without that expiry. Create a project, copy its connection string (it contains `sslmode=require`) and set it as `DSN` on **summarizer-api**, replacing the one from the Blueprint.
+- **Neon** has a free tier without that expiry. Create a project, copy its connection string (it contains `sslmode=require`) and set it as `DSN` on **inkling-api**, replacing the one from the Blueprint.
 - Database migrations run automatically when the API starts, so there is nothing to apply by hand.
 - **Original PDFs are stored in the database** (for the document viewer), up to `STORED_FILES_MB_PER_USER` per user (the Blueprint sets 20 MB). On a small free database this is what fills it first; lower the value, or set it to `0` to keep no originals (summaries and chat still work).
 
@@ -112,7 +112,7 @@ Back up whatever you choose. The app has a "download my data" export for individ
 
 To test changes before production, create a second copy:
 
-1. Copy `render.yaml` to `render.staging.yaml` and change every name (`summarizer-api` becomes `summarizer-api-staging`, and so on).
+1. Copy `render.yaml` to `render.staging.yaml` and change every name (`inkling-api` becomes `inkling-api-staging`, and so on).
 2. In Render choose **New > Blueprint**, pick the same repository, set the file path to `render.staging.yaml` and the branch to `staging`.
 3. Create a second Vercel project (or use Vercel's preview deployments) with `NEXT_PUBLIC_API_URL` pointing at the staging API, and set the staging API's `CORS_ALLOWED_ORIGINS` to match.
 4. Use a different `SENTRY_ENVIRONMENT` (for example `staging`) and a separate database.

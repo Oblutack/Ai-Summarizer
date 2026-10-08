@@ -2,7 +2,7 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
 #
-# Grafana:    http://localhost:3001  (dashboard "AI Summarizer", opens without login, read-only)
+# Grafana:    http://localhost:3001  (dashboard "Inkling", opens without login, read-only)
 # Prometheus: http://localhost:9090
 #
 # Both are bound to localhost only. The token below is a fixed development value (it must match
@@ -39,7 +39,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_AUTH_DISABLE_LOGIN_FORM=false
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/ai-summarizer.json
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/inkling.json
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro

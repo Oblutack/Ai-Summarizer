@@ -6,7 +6,7 @@
 //	brevo  Brevo's transactional API.  Needs BREVO_API_KEY.
 //	resend Resend's API.               Needs RESEND_API_KEY.
 //
-// MAIL_FROM is the sender, e.g. "AI Summarizer <noreply@example.com>"; the address must be one the
+// MAIL_FROM is the sender, e.g. "Inkling <noreply@example.com>"; the address must be one the
 // provider has verified for your account.
 package mailer
 

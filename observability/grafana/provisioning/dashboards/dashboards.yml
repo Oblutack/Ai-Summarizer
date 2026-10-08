@@ -1,6 +1,6 @@
 apiVersion: 1
 providers:
-  - name: AI Summarizer
+  - name: Inkling
     type: file
     disableDeletion: false
     allowUiUpdates: true
