@@ -8,6 +8,7 @@ import type { Document, FileInfo, ProofPassage, ProofResult } from "../types";
 import { API_URL, apiError } from "../lib/api";
 import { downloadMarkdown, downloadWord } from "../lib/exportDoc";
 import { createMarkdownOptions } from "../lib/markdown";
+import { tidyMarkdown } from "../lib/markdownText";
 import { saveElementAsPdf } from "../lib/pdfExport";
 import CopyButton from "./CopyButton";
 import DocumentChat from "./DocumentChat";
@@ -259,7 +260,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
               }
             />
           ) : (
-            <Markdown options={markdownOptions}>{doc.Summary}</Markdown>
+            <Markdown options={markdownOptions}>{tidyMarkdown(doc.Summary)}</Markdown>
           )}
         </div>
       </div>
@@ -299,6 +300,8 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
           </button>
         </div>
       )}
+
+      {!doc.hasContent && <p className="muted mt-4 text-sm">{t("doc.noTools")}</p>}
 
       <div className="mt-3">
         <button

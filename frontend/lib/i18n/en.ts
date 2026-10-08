@@ -369,6 +369,7 @@ export const en = {
   "cta.title": "Keep your summaries and ask them anything",
   "cta.text": "An account lets you save documents, chat with them and search them all at once.",
   "doc.more": "More",
+  "doc.noTools": "This summary was saved before documents were kept, so the check, podcast, chat and study tools are not available for it. Summarize the document again to use them.",
 } as const;
 
 export type MessageKey = keyof typeof en;

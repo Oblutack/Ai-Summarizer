@@ -371,4 +371,5 @@ export const de: Record<MessageKey, string> = {
   "cta.title": "Behalten Sie Ihre Zusammenfassungen und fragen Sie sie alles",
   "cta.text": "Mit einem Konto können Sie Dokumente speichern, mit ihnen chatten und alle auf einmal durchsuchen.",
   "doc.more": "Mehr",
+  "doc.noTools": "Diese Zusammenfassung wurde gespeichert, bevor Dokumente aufbewahrt wurden. Prüfung, Podcast, Chat und Lernen sind daher nicht verfügbar. Fasse das Dokument erneut zusammen, um sie zu nutzen.",
 };

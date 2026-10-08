@@ -371,4 +371,5 @@ export const es: Record<MessageKey, string> = {
   "cta.title": "Guarda tus resúmenes y pregúntales lo que quieras",
   "cta.text": "Con una cuenta puedes guardar documentos, chatear con ellos y buscar en todos a la vez.",
   "doc.more": "Más",
+  "doc.noTools": "Este resumen se guardó antes de que se conservaran los documentos, así que la comprobación, el podcast, el chat y el estudio no están disponibles. Vuelve a resumir el documento para usarlos.",
 };

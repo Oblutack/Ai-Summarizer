@@ -371,4 +371,5 @@ export const bs: Record<MessageKey, string> = {
   "cta.title": "Sačuvajte svoje sažetke i pitajte ih bilo šta",
   "cta.text": "Račun vam omogućava da sačuvate dokumente, razgovarate s njima i pretražujete sve odjednom.",
   "doc.more": "Više",
+  "doc.noTools": "Ovaj sažetak je spremljen prije nego što su se dokumenti čuvali, pa provjera, podcast, razgovor i učenje nisu dostupni. Ponovo sažmi dokument da bi ih koristio.",
 };
