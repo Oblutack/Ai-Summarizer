@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../lib/clipboard";
 import { CopyIcon } from "./Icon";
+import { useT } from "./I18nProvider";
 
 const FEEDBACK_MS = 1800;
 
@@ -23,6 +24,7 @@ const LOOKS = {
 
 export default function CopyButton({ text, what, variant = "button" }: CopyButtonProps) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const t = useT();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -36,21 +38,21 @@ export default function CopyButton({ text, what, variant = "button" }: CopyButto
     timer.current = setTimeout(() => setState("idle"), FEEDBACK_MS);
   };
 
-  const label = state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy";
+  const label = state === "copied" ? t("copy.copied") : state === "failed" ? t("copy.failed") : t("copy.copy");
   return (
     <>
       <button
         type="button"
         onClick={copy}
-        title={`Copy ${what}`}
-        aria-label={variant === "icon" ? `Copy ${what}` : undefined}
+        title={t("copy.verb", { what })}
+        aria-label={variant === "icon" ? t("copy.verb", { what }) : undefined}
         className={LOOKS[variant]}
       >
         {variant === "icon" ? <CopyIcon className="w-7 h-7" /> : label}
       </button>
       {/* Says the result aloud for screen readers, whatever the button looks like. */}
       <span role="status" className="sr-only">
-        {state === "copied" ? `${what} copied` : state === "failed" ? `Could not copy the ${what}` : ""}
+        {state === "copied" ? t("copy.doneSr", { what }) : state === "failed" ? t("copy.failSr", { what }) : ""}
       </span>
     </>
   );
