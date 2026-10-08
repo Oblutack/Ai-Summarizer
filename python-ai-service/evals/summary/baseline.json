@@ -1,0 +1,392 @@
+{
+ "label": "current-defaults",
+ "time": "2026-10-09 01:48:53",
+ "settings": {
+  "model": "openai/gpt-oss-20b",
+  "reasoningEffort": "low",
+  "temperature": "0.3",
+  "promptVersion": "2"
+ },
+ "samples": 6,
+ "summary": {
+  "overall": {
+   "runs": 126,
+   "clean": 0.952,
+   "recall": 0.96,
+   "trapRate": 0.016,
+   "inventedNumberRate": 0.016,
+   "formatProblemRate": 0.0,
+   "languageOk": 1.0,
+   "lengthOk": 0.913,
+   "lengthRatio": 0.84
+  },
+  "cases": {
+   "lease": {
+    "runs": 18,
+    "clean": 0.889,
+    "recall": 0.944,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.111,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.07
+   },
+   "northwind_q2": {
+    "runs": 12,
+    "clean": 0.917,
+    "recall": 1.0,
+    "trapRate": 0.083,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.83
+   },
+   "deck": {
+    "runs": 12,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 0.083,
+    "lengthRatio": 0.43
+   },
+   "news": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.79
+   },
+   "cpp": {
+    "runs": 12,
+    "clean": 1.0,
+    "recall": 0.95,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.87
+   },
+   "meeting": {
+    "runs": 12,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.84
+   },
+   "warranty": {
+    "runs": 12,
+    "clean": 1.0,
+    "recall": 0.875,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.72
+   },
+   "finance": {
+    "runs": 12,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.54
+   },
+   "spanish_source": {
+    "runs": 12,
+    "clean": 0.833,
+    "recall": 0.833,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.71
+   },
+   "long_report": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.17
+   },
+   "multi": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.2
+   },
+   "overview": {
+    "runs": 6,
+    "clean": 0.833,
+    "recall": 1.0,
+    "trapRate": 0.167,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.44
+   }
+  },
+  "variants": {
+   "lease default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.96
+   },
+   "lease bullets/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 0.833,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.01
+   },
+   "lease default/Spanish/150w": {
+    "runs": 6,
+    "clean": 0.667,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.333,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.23
+   },
+   "northwind_q2 default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.65
+   },
+   "northwind_q2 brief/English/150w": {
+    "runs": 6,
+    "clean": 0.833,
+    "recall": 1.0,
+    "trapRate": 0.167,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.01
+   },
+   "deck default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 0.0,
+    "lengthRatio": 0.43
+   },
+   "deck simple/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 0.167,
+    "lengthRatio": 0.44
+   },
+   "news default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.79
+   },
+   "cpp default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 0.9,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.85
+   },
+   "cpp bullets/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.89
+   },
+   "meeting takeaways/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.02
+   },
+   "meeting default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.67
+   },
+   "warranty default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 0.833,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.59
+   },
+   "warranty simple/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 0.917,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.84
+   },
+   "finance default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.56
+   },
+   "finance bullets/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.53
+   },
+   "spanish_source default/English/150w": {
+    "runs": 6,
+    "clean": 0.667,
+    "recall": 0.778,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.7
+   },
+   "spanish_source default/Spanish/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 0.889,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.71
+   },
+   "long_report default/English/300w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.17
+   },
+   "multi default/English/150w": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.2
+   },
+   "overview default/English/150w": {
+    "runs": 6,
+    "clean": 0.833,
+    "recall": 1.0,
+    "trapRate": 0.167,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.44
+   }
+  },
+  "errors": 0
+ }
+}
