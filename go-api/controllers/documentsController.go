@@ -35,7 +35,7 @@ func respond(c *gin.Context, build summaryBuilder, save bool, label string) {
 	if save {
 		title := result.Filename
 		if label != "" {
-			title = label
+			title = titleFromText(result.Text, label)
 		}
 		saveDocument(c, title, result)
 	}

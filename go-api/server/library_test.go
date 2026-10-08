@@ -16,6 +16,19 @@ func saveText(t *testing.T, cl *client, text string) int {
 	return int(listedDocuments(t, cl)[0]["ID"].(float64))
 }
 
+func TestPastedTextIsNamedAfterItsFirstWords(t *testing.T) {
+	a := newApp(t)
+	cl, _ := a.newUser()
+	saveText(t, cl, "## Rental agreement.\nThe tenant pays 950 euros per month.")
+	if got := listedDocuments(t, cl)[0]["Filename"]; got != "Rental agreement" {
+		t.Errorf("title = %v", got)
+	}
+	saveText(t, cl, "---\n***")
+	if got := listedDocuments(t, cl)[0]["Filename"]; got != "Pasted Text" {
+		t.Errorf("text without words keeps the default title, got %v", got)
+	}
+}
+
 func askLibrary(cl *client, question string) reply {
 	return cl.post("/library/ask", map[string]string{"question": question})
 }

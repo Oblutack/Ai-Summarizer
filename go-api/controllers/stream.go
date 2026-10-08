@@ -88,7 +88,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 					if save && strings.TrimSpace(summary.String()) != "" {
 						title := filename
 						if label != "" {
-							title = label
+							title = titleFromText(source, label)
 						}
 						saveDocument(c, title, &aiSummary{Filename: filename, Summary: summary.String(), Text: source, files: ar.files})
 					}

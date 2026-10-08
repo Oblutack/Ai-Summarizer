@@ -30,7 +30,7 @@ test.describe("asking across all documents", () => {
     // Only the banana document was searched and cited, and the source names it with its date.
     await expect(library.getByText("Bananas contain potassium and ripen quickly in warm kitchens.")).toBeVisible();
     await expect(library.getByText("Apples are crisp")).toHaveCount(0);
-    await expect(library.getByTestId("sources")).toContainText(/Pasted Text \(\d{1,2} \w{3} \d{4}\)/);
+    await expect(library.getByTestId("sources")).toContainText(/Bananas contain potassium and ripen quickly in warm.* \(\d{1,2} \w{3} \d{4}\)/);
     // Pasted text has no original to open.
     await expect(library.getByRole("button", { name: /Open page/ })).toHaveCount(0);
   });
