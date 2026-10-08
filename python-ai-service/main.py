@@ -8,6 +8,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Optional
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -23,6 +24,15 @@ from cache import from_env as cache_from_env
 from cache import summary_key
 from citations import clean_citations, strip_citations
 from error_reporting import setup_error_reporting
+from extract import (
+    FetchError,
+    UnreadableDocument,
+    decode_body,
+    fetch_page,
+    html_to_text,
+    office_text,
+    title_from_url,
+)
 from internal_auth import InternalAuthMiddleware
 from llm import (
     ServiceUnavailable,
@@ -67,6 +77,8 @@ setup_error_reporting()
 logger = logging.getLogger("ai-summarizer")
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
+# A web page with less text than this is a login wall, an app shell or an error page, not an article.
+MIN_PAGE_CHARS = 200
 MAX_TEXT_CHARS = 200_000
 MAX_FILES = 5
 MAX_MULTI_TEXT_CHARS = 400_000
@@ -343,27 +355,64 @@ def extract_pdf_text(path: str) -> str:
     return PAGE_BREAK.join(page.extract_text() or "" for page in PdfReader(path).pages)
 
 
-async def read_pdf_upload(file: UploadFile) -> str:
-    """Reads an uploaded PDF and returns its text, raising client-safe HTTP errors."""
-    content = await file.read(MAX_PDF_BYTES + 1)
-    if len(content) > MAX_PDF_BYTES:
-        raise HTTPException(413, f"{file.filename} is too large (max 10 MB)")
-
+def extract_pdf_bytes(content: bytes, filename: str = "document.pdf") -> str:
+    """The text of PDF bytes, raising client-safe HTTP errors."""
     temp_pdf_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf.write(content)
             temp_pdf_path = temp_pdf.name
         try:
-            return await asyncio.to_thread(extract_pdf_text, temp_pdf_path)
+            return extract_pdf_text(temp_pdf_path)
         except Exception as exc:
             logger.exception("Failed to parse PDF")
-            raise HTTPException(
-                422, f"Could not read {file.filename}. It may be corrupted or password-protected."
-            ) from exc
+            raise HTTPException(422, f"Could not read {filename}. It may be corrupted or password-protected.") from exc
     finally:
         if temp_pdf_path and os.path.exists(temp_pdf_path):
             os.unlink(temp_pdf_path)
+
+
+def extract_upload_text(filename: str, content: bytes) -> str:
+    """The text of an uploaded document: a PDF, or a Word or PowerPoint file."""
+    try:
+        office = office_text(filename, content)
+    except UnreadableDocument as exc:
+        logger.warning("Could not read %s: %s", "an Office file", exc)
+        raise HTTPException(422, f"Could not read {filename}. It may be corrupted or not a real Office file.") from exc
+    if office is not None:
+        return office
+    return extract_pdf_bytes(content, filename)
+
+
+async def read_pdf_upload(file: UploadFile) -> str:
+    """Reads an uploaded document (PDF, Word or PowerPoint) and returns its text, raising client-safe HTTP errors."""
+    content = await file.read(MAX_PDF_BYTES + 1)
+    if len(content) > MAX_PDF_BYTES:
+        raise HTTPException(413, f"{file.filename} is too large (max 10 MB)")
+    return await asyncio.to_thread(extract_upload_text, file.filename or "document.pdf", content)
+
+
+async def read_web_page(raw_url: str) -> tuple[str, str]:
+    """Fetches a web address and returns (title, text), raising client-safe HTTP errors."""
+    try:
+        page = await fetch_page(raw_url)
+    except FetchError as exc:
+        raise HTTPException(exc.status, exc.message) from exc
+
+    if page.kind == "pdf":
+        text = await asyncio.to_thread(extract_pdf_bytes, page.body, "that PDF")
+        title = urlsplit(page.final_url).path.rsplit("/", 1)[-1] or title_from_url(page.final_url)
+    elif page.kind == "text":
+        text, title = decode_body(page.body, page.charset), title_from_url(page.final_url)
+    else:
+        title, text = await asyncio.to_thread(html_to_text, decode_body(page.body, page.charset))
+    if len(text.strip()) < MIN_PAGE_CHARS:
+        raise HTTPException(
+            422,
+            "Inkling could not find readable text on that page. Pages that need JavaScript or a login "
+            "are not supported: copy the text and paste it instead.",
+        )
+    return (title or title_from_url(page.final_url))[:200], text
 
 
 def check_text(text: str) -> None:
@@ -509,6 +558,40 @@ async def summarize_text(
     return {"summary": summary}
 
 
+class UrlPayload(BaseModel):
+    url: str
+
+
+@app.post("/summarize-url")
+async def summarize_url(
+    payload: UrlPayload,
+    word_count: int = Query(150),
+    page_limit: int = Query(0),
+    style: str = Query(DEFAULT_STYLE),
+    language: str = Query(DEFAULT_LANGUAGE),
+    instructions: str = Query(""),
+    stream: bool = Query(False),
+):
+    """Summarizes the page at a web address. The page is read first (so a bad address is a plain error, not
+    a failed stream), then summarized like any other text."""
+    validate_options(word_count, page_limit, style, language, instructions)
+    title, text = await read_web_page(payload.url)
+    check_text(text)
+
+    if stream:
+
+        def prepare(progress):
+            return prepare_summary_prompt(
+                text, word_count, page_limit, style, language, progress, instructions=instructions
+            )
+
+        key = text_cache_key(text, word_count, page_limit, style, language, instructions)
+        return sse_response(summary_event_stream(prepare, {"filename": title, "text": text}, key))
+
+    summary = await summarize_or_fail(text, word_count, page_limit, style, language, instructions)
+    return {"filename": title, "summary": summary, "text": text}
+
+
 @app.post("/summarize-multiple")
 async def summarize_multiple(
     files: list[UploadFile] = File(...),
@@ -521,7 +604,7 @@ async def summarize_multiple(
 ):
     validate_options(word_count, page_limit, style, language, instructions)
     if not 1 <= len(files) <= MAX_FILES:
-        raise HTTPException(422, f"Upload between 1 and {MAX_FILES} PDF files")
+        raise HTTPException(422, f"Upload between 1 and {MAX_FILES} files")
 
     docs = [(file.filename or "document.pdf", await read_pdf_upload(file)) for file in files]
     check_documents(docs)
