@@ -66,6 +66,8 @@ test.describe("account page", () => {
     await page.getByRole("link", { name: "Account" }).click();
     await expect(page.getByText("This device")).toBeVisible();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    // Reload the other device only once the sign-out has gone through (its row leaves the list).
+    await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
 
     await otherPage.reload();
     await expect(otherPage).toHaveURL(/\/login/);
