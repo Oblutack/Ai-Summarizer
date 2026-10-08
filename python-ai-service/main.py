@@ -81,6 +81,8 @@ MAX_PDF_BYTES = 10 * 1024 * 1024
 MIN_PAGE_CHARS = 200
 MAX_TEXT_CHARS = 200_000
 MAX_FILES = 5
+# A collection overview is written from the stored summaries of the documents in it.
+MIN_OVERVIEW_DOCUMENTS, MAX_OVERVIEW_DOCUMENTS = 2, 20
 MAX_MULTI_TEXT_CHARS = 400_000
 MIN_WORDS, MAX_WORDS = 50, 1000
 MAX_PAGE_LIMIT = 20
@@ -590,6 +592,76 @@ async def summarize_url(
 
     summary = await summarize_or_fail(text, word_count, page_limit, style, language, instructions)
     return {"filename": title, "summary": summary, "text": text}
+
+
+class OverviewDocument(BaseModel):
+    name: str
+    text: str
+
+
+class OverviewPayload(BaseModel):
+    name: str = ""
+    documents: list[OverviewDocument]
+
+
+@app.post("/overview")
+async def overview_collection(
+    payload: OverviewPayload,
+    word_count: int = Query(300),
+    style: str = Query(DEFAULT_STYLE),
+    language: str = Query(DEFAULT_LANGUAGE),
+    instructions: str = Query(""),
+    stream: bool = Query(False),
+):
+    """One briefing on a group of documents, written from their (already short) summaries: what they are
+    about together, where they agree and where they differ."""
+    validate_options(word_count, 0, style, language, instructions)
+    if not MIN_OVERVIEW_DOCUMENTS <= len(payload.documents) <= MAX_OVERVIEW_DOCUMENTS:
+        raise HTTPException(
+            422, f"An overview needs between {MIN_OVERVIEW_DOCUMENTS} and {MAX_OVERVIEW_DOCUMENTS} documents"
+        )
+    docs = [(d.name.strip()[:200] or f"Document {i}", d.text) for i, d in enumerate(payload.documents, start=1)]
+    check_documents(docs)
+    name = payload.name.strip()[:100]
+    done_extra = {"filename": f"Overview: {name}" if name else "Overview"}
+    key = summary_key(
+        "overview",
+        name + "\n" + combine_documents(docs),
+        target_words_for(word_count, 0),
+        style,
+        language,
+        active_model_or_none(),
+        PROMPT_VERSION,
+        instructions,
+    )
+
+    async def prepare(progress: Optional[ProgressCallback] = None) -> str:
+        material = "\n\n".join(f"### {doc_name}\n{text}" for doc_name, text in docs)
+        if len(material) > REDUCE_MAX_CHARS:
+            material = await condense(material, progress)
+        return summary_prompt(
+            material,
+            target_words_for(word_count, 0),
+            style,
+            language,
+            kind="collection",
+            instructions=instructions,
+            subject=name,
+        )
+
+    if stream:
+        return sse_response(summary_event_stream(prepare, done_extra, key))
+
+    try:
+        summary = summary_cache.get(key)
+        if summary is None:
+            summary = await call_llm(await prepare())
+            if not summary:
+                raise ValueError("The model returned an empty or invalid summary.")
+            summary_cache.put(key, summary)
+    except Exception as exc:
+        raise to_http_error(exc) from exc
+    return {**done_extra, "summary": summary}
 
 
 @app.post("/summarize-multiple")

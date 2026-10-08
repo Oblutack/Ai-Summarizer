@@ -71,12 +71,19 @@ def _instructions_block(instructions: str) -> str:
 
 
 def summary_prompt(
-    material: str, target_words: int, style: str, language: str, kind: str = "text", instructions: str = ""
+    material: str,
+    target_words: int,
+    style: str,
+    language: str,
+    kind: str = "text",
+    instructions: str = "",
+    subject: str = "",
 ) -> str:
     """Builds the final summarization prompt.
 
     kind: "text" for raw text, "summaries" for already-condensed chunk summaries,
-    "documents" for several labelled documents that must be summarized together.
+    "documents" for several labelled documents that must be summarized together,
+    "collection" for the summaries of the documents of one collection (named `subject`), written as a briefing.
     """
     if kind == "summaries":
         task = (
@@ -88,6 +95,18 @@ def summary_prompt(
             f"Write one combined summary of about {target_words} words covering all of the documents below. "
             "Mention the document names when a point comes from a specific one, and call out notable "
             "overlaps or differences between them."
+        )
+    elif kind == "collection":
+        called = f" called \u201c{subject}\u201d" if subject else ""
+        task = (
+            f"Below are the summaries of the documents in a collection{called}. Write a briefing of about "
+            f"{target_words} words on the collection as a whole: what it is about, the main points that come up "
+            "in several documents, where the documents agree, where they differ or contradict each other, and "
+            "anything only one document mentions. Name the documents behind every point, and call something "
+            "shared only when each document you name says it. If the summaries do not clearly agree or differ "
+            "on a matter, leave it out rather than guessing. Keep every number with the document and the period "
+            "it belongs to. Use only what the summaries say; do not add facts that are not in them, and do not "
+            "use tables."
         )
     else:
         task = f"Provide a summary of the following text in about {target_words} words."
