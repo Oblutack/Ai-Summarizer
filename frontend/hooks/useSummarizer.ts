@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { TURNSTILE_HEADER } from "../lib/api";
 import { readSummaryEvents, type SummaryEvent } from "../lib/sse";
+import { isDocumentFile, webLinkIn } from "../lib/links";
 import { loadPreferences, savePreferences } from "../lib/preferences";
 import { MAX_FILES } from "../lib/summaryOptions";
 import { useT } from "../components/I18nProvider";
@@ -54,6 +55,9 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     if (preferencesLoaded.current) savePreferences({ wordCount, style, language });
   }, [wordCount, style, language]);
 
+  // The web address in the box, when that is all the box holds.
+  const link = useMemo(() => (files.length === 0 ? webLinkIn(inputText) : null), [files, inputText]);
+
   const showPageLimit = useMemo(
     () => files.length > 0 || inputText.trim().split(/\s+/).length > LONG_TEXT_WORDS,
     [files, inputText]
@@ -96,16 +100,16 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     (picked: File[]) => {
       if (picked.length === 0) return;
 
-      const pdfs = picked.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+      const documents = picked.filter((f) => isDocumentFile(f.name));
       const merged = [...files];
-      for (const f of pdfs) {
+      for (const f of documents) {
         if (!merged.some((m) => m.name === f.name && m.size === f.size)) {
           merged.push(f);
         }
       }
 
-      if (pdfs.length < picked.length) {
-        setError(t("form.errPdfOnly"));
+      if (documents.length < picked.length) {
+        setError(t("form.errFileType"));
       } else if (merged.length > MAX_FILES) {
         setError(t("form.errMaxFiles", { max: MAX_FILES }));
       } else {
@@ -145,12 +149,14 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     }
 
     const query = new URLSearchParams({ wordCount: String(wordCount), pageLimit, style, language, stream: "true" });
+    // A box that holds just a web address means "read that page".
+    const target = link ? "summarize-url" : "summarize-text";
     return {
-      url: `${endpoint.replace("summarize", "summarize-text")}?${query.toString()}`,
+      url: `${endpoint.replace("summarize", target)}?${query.toString()}`,
       init: {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ text: inputText }),
+        body: JSON.stringify(link ? { url: link } : { text: inputText }),
       },
     };
   };
@@ -234,13 +240,15 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       ? files[0].name.replace(/\.[^/.]+$/, "")
       : files.length > 1
       ? "combined-documents"
+      : link
+      ? "web-page"
       : "pasted-text";
 
   return {
     // options
     wordCount, setWordCount, pageLimit, setPageLimit, style, setStyle, language, setLanguage,
     // input
-    files, inputText, changeText, addFiles, removeFile,
+    files, inputText, link, changeText, addFiles, removeFile,
     // result
     summary, error, isLoading, progress, stageLabel, showPageLimit, exportBaseName,
     // actions

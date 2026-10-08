@@ -1,11 +1,14 @@
 "use client";
 import { SAMPLE_TEXT } from "../../lib/sampleText";
+import { DOCUMENT_EXTENSIONS } from "../../lib/links";
 import { MAX_FILES } from "../../lib/summaryOptions";
 import { useT } from "../I18nProvider";
 
 interface InputAreaProps {
   files: File[];
   text: string;
+  // Set when the text box holds just a web address.
+  link?: string | null;
   onTextChange: (value: string) => void;
   onFilesPicked: (files: File[]) => void;
   onRemoveFile: (index: number) => void;
@@ -21,7 +24,7 @@ function PaperclipIcon() {
 
 // The place to put the words: a text box that also takes PDFs. Once PDFs are attached they replace the
 // text box with a list, since a summary comes from one or the other.
-export default function InputArea({ files, text, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
+export default function InputArea({ files, text, link, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
   const t = useT();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,10 +82,15 @@ export default function InputArea({ files, text, onTextChange, onFilesPicked, on
             {t("form.trySample")}
           </button>
         )}
+        {link && (
+          <p className="px-2 text-sm font-medium text-accent" role="status" data-testid="link-detected">
+            {t("form.linkDetected")}
+          </p>
+        )}
       </div>
 
       {/* Always mounted so both the empty-state and the file-list buttons can open it. */}
-      <input id="pdf-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf" multiple tabIndex={-1} />
+      <input id="pdf-upload" type="file" className="sr-only" onChange={handleFileChange} accept={DOCUMENT_EXTENSIONS.join(",")} multiple tabIndex={-1} />
     </div>
   );
 }
