@@ -89,6 +89,8 @@ Verification and password-reset emails need a provider. Out of the box (`MAIL_PR
 - Database migrations run automatically when the API starts, so there is nothing to apply by hand.
 - **Original PDFs are stored in the database** (for the document viewer), up to `STORED_FILES_MB_PER_USER` per user (the Blueprint sets 20 MB). On a small free database this is what fills it first; lower the value, or set it to `0` to keep no originals (summaries and chat still work).
 
+- **Search by meaning is off on the free Render plan.** The embedding model needs about 300 MB of memory and a free instance has 512 MB, so the Blueprint sets `EMBEDDINGS=off` on **inkling-ai**: questions across your library are then matched by keyword only. On an instance with 1 GB or more, set `EMBEDDINGS=on` (nothing else changes; documents already saved are embedded gradually as questions are asked).
+
 Back up whatever you choose. The app has a "download my data" export for individual users, but that is not a backup.
 
 ## Monitoring

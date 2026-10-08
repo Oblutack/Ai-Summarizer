@@ -31,6 +31,10 @@ services:
         generateValue: true # copy the generated value into inkling-api (see the guide)
       - key: LOG_FORMAT
         value: json
+      # Searching documents by meaning needs about 300 MB of memory for the model, which is too close to the
+      # 512 MB of a free instance. Switch it on (value: "on") on a plan with 1 GB or more. Until then search is by keyword.
+      - key: EMBEDDINGS
+        value: "off"
       - key: SENTRY_DSN
         sync: false # optional; leave empty to disable error reporting
       - key: SENTRY_ENVIRONMENT

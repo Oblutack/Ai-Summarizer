@@ -32,6 +32,11 @@ services:
       - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
       - SENTRY_RELEASE=${SENTRY_RELEASE:-}
       - METRICS_TOKEN=${METRICS_TOKEN:-}
+      # Searching documents by meaning runs a small model inside this service. EMBEDDINGS=off turns it
+      # off (search is then by keyword only). A larger EMBEDDING_MODEL finds more but needs more memory.
+      - EMBEDDINGS=${EMBEDDINGS:-on}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
+      - EMBEDDING_MIN_SCORE=${EMBEDDING_MIN_SCORE:-}
     restart: unless-stopped
 
   go-api:
