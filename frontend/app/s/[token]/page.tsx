@@ -11,7 +11,7 @@ import CopyButton from "../../../components/CopyButton";
 import { useT } from "../../../components/I18nProvider";
 import { SkeletonLine } from "../../../components/Skeleton";
 
-const markdownOptions = createMarkdownOptions("text-2xl");
+const markdownOptions = createMarkdownOptions();
 
 interface Shared {
   title: string;
@@ -55,35 +55,35 @@ export default function SharedSummaryPage() {
 
       {state.status === "missing" && (
         <div className="text-center" role="alert">
-          <h1 className="text-3xl uppercase tracking-widest">{t("shared.missingTitle")}</h1>
-          <p className="mt-4 text-xl text-ink/70">{t("shared.missing")}</p>
+          <h1 className="text-3xl">{t("shared.missingTitle")}</h1>
+          <p className="muted mt-3 text-lg">{t("shared.missing")}</p>
         </div>
       )}
 
       {state.status === "error" && (
-        <p className="text-center text-xl text-red-500" role="alert">
+        <p className="text-center text-lg font-medium text-danger" role="alert">
           {t("shared.error")}
         </p>
       )}
 
       {state.status === "ready" && (
         <article>
-          <p className="text-base uppercase tracking-widest text-ink/60">{t("shared.label")}</p>
-          <h1 className="mt-1 text-4xl font-bold tracking-wider" data-testid="shared-title">
+          <p className="text-sm font-semibold text-ink/70">{t("shared.label")}</p>
+          <h1 className="mt-1 font-sans text-3xl font-bold tracking-normal md:text-4xl" data-testid="shared-title">
             {state.shared.title}
           </h1>
-          <p className="text-lg text-ink/70">{new Date(state.shared.createdAt).toLocaleDateString()}</p>
+          <p className="muted">{new Date(state.shared.createdAt).toLocaleDateString()}</p>
           <div className="mt-2 flex gap-4">
             <CopyButton variant="link" what={t("copy.whatSummary")} text={state.shared.summary} />
           </div>
-          <hr className="my-4 border-t border-dashed border-ink/50" />
-          <div data-testid="shared-summary">
+          <hr className="my-5 border-t border-ink/15" />
+          <div data-testid="shared-summary" className="reading">
             <Markdown options={markdownOptions}>{state.shared.summary}</Markdown>
           </div>
         </article>
       )}
 
-      <p className="mt-10 border-t border-dashed border-ink/50 pt-4 text-center text-lg tracking-widest text-ink/70">
+      <p className="mt-10 border-t border-ink/15 pt-4 text-center text-sm text-ink/70">
         {t("shared.madeWith")}{" "}
         <Link href="/" className="underline underline-offset-4">
           Inkling

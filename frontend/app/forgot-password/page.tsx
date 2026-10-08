@@ -45,9 +45,9 @@ export default function ForgotPasswordPage() {
     <FormContainer title={t("forgot.title")}>
       <form
         onSubmit={handleSubmit}
-        className="w-full flex flex-col items-center space-y-6 text-2xl"
+        className="flex flex-col gap-5"
       >
-        <p className="text-lg text-center opacity-80">
+        <p className="muted">
           {t("forgot.intro")}
         </p>
         <Field id="email" label={t("common.email")} type="email" value={email} onChange={setEmail} autoComplete="email" />
@@ -56,10 +56,10 @@ export default function ForgotPasswordPage() {
         <SuccessText>{message}</SuccessText>
         <ErrorText>{error}</ErrorText>
 
-        <PrimaryButton type="submit" disabled={submitting || (turnstileEnabled && !humanToken)}>
+        <PrimaryButton className="w-full text-lg" type="submit" disabled={submitting || (turnstileEnabled && !humanToken)}>
           {submitting ? t("forgot.sending") : t("forgot.send")}
         </PrimaryButton>
-        <Link href="/login" className="text-lg underline hover:opacity-70">
+        <Link href="/login" className="btn btn-quiet self-center underline">
           {t("forgot.back")}
         </Link>
       </form>

@@ -44,16 +44,16 @@ export default function SignupPage() {
   if (created) {
     return (
       <FormContainer title={t("signup.checkTitle")}>
-        <div className="space-y-6 text-2xl text-center">
+        <div className="space-y-5 text-center">
           <p>
             {t("signup.sentBefore")}
             <strong>{email}</strong>
             {t("signup.sentAfter")}
           </p>
-          <p className="text-lg opacity-70">{t("signup.later")}</p>
+          <p className="muted text-sm">{t("signup.later")}</p>
           <Link
             href="/login"
-            className="inline-block bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90"
+            className="btn btn-primary"
           >
             {t("common.logIn")}
           </Link>
@@ -66,7 +66,7 @@ export default function SignupPage() {
     <FormContainer title={t("signup.title")}>
       <form
         onSubmit={handleSubmit}
-        className="w-full flex flex-col items-center space-y-6 text-2xl"
+        className="flex flex-col gap-5"
       >
         <Field
           id="email"
@@ -91,7 +91,7 @@ export default function SignupPage() {
         <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />
         <ErrorText>{error}</ErrorText>
 
-        <PrimaryButton type="submit" disabled={submitting || (turnstileEnabled && !humanToken)}>
+        <PrimaryButton className="w-full text-lg" type="submit" disabled={submitting || (turnstileEnabled && !humanToken)}>
           {submitting ? t("signup.creating") : t("signup.title")}
         </PrimaryButton>
       </form>

@@ -40,9 +40,9 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <FormContainer title={t("forgot.title")}>
-        <div className="space-y-6 text-2xl text-center">
+        <div className="space-y-5 text-center">
           <p>{t("reset.incomplete")}</p>
-          <Link href="/forgot-password" className="underline hover:opacity-70">
+          <Link href="/forgot-password" className="btn btn-secondary">
             {t("reset.requestNew")}
           </Link>
         </div>
@@ -53,11 +53,11 @@ function ResetPasswordForm() {
   if (done) {
     return (
       <FormContainer title={t("reset.doneTitle")}>
-        <div className="space-y-6 text-2xl text-center">
+        <div className="space-y-5 text-center">
           <p>{t("reset.done")}</p>
           <Link
             href="/login"
-            className="inline-block bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90"
+            className="btn btn-primary"
           >
             {t("common.logIn")}
           </Link>
@@ -68,7 +68,7 @@ function ResetPasswordForm() {
 
   return (
     <FormContainer title={t("reset.chooseTitle")}>
-      <form onSubmit={handleSubmit} className="w-full flex flex-col items-center space-y-6 text-2xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <Field
           id="password"
           label={t("reset.newPassword")}
@@ -91,7 +91,7 @@ function ResetPasswordForm() {
           maxLength={72}
         />
         <ErrorText>{error}</ErrorText>
-        <PrimaryButton type="submit" disabled={submitting}>
+        <PrimaryButton className="w-full text-lg" type="submit" disabled={submitting}>
           {submitting ? t("reset.saving") : t("reset.save")}
         </PrimaryButton>
       </form>

@@ -45,17 +45,17 @@ function VerifyEmail() {
 
   return (
     <FormContainer title={status === "ok" ? t("confirm.doneTitle") : t("confirm.title")}>
-      <div className="space-y-6 text-2xl text-center">
+      <div className="space-y-5 text-center">
         {status === "checking" && <p>{t("confirm.checking")}</p>}
         {status !== "checking" && <p role={status === "failed" ? "alert" : "status"}>{message}</p>}
         {status === "failed" && (
-          <p className="text-lg opacity-80">
+          <p className="muted text-sm">
             {t("confirm.hint")}
           </p>
         )}
         <Link
           href={status === "ok" ? "/dashboard" : "/login"}
-          className="inline-block bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90"
+          className="btn btn-primary"
         >
           {status === "ok" ? t("confirm.continue") : t("common.logIn")}
         </Link>

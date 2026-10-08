@@ -14,9 +14,9 @@ type Translate = (key: MessageKey, params?: Params) => string;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-2 border-ink rounded-lg p-6">
-      <h2 className="text-3xl uppercase tracking-widest mb-4">{title}</h2>
-      <div className="space-y-4 text-xl">{children}</div>
+    <section className="card">
+      <h2 className="mb-4 text-2xl">{title}</h2>
+      <div className="space-y-4">{children}</div>
     </section>
   );
 }
@@ -75,7 +75,7 @@ function InstructionsForm({ initial, onSaved }: { initial: string; onSaved: () =
 
   return (
     <form onSubmit={save} className="space-y-3">
-      <label className="block uppercase tracking-wider" htmlFor="instructions">
+      <label className="label" htmlFor="instructions">
         {t("account.instructionsLabel")}
       </label>
       <textarea
@@ -85,9 +85,9 @@ function InstructionsForm({ initial, onSaved }: { initial: string; onSaved: () =
         maxLength={MAX_INSTRUCTIONS}
         rows={4}
         placeholder={t("account.instructionsPlaceholder")}
-        className="w-full p-3 bg-canvas border-2 border-ink rounded-md focus:outline-none"
+        className="field"
       />
-      <p className="text-base opacity-70">
+      <p className="muted text-sm">
         {t("account.instructionsHelp", { count: value.length, max: MAX_INSTRUCTIONS })}
       </p>
       <ErrorText>{error}</ErrorText>
@@ -109,8 +109,8 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
         <span>{label}</span>
         <span>{unlimited ? t("account.usedToday", { used }) : `${used} / ${limit}`}</span>
       </div>
-      <div className="mt-1 h-4 border-2 border-ink rounded-md p-[2px]" aria-hidden="true">
-        <div className="bg-ink h-full" style={{ width: `${pct}%` }} />
+      <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-ink/15" aria-hidden="true">
+        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -160,7 +160,7 @@ export default function AccountPage() {
   }, [user, load]);
 
   if (loading || !user) {
-    return <p className="text-center mt-20 text-2xl">{t("common.loading")}</p>;
+    return <p className="mt-20 text-center text-lg text-ink/70">{t("common.loading")}</p>;
   }
 
   const resendVerification = async () => {
@@ -241,14 +241,14 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto mt-8 mb-16 space-y-8">
-      <h1 className="text-4xl uppercase tracking-widest text-center">{t("account.title")}</h1>
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:py-10">
+      <h1 className="text-3xl md:text-4xl">{t("account.title")}</h1>
       <ErrorText>{error}</ErrorText>
       <SuccessText>{notice}</SuccessText>
 
       <Section title={t("account.profile")}>
         <p>
-          <span className="opacity-70">{t("account.emailLabel")}</span> {user.email}
+          <span className="muted">{t("account.emailLabel")}</span> {user.email}
         </p>
         {user.emailVerified ? (
           <p>{t("account.confirmed")}</p>
@@ -264,7 +264,7 @@ export default function AccountPage() {
         <Section title={t("account.usage")}>
           <UsageMeter label={t("account.summaries")} used={usage.summaries.used} limit={usage.summaries.limit} />
           <UsageMeter label={t("account.chatQuestions")} used={usage.chats.used} limit={usage.chats.limit} />
-          <p className="text-base opacity-70">{t("account.limitsReset")}</p>
+          <p className="muted text-sm">{t("account.limitsReset")}</p>
         </Section>
       )}
 
@@ -301,7 +301,7 @@ export default function AccountPage() {
         ) : (
           <p>
             {t("account.googleNoPassword")}{" "}
-            <a href="/forgot-password" className="underline">
+            <a href="/forgot-password" className="text-accent underline underline-offset-2">
               {t("account.forgotLink")}
             </a>
             .
@@ -312,13 +312,13 @@ export default function AccountPage() {
       <Section title={t("account.devices")}>
         <ul className="space-y-3">
           {sessions.map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-4 border-b border-dashed border-ink/40 pb-3">
+            <li key={s.id} className="flex items-center justify-between gap-4 border-b border-ink/15 pb-3 last:border-0">
               <div>
                 <p>
                   {deviceName(s.userAgent, t)}
-                  {s.current && <span className="ml-2 text-base border border-ink rounded px-2">{t("account.thisDevice")}</span>}
+                  {s.current && <span className="chip pointer-events-none ml-2 text-xs">{t("account.thisDevice")}</span>}
                 </p>
-                <p className="text-base opacity-70">{t("account.lastActive", { when: new Date(s.lastUsedAt).toLocaleString() })}</p>
+                <p className="muted text-sm">{t("account.lastActive", { when: new Date(s.lastUsedAt).toLocaleString() })}</p>
               </div>
               {!s.current && <SecondaryButton onClick={() => revokeSession(s.id)}>{t("account.signOut")}</SecondaryButton>}
             </li>

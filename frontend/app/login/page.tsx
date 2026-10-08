@@ -66,17 +66,17 @@ export default function LoginPage() {
       {/* Email / password form */}
       <form
         onSubmit={handleSubmit}
-        className="w-full flex flex-col items-center space-y-6 text-2xl"
+        className="flex flex-col gap-5"
       >
         <div className="w-full">
           <label
-            className="block uppercase tracking-wider mb-1"
+            className="label"
             htmlFor="email"
           >
             {t("common.email")}
           </label>
           <input
-            className="w-full p-3 bg-canvas border-2 border-ink rounded-md focus:outline-none"
+            className="field"
             id="email"
             type="email"
             value={email}
@@ -86,13 +86,13 @@ export default function LoginPage() {
         </div>
         <div className="w-full">
           <label
-            className="block uppercase tracking-wider mb-1"
+            className="label"
             htmlFor="password"
           >
             {t("common.password")}
           </label>
           <input
-            className="w-full p-3 bg-canvas border-2 border-ink rounded-md focus:outline-none"
+            className="field"
             id="password"
             type="password"
             value={password}
@@ -100,39 +100,39 @@ export default function LoginPage() {
             autoComplete="current-password"
             required
           />
-          <p className="mt-2 text-base">
-            <Link href="/forgot-password" className="underline hover:opacity-70">
+          <p className="mt-2 text-sm">
+            <Link href="/forgot-password" className="text-accent underline underline-offset-2">
               {t("login.forgot")}
             </Link>
           </p>
         </div>
 
         {error && (
-          <p className="text-red-500 text-lg" role="alert">
+          <p className="text-base font-medium text-danger" role="alert">
             {error}
           </p>
         )}
 
         <button
           type="submit"
-          className="bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50"
+          className="btn btn-primary w-full text-lg"
         >
           {t("login.submit")}
         </button>
       </form>
 
       {/* Separator */}
-      <div className="text-center my-6 uppercase tracking-wider text-ink/60">
+      <div className="my-5 flex items-center gap-3 text-sm text-ink/70 before:h-px before:flex-1 before:bg-ink/20 after:h-px after:flex-1 after:bg-ink/20">
         {t("login.or")}
       </div>
 
       {/* Google sign-in */}
-      <div className="w-full flex justify-center">
+      <div className="flex justify-center">
         {/* Our styled button */}
         <button
           type="button"
           onClick={handleCustomGoogleClick}
-          className="bg-canvas text-ink text-2xl uppercase font-bold py-3 px-8 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas flex items-center space-x-3"
+          className="btn btn-secondary w-full gap-3"
         >
           {/* Google SVG Logo */}
           <svg className="w-6 h-6" viewBox="0 0 48 48">

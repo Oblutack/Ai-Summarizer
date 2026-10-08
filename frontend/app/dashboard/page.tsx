@@ -175,7 +175,7 @@ export default function DashboardPage() {
   }, [documents, loaded, query, tag]);
 
   if (loading) {
-    return <p className="text-center mt-20 text-2xl">{t("common.loadingDashboard")}</p>;
+    return <p className="mt-20 text-center text-lg text-ink/70">{t("common.loadingDashboard")}</p>;
   }
 
   const filtering = Boolean(query || tag);
@@ -183,13 +183,13 @@ export default function DashboardPage() {
   const showFilters = libraryAvailable || documents.length > 0 || filtering || tags.length > 0;
 
   return user ? (
-    <div className="max-w-5xl mx-auto mt-8">
-      <h1 className="text-4xl uppercase tracking-widest text-center mb-8">
+    <div className="mx-auto max-w-4xl px-4 py-8 md:py-10">
+      <h1 className="mb-6 text-3xl md:text-4xl">
         {t("dashboard.title")}
       </h1>
 
       {/* New summary form */}
-      <div className="mb-12 border-2 border-ink rounded-lg p-6">
+      <div className="card mb-8 md:p-8">
         <EInkForm
           endpoint={`${API_URL}/summarize`}
           onSummaryCreated={fetchDocuments}
@@ -201,12 +201,12 @@ export default function DashboardPage() {
 
       {/* Saved summaries */}
       <div>
-        <h2 className="text-3xl uppercase tracking-widest text-center mb-6">
+        <h2 className="mb-4 text-2xl md:text-3xl">
           {t("dashboard.saved")}
         </h2>
 
         {showFilters && (
-          <div className="mb-6" data-testid="filters">
+          <div className="mb-5" data-testid="filters">
             <input
               type="search"
               value={search}
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => setTag("")}
                   aria-pressed={!tag}
-                  className={`rounded-full border border-ink px-3 text-lg tracking-wider ${!tag ? "bg-ink text-canvas" : "hover:bg-ink/10"}`}
+                  className="chip py-1"
                 >
                   {t("dashboard.all")}
                 </button>
@@ -232,7 +232,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => setTag(tag === t.tag ? "" : t.tag)}
                     aria-pressed={tag === t.tag}
-                    className={`rounded-full border border-ink px-3 text-lg tracking-wider ${tag === t.tag ? "bg-ink text-canvas" : "hover:bg-ink/10"}`}
+                    className="chip py-1"
                   >
                     {t.tag} ({t.count})
                   </button>
@@ -243,7 +243,7 @@ export default function DashboardPage() {
         )}
 
         {loadError && (
-          <p className="text-center text-red-500 text-lg mb-4" role="alert">
+          <p className="mb-4 text-base font-medium text-danger" role="alert">
             {loadError}
           </p>
         )}
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                   />
                 ))
               ) : (
-                <p className="text-center text-xl text-ink/60">
+                <p className="rounded-2xl border border-dashed border-ink/30 p-8 text-center text-ink/70">
                   {filtering ? t("dashboard.noMatch") : t("dashboard.empty")}
                 </p>
               )}
@@ -277,7 +277,7 @@ export default function DashboardPage() {
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="bg-canvas text-ink text-2xl uppercase font-bold py-2 px-8 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-secondary"
             >
               {loadingMore ? t("common.loading") : t("dashboard.loadMore")}
             </button>
