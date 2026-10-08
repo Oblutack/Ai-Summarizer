@@ -1,7 +1,7 @@
 "use client";
 import { SAMPLE_TEXT } from "../../lib/sampleText";
-import { useT } from "../I18nProvider";
 import { MAX_FILES } from "../../lib/summaryOptions";
+import { useT } from "../I18nProvider";
 
 interface InputAreaProps {
   files: File[];
@@ -11,27 +11,19 @@ interface InputAreaProps {
   onRemoveFile: (index: number) => void;
 }
 
-const attachButtonClass =
-  "cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas";
-
-function AttachLabel({ className = "" }: { className?: string }) {
-  const t = useT();
+function PaperclipIcon() {
   return (
-    <label htmlFor="pdf-upload" className={`${attachButtonClass} ${className}`}>
-      <span className="text-2xl">📎</span>
-      <span className="text-xl tracking-wider">{t("form.attach")}</span>
-    </label>
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
+    </svg>
   );
 }
 
-export default function InputArea({
-  files,
-  text,
-  onTextChange,
-  onFilesPicked,
-  onRemoveFile,
-}: InputAreaProps) {
+// The place to put the words: a text box that also takes PDFs. Once PDFs are attached they replace the
+// text box with a list, since a summary comes from one or the other.
+export default function InputArea({ files, text, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
   const t = useT();
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // allow picking the same file again after removing it
@@ -39,82 +31,58 @@ export default function InputArea({
   };
 
   return (
-    <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
-      <div className="relative flex flex-col w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
-        {files.length > 0 ? (
-          // Auto margins on the first/last child center the list when it fits, but unlike
-          // justify-center they don't clip the top rows when it overflows and scrolls.
-          <div className="flex flex-col items-center h-full w-full gap-3 overflow-y-auto [&>:first-child]:mt-auto [&>:last-child]:mb-auto">
-            {files.map((f, i) => (
-              <div
-                key={`${f.name}-${f.size}`}
-                className="flex items-center justify-between space-x-4 border-2 border-dashed border-ink/50 px-3 py-1 rounded-md w-auto max-w-full"
+    <div className="rounded-xl border border-ink/40 bg-surface focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30">
+      {files.length > 0 ? (
+        <ul className="space-y-2 p-3">
+          {files.map((f, i) => (
+            <li
+              key={`${f.name}-${f.size}`}
+              className="flex items-center justify-between gap-3 rounded-lg border border-ink/20 bg-canvas/60 px-3 py-2"
+            >
+              <span className="truncate text-base font-medium" title={f.name}>
+                {f.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemoveFile(i)}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-2xl leading-none text-ink/70 hover:bg-ink/10 hover:text-danger"
+                title={t("form.removeFile")}
+                aria-label={t("form.removeFileNamed", { name: f.name })}
               >
-                <p className="text-lg md:text-xl tracking-wider text-center truncate">{f.name}</p>
-                <button
-                  type="button"
-                  onClick={() => onRemoveFile(i)}
-                  className="text-ink/50 hover:text-red-600 text-3xl leading-none flex-shrink-0"
-                  title={t("form.removeFile")}
-                  aria-label={t("form.removeFileNamed", { name: f.name })}
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
-            {files.length < MAX_FILES && (
-              <label
-                htmlFor="pdf-upload"
-                className="cursor-pointer border-2 border-ink px-4 py-1 rounded-md bg-canvas hover:bg-ink hover:text-canvas text-xl tracking-wider"
-              >
-                {t("form.addMore")}
-              </label>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* One textarea stays mounted for the whole typing session, so focus and the first
-                keystroke are never lost to a swap between elements. */}
-            <textarea
-              id="main-textarea"
-              value={text}
-              onChange={(e) => onTextChange(e.target.value)}
-              aria-label={t("form.textAria")}
-              className="w-full flex-1 min-h-0 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
-            />
-            {text ? (
-              // Its own row under the text, so long text scrolls above it instead of behind it.
-              <div className="flex-shrink-0 pt-2">
-                <AttachLabel className="w-fit" />
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex flex-col justify-center items-center space-y-4 pointer-events-none">
-                <p className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl">
-                  {t("form.dropHint")}
-                </p>
-                <AttachLabel className="pointer-events-auto" />
-                <button
-                  type="button"
-                  onClick={() => onTextChange(SAMPLE_TEXT)}
-                  className="pointer-events-auto text-lg uppercase tracking-widest text-ink/60 hover:text-ink underline underline-offset-2"
-                >
-                  {t("form.trySample")}
-                </button>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Always mounted so both the empty-state and the file-list buttons can open it. */}
-        <input
-          id="pdf-upload"
-          type="file"
-          className="hidden"
-          onChange={handleFileChange}
-          accept=".pdf"
-          multiple
+                &times;
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        // One textarea stays mounted for the whole typing session, so focus and the first keystroke are
+        // never lost to a swap between elements. The frame around it shows the focus.
+        <textarea
+          id="main-textarea"
+          value={text}
+          onChange={(e) => onTextChange(e.target.value)}
+          aria-label={t("form.textAria")}
+          placeholder={t("form.dropHint")}
+          className="block min-h-[11rem] w-full resize-y rounded-t-xl bg-transparent px-4 py-3 text-base leading-relaxed focus:outline-none"
         />
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-ink/15 px-2 py-1.5">
+        {(files.length === 0 || files.length < MAX_FILES) && (
+          <label htmlFor="pdf-upload" className="btn btn-quiet cursor-pointer gap-2">
+            <PaperclipIcon />
+            {files.length === 0 ? t("form.attach") : t("form.addMore")}
+          </label>
+        )}
+        {files.length === 0 && !text && (
+          <button type="button" onClick={() => onTextChange(SAMPLE_TEXT)} className="btn btn-quiet underline">
+            {t("form.trySample")}
+          </button>
+        )}
       </div>
+
+      {/* Always mounted so both the empty-state and the file-list buttons can open it. */}
+      <input id="pdf-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf" multiple tabIndex={-1} />
     </div>
   );
 }

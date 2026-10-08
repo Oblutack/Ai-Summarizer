@@ -1,5 +1,4 @@
 "use client";
-import { motion } from "framer-motion";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSummarizer } from "../hooks/useSummarizer";
@@ -18,6 +17,8 @@ interface EInkFormProps {
   onSummaryCreated?: () => void;
 }
 
+// The summarizer: put the words in, choose how the summary should be, press the button. The summary
+// appears underneath as it is written.
 export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) {
   const { user } = useAuth();
   const t = useT();
@@ -47,103 +48,90 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
     if (element) saveElementAsPdf(element, `${s.exportBaseName}-summary.pdf`);
   };
 
+  const showOutput = s.isLoading || s.summary !== "";
+
   return (
-    <div className="flex w-full flex-col lg:flex-row lg:space-x-8">
-      <div className="flex-grow">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            s.submit();
-          }}
-          className="w-full flex flex-col items-center space-y-6 text-xl md:text-2xl font-bebas"
+    <div className="w-full">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          s.submit();
+        }}
+        className="space-y-5"
+      >
+        <InputArea
+          files={s.files}
+          text={s.inputText}
+          onTextChange={s.changeText}
+          onFilesPicked={s.addFiles}
+          onRemoveFile={s.removeFile}
+        />
+
+        <SummaryOptions
+          wordCount={s.wordCount}
+          onWordCountChange={s.setWordCount}
+          wordCountDisabled={s.showPageLimit}
+          style={s.style}
+          onStyleChange={s.setStyle}
+          language={s.language}
+          onLanguageChange={s.setLanguage}
         >
-          <SummaryOptions
-            wordCount={s.wordCount}
-            onWordCountChange={s.setWordCount}
-            wordCountDisabled={s.showPageLimit}
-            style={s.style}
-            onStyleChange={s.setStyle}
-            language={s.language}
-            onLanguageChange={s.setLanguage}
-          />
-
-          <hr className="w-full border-t-2 border-ink" />
-
-          <InputArea
-            files={s.files}
-            text={s.inputText}
-            onTextChange={s.changeText}
-            onFilesPicked={s.addFiles}
-            onRemoveFile={s.removeFile}
-          />
-
-          {needsHumanCheck && <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />}
-
-          {s.error && (
-            <p className="text-red-500 text-lg" role="alert">
-              {s.error}
-            </p>
+          {s.showPageLimit && (
+            <PageLimitPanel
+              value={s.pageLimit}
+              onChange={s.setPageLimit}
+              onIncrement={s.incrementPageLimit}
+              onDecrement={s.decrementPageLimit}
+            />
           )}
+        </SummaryOptions>
 
-          <OutputPanel
-            summary={s.summary}
-            isLoading={s.isLoading}
-            progress={s.progress}
-            stageLabel={s.stageLabel}
-          />
+        {needsHumanCheck && <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />}
 
-          {!s.isLoading && (
-            <motion.button
-              type="submit"
-              disabled={!s.canSubmit || (needsHumanCheck && !humanToken)}
-              className="bg-ink text-canvas text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              whileTap={{ scale: 0.97 }}
-              whileHover={{ scale: 1.03 }}
-            >
-              {t("form.summarize")}
-            </motion.button>
-          )}
-        </form>
-
-        {s.isLoading && (
-          <div className="w-full flex justify-center mt-6">
-            <button
-              type="button"
-              onClick={s.cancel}
-              className="bg-red-600 text-white text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md hover:bg-red-700"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        )}
-
-        {s.summary && !s.isLoading && (
-          <p className="mt-3 text-center text-lg tracking-widest uppercase text-ink/60" data-testid="summary-length">
-            {t("form.lengthLine", { length: describeLength(s.summary, t) })}
+        {s.error && (
+          <p className="text-base font-medium text-danger" role="alert">
+            {s.error}
           </p>
         )}
 
-        {s.summary && !s.isLoading && (
-          <div className="mt-4 w-full flex justify-center gap-3">
-            <CopyButton text={s.summary} what={t("copy.whatSummary")} />
-            <button
-              type="button"
-              onClick={handleDownloadPDF}
-              className="bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
-            >
-              {t("form.savePdf")}
+        <div>
+          {s.isLoading ? (
+            // Separate keys make these two different elements: if React reused one button, the click that cancels
+            // would find it turned into a submit button by the time the browser acts on it, and start over.
+            <button key="cancel" type="button" onClick={s.cancel} className="btn btn-danger w-full sm:w-auto sm:min-w-[12rem]">
+              {t("common.cancel")}
             </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <button
+              key="summarize"
+              type="submit"
+              disabled={!s.canSubmit || (needsHumanCheck && !humanToken)}
+              className="btn btn-primary w-full text-lg sm:w-auto sm:min-w-[12rem]"
+            >
+              {t("form.summarize")}
+            </button>
+          )}
+        </div>
+      </form>
 
-      {s.showPageLimit && (
-        <PageLimitPanel
-          value={s.pageLimit}
-          onChange={s.setPageLimit}
-          onIncrement={s.incrementPageLimit}
-          onDecrement={s.decrementPageLimit}
-        />
+      {showOutput && (
+        <div className="mt-6 space-y-3">
+          <OutputPanel summary={s.summary} isLoading={s.isLoading} progress={s.progress} stageLabel={s.stageLabel} />
+
+          {s.summary && !s.isLoading && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-medium text-ink/70" data-testid="summary-length">
+                {t("form.lengthLine", { length: describeLength(s.summary, t) })}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <CopyButton text={s.summary} what={t("copy.whatSummary")} />
+                <button type="button" onClick={handleDownloadPDF} className="btn btn-secondary btn-sm">
+                  {t("form.savePdf")}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

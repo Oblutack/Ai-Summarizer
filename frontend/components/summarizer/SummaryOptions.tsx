@@ -11,11 +11,11 @@ interface SummaryOptionsProps {
   onStyleChange: (value: string) => void;
   language: string;
   onLanguageChange: (value: string) => void;
+  // The page limit control, placed next to the others when it applies.
+  children?: React.ReactNode;
 }
 
-const selectClass =
-  "bg-canvas border-2 border-ink rounded-md px-3 py-1 focus:outline-none cursor-pointer";
-
+// How the summary should be: its length, style and language, in one row.
 export default function SummaryOptions({
   wordCount,
   onWordCountChange,
@@ -24,66 +24,60 @@ export default function SummaryOptions({
   onStyleChange,
   language,
   onLanguageChange,
+  children,
 }: SummaryOptionsProps) {
   const dim = wordCountDisabled ? "opacity-50" : "";
   const t = useT();
 
   return (
-    <>
-      <div className="w-full flex flex-col md:flex-row justify-center items-center md:space-x-4">
-        <label htmlFor="word-count" className={`uppercase tracking-widest ${dim}`}>
-          {t("form.wordCount")}
-        </label>
-        <div className="flex flex-col items-center my-2 md:my-0">
-          <input
-            id="word-count"
-            type="range"
-            disabled={wordCountDisabled}
-            min="50"
-            max="500"
-            step="10"
-            value={wordCount}
-            onChange={(e) => onWordCountChange(Number(e.target.value))}
-            className="w-60 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <div
-            aria-hidden="true"
-            className="w-60 flex justify-between px-1 -mt-1 text-ink opacity-40 text-xs"
-          >
-            {Array.from({ length: 11 }, (_, i) => (
-              <span key={i}>|</span>
-            ))}
-          </div>
+    <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr]">
+      <div>
+        <div className={`flex items-baseline justify-between gap-3 ${dim}`}>
+          <label htmlFor="word-count" className="label mb-0">
+            {t("form.wordCount")}
+          </label>
+          <span className="text-sm font-semibold tabular-nums">{t("form.words", { n: wordCount })}</span>
         </div>
-        <span className={`w-28 text-center tracking-widest ${dim}`}>{t("form.words", { n: wordCount })}</span>
+        <input
+          id="word-count"
+          type="range"
+          disabled={wordCountDisabled}
+          min="50"
+          max="500"
+          step="10"
+          value={wordCount}
+          onChange={(e) => onWordCountChange(Number(e.target.value))}
+          className="mt-1"
+        />
       </div>
 
-      <div className="w-full flex flex-col md:flex-row justify-center items-center gap-4 md:gap-8">
-        <label className="flex items-center gap-3 uppercase tracking-widest">
+      <div>
+        <label htmlFor="summary-style" className="label">
           {t("form.style")}
-          <select value={style} onChange={(e) => onStyleChange(e.target.value)} className={selectClass}>
-            {SUMMARY_STYLES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {t(`style.${s.value}`)}
-              </option>
-            ))}
-          </select>
         </label>
-        <label className="flex items-center gap-3 uppercase tracking-widest">
-          {t("form.language")}
-          <select
-            value={language}
-            onChange={(e) => onLanguageChange(e.target.value)}
-            className={selectClass}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l} value={l}>
-                {t(`lang.${l}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <select id="summary-style" value={style} onChange={(e) => onStyleChange(e.target.value)} className="field">
+          {SUMMARY_STYLES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {t(`style.${s.value}`)}
+            </option>
+          ))}
+        </select>
       </div>
-    </>
+
+      <div>
+        <label htmlFor="summary-language" className="label">
+          {t("form.language")}
+        </label>
+        <select id="summary-language" value={language} onChange={(e) => onLanguageChange(e.target.value)} className="field">
+          {LANGUAGES.map((l) => (
+            <option key={l} value={l}>
+              {t(`lang.${l}`)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {children}
+    </div>
   );
 }

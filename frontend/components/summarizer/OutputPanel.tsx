@@ -13,6 +13,7 @@ interface OutputPanelProps {
   stageLabel: string;
 }
 
+// Where the summary appears, word by word as it is written. Before the first words there is a progress bar.
 export default function OutputPanel({ summary, isLoading, progress, stageLabel }: OutputPanelProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const t = useT();
@@ -28,42 +29,22 @@ export default function OutputPanel({ summary, isLoading, progress, stageLabel }
   const showProgress = isLoading && !summary;
 
   return (
-    <div className="w-full h-72 p-2 border-2 border-ink rounded-md">
-      <div
-        ref={scrollRef}
-        className="w-full h-full p-4 border border-dashed border-ink/50 rounded-sm overflow-y-auto"
-      >
+    <div className="card" aria-live={isLoading ? "off" : undefined}>
+      <div ref={scrollRef} className="max-h-[32rem] overflow-y-auto pr-1">
         {showProgress ? (
-          <div
-            className="flex flex-col items-center justify-center h-full text-center"
-            role="status"
-            aria-live="polite"
-          >
-            <p className="text-2xl md:text-3xl text-ink/70 tracking-widest uppercase">{stageLabel}</p>
-            <p className="font-bebas text-5xl text-ink font-bold my-4 tracking-wider">
-              {Math.round(progress)}%
-            </p>
-            <div className="w-full max-w-md p-1 border-2 border-ink rounded-md">
-              <div className="w-full h-8 border border-dashed border-ink/50 p-1">
-                <div
-                  className="bg-ink h-full transition-[width] duration-500"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+          <div className="py-6 text-center" role="status" aria-live="polite">
+            <p className="text-lg font-medium text-ink/80">{stageLabel}</p>
+            <p className="mt-1 text-4xl font-semibold tabular-nums">{Math.round(progress)}%</p>
+            <div className="mx-auto mt-4 h-2 w-full max-w-md overflow-hidden rounded-full bg-ink/15" aria-hidden="true">
+              <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${progress}%` }} />
             </div>
           </div>
         ) : (
           // The id is how the PDF export finds the rendered summary.
-          <div
-            id="summary-output-content"
-            aria-busy={isLoading}
-            className="text-xl md:text-2xl text-ink/70 tracking-wider whitespace-pre-wrap text-left"
-          >
-            <Markdown options={markdownOptions}>
-              {summary || t("form.outputPlaceholder")}
-            </Markdown>
+          <div id="summary-output-content" aria-busy={isLoading} className="reading text-left">
+            <Markdown options={markdownOptions}>{summary}</Markdown>
             {isLoading && (
-              <p className="mt-2 text-base uppercase tracking-widest text-ink/50" role="status">
+              <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-ink/70" role="status">
                 {t("form.writing")}
               </p>
             )}
