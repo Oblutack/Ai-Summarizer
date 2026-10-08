@@ -35,6 +35,22 @@ test.describe("asking across all documents", () => {
     await expect(library.getByRole("button", { name: /Open page/ })).toHaveCount(0);
   });
 
+  test("a question finds a document by meaning, not only by its words", async ({ page }) => {
+    await newSignedInUser(page);
+    await saveText(page, "Cats and dogs are not allowed without written permission from the landlord.", 1);
+    await saveText(page, "The garden has two apple trees and a compost heap in the corner.", 2);
+
+    const library = page.getByTestId("library");
+    // The document never says "pet": a keyword search would find nothing.
+    await library.getByPlaceholder("Type a question").fill("Can I keep a pet?");
+    await page.keyboard.press("Enter");
+
+    await expect(library.getByText(/Stub library answer to "Can I keep a pet\?" from 1 passage/)).toBeVisible();
+    await library.getByRole("button", { name: "Show source 1" }).click();
+    await expect(library.getByText("Cats and dogs are not allowed without written permission from the landlord.")).toBeVisible();
+    await expect(library.getByText("apple trees")).toHaveCount(0);
+  });
+
   test("when nothing matches, the answer says so", async ({ page }) => {
     await newSignedInUser(page);
     await saveText(page, "A document about gardening and compost heaps.", 1);

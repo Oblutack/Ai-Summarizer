@@ -4,6 +4,7 @@
 //   POST /summarize-text[?stream=true]   JSON {text}
 //   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s)
 //   POST /chat                           JSON {text, question, history}
+//   POST /embed                          JSON {texts, kind}: word-bucket vectors, synonyms share a bucket
 // Magic inputs: text containing FAIL_ME makes the "model" fail; SLOW_ME makes it write slowly.
 import http from "node:http";
 
@@ -54,6 +55,29 @@ async function streamSummary(res, summary, doneExtra, { slow, fail }) {
   res.end();
 }
 
+// A stand-in for an embedding model: each word lands in a bucket, and words of one group ("cat",
+// "dog", "pet") share one, so a question about pets is close to a passage about cats and dogs.
+const MEANING = {
+  pet: ["cat", "cats", "dog", "dogs", "pet", "pets", "animal", "animals"],
+  money: ["rent", "pay", "payment", "cost", "price", "fee", "euros"],
+};
+const GROUP_OF = Object.fromEntries(Object.entries(MEANING).flatMap(([group, words]) => words.map((w) => [w, group])));
+const STOP = new Set(["can", "the", "and", "are", "not", "for", "how", "what", "with", "from", "this", "that", "does", "much", "keep"]);
+const DIM = 64;
+
+function embed(text) {
+  const vector = new Float32Array(DIM);
+  for (let word of text.toLowerCase().match(/\p{L}+/gu) ?? []) {
+    if (word.length <= 2 || STOP.has(word)) continue;
+    word = GROUP_OF[word] ?? word;
+    let hash = 2166136261;
+    for (const ch of word) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619) >>> 0;
+    vector[hash % DIM] += 1;
+  }
+  const norm = Math.hypot(...vector) || 1;
+  return Buffer.from(new Float32Array(vector.map((v) => v / norm)).buffer).toString("base64");
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://stub");
   const stream = url.searchParams.get("stream") === "true";
@@ -93,6 +117,11 @@ const server = http.createServer(async (req, res) => {
       .filter((p) => p.trim())
       .map((p) => ({ text: p, page: null, pageEnd: null, document: null }));
     return json(res, 200, { passages });
+  }
+
+  if (url.pathname === "/embed") {
+    const { texts = [] } = JSON.parse(body.toString("utf8") || "{}");
+    return json(res, 200, { model: "stub-embeddings", dim: DIM, minScore: 0.3, vectors: texts.map(embed) });
   }
 
   if (url.pathname === "/ask") {
