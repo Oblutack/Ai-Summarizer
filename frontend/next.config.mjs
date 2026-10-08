@@ -21,7 +21,11 @@ const config = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false, // don't advertise the framework
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The service worker must be re-checked on every visit, or an updated one would never arrive.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, max-age=0" }] },
+    ];
   },
 };
 

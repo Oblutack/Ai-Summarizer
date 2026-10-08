@@ -2,10 +2,14 @@
 import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useT } from "./I18nProvider";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
+  const t = useT();
 
   const handleLogout = async () => {
     await logout();
@@ -24,23 +28,27 @@ export default function Navbar() {
           {user ? (
             <>
               <Link href="/dashboard" className="hover:opacity-70">
-                Dashboard
+                {t("nav.dashboard")}
               </Link>
               <Link href="/account" className="hover:opacity-70">
-                Account
+                {t("nav.account")}
               </Link>
               <button onClick={handleLogout} className="hover:opacity-70">
-                Logout
+                {t("nav.logout")}
               </button>
+              <ThemeToggle />
+              <LanguageSwitcher />
             </>
           ) : (
             <>
               <Link href="/login" className="hover:opacity-70">
-                Login
+                {t("nav.login")}
               </Link>
               <Link href="/signup" className="hover:opacity-70">
-                Sign Up
+                {t("nav.signup")}
               </Link>
+              <ThemeToggle />
+              <LanguageSwitcher />
             </>
           )}
         </div>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Offline | Inkling</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e6e5d6;
+        color: #222;
+        font-family: "Courier New", monospace;
+        text-align: center;
+        padding: 24px;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #1e1e1b; color: #e2e0d0; }
+        a { border-color: #e2e0d0; color: inherit; }
+      }
+      main { max-width: 28rem; }
+      h1 { font-size: 1.6rem; letter-spacing: 0.15em; text-transform: uppercase; }
+      p { font-size: 1.1rem; line-height: 1.5; }
+      a {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 8px 20px;
+        border: 2px solid #222;
+        border-radius: 6px;
+        color: #222;
+        text-decoration: none;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You are offline</h1>
+      <p>Inkling needs a connection to summarize and to answer questions. Check your connection and try again.</p>
+      <a href="/">Try again</a>
+    </main>
+  </body>
+</html>

@@ -12,6 +12,8 @@ export function saveElementAsPdf(element: HTMLElement, filename: string) {
       useCORS: true,
       backgroundColor: "#F5F0E6",
       onclone: (clonedDocument: Document) => {
+        // A PDF is paper: it is always made from the light page, whichever theme is showing.
+        clonedDocument.documentElement.dataset.theme = "light";
         const texture = clonedDocument.querySelector(".texture-div-for-pdf-export");
         if (texture instanceof HTMLElement) {
           texture.style.display = "none";

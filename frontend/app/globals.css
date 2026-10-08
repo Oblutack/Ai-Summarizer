@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The page is paper (canvas) and ink. The dark theme swaps them, so every bg-canvas / text-ink follows. */
+:root {
+  --canvas: 230 229 214;
+  --ink: 34 34 34;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --canvas: 30 30 27;
+  --ink: 226 224 208;
+  color-scheme: dark;
+}
+
+/* The paper texture is light specks; on dark paper it is inverted so it stays a subtle grain. */
+:root[data-theme="dark"] body::before {
+  filter: invert(1);
+  opacity: 0.12;
+}
+
+:root[data-theme="dark"] .texture-div-for-pdf-export {
+  filter: invert(1);
+  opacity: 0.06;
+}
+
 @font-face {
   font-family: "Bebas Neue Pro Expanded Bold";
   src: url("./fonts/Bebas_Neue_Pro_Expanded_Bold.otf") format("opentype"); /* Proverite ime fajla! */
@@ -47,9 +71,9 @@ input[type="range"]::-webkit-slider-thumb {
   transform: translateY(-50%);
   height: 15px;
   width: 15px;
-  background-color: #f5f0e6;
+  background-color: rgb(var(--canvas));
   border-radius: 9999px;
-  border: 3px solid #222222;
+  border: 3px solid rgb(var(--ink));
 }
 
 /* Slider thumb - Firefox */
@@ -57,21 +81,21 @@ input[type="range"]::-moz-range-thumb {
   /* Firefox centers the thumb by default, so no transform is needed */
   height: 15px;
   width: 15px;
-  background-color: #f5f0e6;
+  background-color: rgb(var(--canvas));
   border-radius: 9999px;
-  border: 3px solid #222222;
+  border: 3px solid rgb(var(--ink));
 }
 
 /* Slider track - Chrome, Safari, Edge */
 input[type="range"]::-webkit-slider-runnable-track {
-  background-color: #222222; /* Naša 'ink' boja */
+  background-color: rgb(var(--ink));
   border-radius: 0.5rem;
   height: 4px;
 }
 
 /* Slider track - Firefox */
 input[type="range"]::-moz-range-track {
-  background-color: #222222; /* Naša 'ink' boja */
+  background-color: rgb(var(--ink));
   border-radius: 0.5rem;
   height: 4px;
 }
