@@ -7,6 +7,7 @@ import axios from "axios";
 import Markdown from "markdown-to-jsx";
 import { API_URL } from "../../../lib/api";
 import { createMarkdownOptions } from "../../../lib/markdown";
+import { tidyMarkdown } from "../../../lib/markdownText";
 import CopyButton from "../../../components/CopyButton";
 import { useT } from "../../../components/I18nProvider";
 import { SkeletonLine } from "../../../components/Skeleton";
@@ -78,7 +79,7 @@ export default function SharedSummaryPage() {
           </div>
           <hr className="my-5 border-t border-ink/15" />
           <div data-testid="shared-summary" className="reading">
-            <Markdown options={markdownOptions}>{state.shared.summary}</Markdown>
+            <Markdown options={markdownOptions}>{tidyMarkdown(state.shared.summary)}</Markdown>
           </div>
         </article>
       )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBlocks, parseInline, safeFileName, toMarkdownFile, toPlainText } from "./markdownText";
+import { parseBlocks, parseInline, safeFileName, tidyMarkdown, toMarkdownFile, toPlainText } from "./markdownText";
 
 describe("parseInline", () => {
   it("finds bold, italic, code and links", () => {
@@ -114,5 +114,23 @@ describe("safeFileName", () => {
 describe("toMarkdownFile", () => {
   it("puts the title on top of the summary", () => {
     expect(toMarkdownFile("  My   notes ", "\n## Overview\nText\n\n")).toBe("# My notes\n\n## Overview\nText\n");
+  });
+});
+
+describe("underlined headings", () => {
+  const underlined = "# Dynamic Arrays: The Basics\n=====================\n\nVectors grow when needed.\n\n## Why\n---\nBecause.";
+
+  it("drops a line of = or - right under a # heading", () => {
+    expect(tidyMarkdown(underlined)).toBe("# Dynamic Arrays: The Basics\n\nVectors grow when needed.\n\n## Why\nBecause.");
+  });
+
+  it("keeps a rule that stands on its own", () => {
+    expect(tidyMarkdown("One.\n\n---\n\nTwo.")).toBe("One.\n\n---\n\nTwo.");
+  });
+
+  it("is not read out as 'equals'", () => {
+    const spoken = toPlainText(underlined);
+    expect(spoken).not.toContain("=");
+    expect(spoken.split("\n")[0]).toBe("Dynamic Arrays: The Basics.");
   });
 });

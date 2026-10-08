@@ -12,7 +12,9 @@ export type Block =
 const HEADING = /^(#{1,6})\s+(.*)$/;
 const BULLET = /^(\s*)[-*+•]\s+(.*)$/;
 const NUMBERED = /^(\s*)(\d+)[.)]\s+(.*)$/;
-const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
+const RULE = /^\s*([-*_=])(\s*\1){2,}\s*$/;
+const UNDERLINE = /^\s*(=|-){3,}\s*$/;
+const ATX_HEADING = /^\s*#{1,6}\s+\S/;
 const CITATION_MARKS = /\s*(?:\[\d+\]|【\d+】)/g;
 
 // **bold**, *italic* / _italic_, `code`, [text](url) -> text. Anything unclosed stays as typed.
@@ -33,6 +35,14 @@ export function parseInline(source: string): Inline[] {
   return runs.length ? runs : [{ text: "" }];
 }
 
+// Models sometimes write a heading as "# Title" and then underline it with ==== (or ----) as well. Left
+// alone, the underline is read out as "equals equals" and some renderers show the "#" as typed, so a
+// line of only = or - directly under a "#" heading is dropped.
+export function tidyMarkdown(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  return lines.filter((line, i) => !(UNDERLINE.test(line) && i > 0 && ATX_HEADING.test(lines[i - 1]))).join("\n");
+}
+
 export function parseBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
@@ -41,7 +51,7 @@ export function parseBlocks(markdown: string): Block[] {
     paragraph = [];
   };
 
-  for (const raw of markdown.replace(/\r\n/g, "\n").split("\n")) {
+  for (const raw of tidyMarkdown(markdown).split("\n")) {
     const line = raw.replace(/\s+$/, "");
     if (!line.trim() || RULE.test(line)) {
       flush();

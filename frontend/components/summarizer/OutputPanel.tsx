@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import Markdown from "markdown-to-jsx";
 import { createMarkdownOptions } from "../../lib/markdown";
+import { tidyMarkdown } from "../../lib/markdownText";
 import { useT } from "../I18nProvider";
 
 const markdownOptions = createMarkdownOptions();
@@ -42,7 +43,7 @@ export default function OutputPanel({ summary, isLoading, progress, stageLabel }
         ) : (
           // The id is how the PDF export finds the rendered summary.
           <div id="summary-output-content" aria-busy={isLoading} className="reading text-left">
-            <Markdown options={markdownOptions}>{summary}</Markdown>
+            <Markdown options={markdownOptions}>{tidyMarkdown(summary)}</Markdown>
             {isLoading && (
               <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-ink/70" role="status">
                 {t("form.writing")}
