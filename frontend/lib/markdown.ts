@@ -5,6 +5,9 @@ export function createMarkdownOptions(size = "") {
   const cell = "border border-ink/30 px-3 py-1.5 text-left align-top";
   const body = (base: string) => `${base} ${size}`.trim();
   return {
+    // A summary is the model's writing about the document, not a web page: "<iostream>" in a C++ summary is
+    // a library name to show as typed, not an HTML tag to build.
+    disableParsingRawHTML: true,
     overrides: {
       h1: { props: { className: "mb-2 mt-6 break-after-avoid font-sans text-2xl font-bold tracking-normal first:mt-0" } },
       h2: { props: { className: "mb-2 mt-5 break-after-avoid font-sans text-xl font-bold tracking-normal first:mt-0" } },

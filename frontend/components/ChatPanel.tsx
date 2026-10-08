@@ -162,6 +162,7 @@ export default function ChatPanel({
               ) : (
                 <Markdown
                   options={{
+                    disableParsingRawHTML: true,
                     overrides: {
                       a: {
                         component: CitationLink,
