@@ -11,6 +11,10 @@ export interface Document {
   Filename: string;
   Summary: string;
   hasContent?: boolean;
+  // Labels the owner put on it, lowercase.
+  tags: string[];
+  // Set while the summary has a public link (the part after /s/ in the address).
+  shareToken?: string;
   // Empty for pasted text and for documents saved before originals were kept.
   files?: FileInfo[];
 }
@@ -93,6 +97,22 @@ export interface User {
   emailVerified: boolean;
   // False for accounts created through Google sign-in until they set a password.
   hasPassword: boolean;
+  // Standing preferences added to every summary ("focus on costs and deadlines").
+  customInstructions: string;
+}
+
+// A flashcard, and a multiple-choice question of a quiz made from a document.
+export interface StudyCard {
+  front: string;
+  back: string;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  // Which of the options is right.
+  answer: number;
+  explanation: string;
 }
 
 export interface SessionInfo {
