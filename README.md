@@ -18,9 +18,9 @@ Inkling turns PDFs and text into streaming summaries, answers questions about on
 
 <br>
 
-<img src="docs/demo.gif" alt="Demo of Inkling: a streamed summary in Spanish, sign-up and login, a PDF summary, the proof check, the cited page opened in the original PDF, chat with citations, a question across all documents, a document turned into a podcast, and the account page" width="900">
+<img src="docs/demo.gif" alt="Demo of Inkling: the landing page, a summary streaming in Spanish, sign-up and login, a PDF summary with live progress, the proof check, the cited page opened in the original PDF, chat with suggested questions, a question across all documents, a podcast, the account page, and the dark theme and language switch" width="900">
 
-<sub>A tour of Inkling: a streamed summary in another language, sign-up and login, a PDF summary with live progress, the check that marks every sentence against the original, the cited page opened with the passage highlighted, chat with citations, one question across all documents, a podcast, and the account page.</sub>
+<sub>A tour of Inkling: the landing page, a streamed summary in another language, sign-up, a PDF summary with live progress, the check that marks every sentence against the original, the cited page opened with the passage highlighted, chat with citations, one question across all documents, a podcast, the account page, and the dark theme in another language.</sub>
 
 </div>
 
