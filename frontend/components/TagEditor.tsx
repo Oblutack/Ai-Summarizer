@@ -48,13 +48,13 @@ export default function TagEditor({ documentId, tags, onChange }: TagEditorProps
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="tags">
       {tags.map((tag) => (
-        <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-ink/60 px-3 text-base tracking-wider">
+        <span key={tag} className="chip hover:bg-transparent">
           {tag}
           <button
             type="button"
             onClick={() => save(tags.filter((other) => other !== tag))}
             disabled={saving}
-            className="text-ink/60 hover:text-red-600 leading-none text-xl"
+            className="-mr-1.5 flex h-5 w-5 items-center justify-center rounded-full text-base leading-none text-ink/70 hover:bg-ink/10 hover:text-danger"
             aria-label={t("tags.remove", { tag })}
           >
             &times;
@@ -69,12 +69,12 @@ export default function TagEditor({ documentId, tags, onChange }: TagEditorProps
             maxLength={MAX_TAG_CHARS}
             placeholder={t("tags.placeholder")}
             aria-label={t("tags.add")}
-            className="w-24 bg-transparent border-b border-dashed border-ink/60 text-base tracking-wider focus:outline-none focus:border-ink"
+            className="h-8 w-24 rounded-full border border-dashed border-ink/40 bg-transparent px-3 text-sm focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           />
         </form>
       )}
       {error && (
-        <span className="text-red-500 text-base" role="alert">
+        <span className="text-sm font-medium text-danger" role="alert">
           {error}
         </span>
       )}

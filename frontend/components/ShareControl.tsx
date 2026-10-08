@@ -52,8 +52,8 @@ export default function ShareControl({ documentId, token, onChange }: ShareContr
           {busy ? t("share.making") : t("share.make")}
         </button>
       ) : (
-        <div className="mt-2 w-full rounded-md border-2 border-ink p-3">
-          <p className="text-base uppercase tracking-widest text-ink/70">
+        <div className="mt-2 w-full rounded-xl border border-ink/20 bg-canvas/50 p-4">
+          <p className="text-sm text-ink/70">
             {t("share.notice")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -62,7 +62,7 @@ export default function ShareControl({ documentId, token, onChange }: ShareContr
               value={link}
               aria-label={t("share.linkAria")}
               onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-grow p-2 bg-canvas border-2 border-ink rounded-md text-lg focus:outline-none"
+              className="field min-w-0 flex-1 text-sm"
             />
             <CopyButton text={link} what={t("copy.whatLink")} variant="link" />
             <button type="button" onClick={unshare} disabled={busy} className={textButton}>
@@ -72,7 +72,7 @@ export default function ShareControl({ documentId, token, onChange }: ShareContr
         </div>
       )}
       {error && (
-        <p className="text-red-500 text-base" role="alert">
+        <p className="text-sm font-medium text-danger" role="alert">
           {error}
         </p>
       )}

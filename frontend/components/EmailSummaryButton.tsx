@@ -33,7 +33,7 @@ export default function EmailSummaryButton({ documentId }: { documentId: number 
         {busy ? t("verify.sending") : t("email.send")}
       </button>
       {message && (
-        <span className={failed ? "text-red-500 text-base" : "text-base text-ink/70"} role={failed ? "alert" : "status"}>
+        <span className={failed ? "text-sm font-medium text-danger" : "text-sm text-ink/70"} role={failed ? "alert" : "status"}>
           {message}
         </span>
       )}

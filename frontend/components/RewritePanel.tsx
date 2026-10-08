@@ -48,13 +48,13 @@ export default function RewritePanel({ documentId, onDone }: RewritePanelProps) 
   };
 
   return (
-    <form onSubmit={rewrite} className="mt-3 rounded-md border-2 border-ink p-3" data-testid="rewrite">
-      <p className="text-base uppercase tracking-widest text-ink/70">
+    <form onSubmit={rewrite} className="mt-4 rounded-xl border border-ink/20 bg-canvas/50 p-4" data-testid="rewrite">
+      <p className="text-sm text-ink/70">
         {t("rewrite.intro")}
       </p>
-      <div className="mt-3 flex flex-wrap items-end gap-4 text-xl">
+      <div className="mt-3 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-base uppercase tracking-wider">{t("rewrite.length")}</span>
+          <span className="label mb-0">{t("rewrite.length")}</span>
           <select value={words} onChange={(e) => setWords(Number(e.target.value))} className={fieldClass}>
             {LENGTHS.map((l) => (
               <option key={l.words} value={l.words}>
@@ -64,7 +64,7 @@ export default function RewritePanel({ documentId, onDone }: RewritePanelProps) 
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-base uppercase tracking-wider">{t("form.style")}</span>
+          <span className="label mb-0">{t("form.style")}</span>
           <select value={style} onChange={(e) => setStyle(e.target.value)} className={fieldClass}>
             {SUMMARY_STYLES.map((s) => (
               <option key={s.value} value={s.value}>
@@ -74,7 +74,7 @@ export default function RewritePanel({ documentId, onDone }: RewritePanelProps) 
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-base uppercase tracking-wider">{t("form.language")}</span>
+          <span className="label mb-0">{t("form.language")}</span>
           <select value={language} onChange={(e) => setLanguage(e.target.value)} className={fieldClass}>
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>
@@ -83,12 +83,12 @@ export default function RewritePanel({ documentId, onDone }: RewritePanelProps) 
             ))}
           </select>
         </label>
-        <button type="submit" disabled={busy} className={actionButton}>
+        <button type="submit" disabled={busy} className="btn btn-primary">
           {busy ? t("rewrite.busy") : t("rewrite.submit")}
         </button>
       </div>
       {error && (
-        <p className="mt-2 text-red-500 text-lg" role="alert">
+        <p className="mt-2 text-sm font-medium text-danger" role="alert">
           {error}
         </p>
       )}

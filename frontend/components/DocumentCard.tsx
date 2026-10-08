@@ -34,7 +34,7 @@ interface DocumentCardProps {
 const PdfViewer = dynamic(() => import("./PdfViewer"), { ssr: false });
 
 // Saved cards use larger body text than the live form.
-const markdownOptions = createMarkdownOptions("text-2xl");
+const markdownOptions = createMarkdownOptions();
 
 // Selected text this short or long is not worth a question.
 const MIN_SELECTION = 4;
@@ -52,6 +52,8 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
+  // The quieter actions (export, email, share, rewrite) stay tucked away, unless there is a link to show.
+  const [moreOpen, setMoreOpen] = useState(Boolean(doc.shareToken));
   // The proof check: each sentence of the summary compared with the original document.
   const [proof, setProof] = useState<ProofResult | null>(null);
   const [proofOpen, setProofOpen] = useState(false);
@@ -160,23 +162,23 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
   return (
     <motion.div
       layout // animate position changes when cards are added or removed
-      initial={{ opacity: 0, y: 50, scale: 0.8 }}
+      initial={{ opacity: 0, y: 12, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-      className="relative bg-canvas border-2 border-ink p-6 rounded-md"
+      exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.15 } }}
+      className="card relative"
       ref={cardRef}
       data-testid="document-card"
     >
-      <div className="flex justify-between items-start">
+      <div className="flex items-start justify-between gap-3">
         {renaming ? (
-          <form onSubmit={saveTitle} className="flex-grow mr-4 flex flex-wrap items-center gap-3">
+          <form onSubmit={saveTitle} className="mr-2 flex min-w-0 flex-grow flex-wrap items-center gap-2">
             <input
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
               maxLength={200}
               aria-label={t("doc.title")}
               autoFocus
-              className={`${fieldClass} flex-grow min-w-0`}
+              className={`${fieldClass} min-w-0 flex-1`}
             />
             <button type="submit" className={actionButton}>
               {t("doc.save")}
@@ -194,37 +196,37 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
             </button>
           </form>
         ) : (
-          <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">{doc.Filename}</h3>
+          <h3 className="min-w-0 flex-grow break-words text-xl font-semibold leading-snug">{doc.Filename}</h3>
         )}
 
-        <div className="flex-shrink-0 flex items-center space-x-4">
+        <div className="flex flex-shrink-0 items-center gap-1">
           <CopyButton variant="icon" what={t("doc.summaryOf", { title: doc.Filename })} text={doc.Summary} />
           <button
             onClick={handleDownloadPDF}
             title={t("doc.savePdfTitle")}
             aria-label={t("doc.savePdfAria", { title: doc.Filename })}
-            className="text-ink hover:opacity-70"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-ink/80 hover:bg-ink/10 hover:text-ink"
           >
-            <DownloadIcon className="w-8 h-8" />
+            <DownloadIcon className="h-5 w-5" />
           </button>
 
           <button
             onClick={() => onDelete(doc.ID)}
             title={t("doc.deleteTitle")}
             aria-label={t("doc.deleteAria", { title: doc.Filename })}
-            className="text-red-600 hover:opacity-70"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-danger hover:bg-danger/10"
           >
-            <TrashIcon className="w-7 h-7" />
+            <TrashIcon className="h-5 w-5" />
           </button>
         </div>
       </div>
       {titleError && (
-        <p className="text-red-500 text-lg" role="alert">
+        <p className="mt-1 text-sm font-medium text-danger" role="alert">
           {titleError}
         </p>
       )}
 
-      <p className="text-ink/70 text-lg">
+      <p className="mt-0.5 text-sm text-ink/70">
         {t("doc.created", { date: new Date(doc.CreatedAt).toLocaleDateString() })}
         {!renaming && (
           <>
@@ -235,7 +237,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
                 setTitleDraft(doc.Filename);
                 setRenaming(true);
               }}
-              className="underline underline-offset-4 hover:opacity-70"
+              className="rounded underline underline-offset-4 hover:text-ink"
               aria-label={t("doc.renameAria", { title: doc.Filename })}
             >
               {t("doc.rename")}
@@ -245,10 +247,9 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
       </p>
       <TagEditor documentId={doc.ID} tags={doc.tags ?? []} onChange={(tags) => onChange(doc.ID, { tags })} />
 
-      <div className={proofOpen && proof ? "" : "max-h-48 overflow-y-auto"}>
+      <div className={`mt-4 border-t border-ink/15 pt-4 ${proofOpen && proof ? "" : "max-h-72 overflow-y-auto pr-1"}`}>
         {/* The id is how the PDF export finds this card's content. */}
-        <div id={`doc-content-${doc.ID}`} ref={contentRef} onMouseUp={readSelection} onKeyUp={readSelection}>
-          <hr className="border-t border-dashed border-ink/50 my-3" />
+        <div id={`doc-content-${doc.ID}`} ref={contentRef} onMouseUp={readSelection} onKeyUp={readSelection} className="reading">
           {proofOpen && proof ? (
             <ProofView
               result={proof}
@@ -270,20 +271,20 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
           onMouseDown={(e) => e.preventDefault()}
           onClick={askAboutSelection}
           style={{ top: selected.top, left: selected.left }}
-          className="absolute z-10 rounded-md border-2 border-ink bg-ink px-3 py-1 text-lg uppercase tracking-widest text-canvas shadow"
+          className="btn btn-primary btn-sm absolute z-10 shadow-lg"
         >
           {t("doc.askAboutThis")}
         </button>
       )}
 
       {proofError && (
-        <p className="mt-2 text-red-500 text-lg" role="alert">
+        <p className="mt-2 text-sm font-medium text-danger" role="alert">
           {proofError}
         </p>
       )}
 
       {doc.hasContent && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" onClick={toggleProof} disabled={proofLoading} className={actionButton}>
             {proofLoading ? t("doc.checking") : proofOpen ? t("doc.backToSummary") : t("doc.check")}
           </button>
@@ -299,20 +300,36 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2" data-testid="more-actions">
-        <ReadAloudButton markdown={doc.Summary} />
-        <button type="button" onClick={() => downloadMarkdown(doc.Filename, doc.Summary)} className={textButton}>
-          {t("doc.markdown")}
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => setMoreOpen((open) => !open)}
+          className={textButton}
+          aria-expanded={moreOpen}
+          aria-controls={`doc-more-${doc.ID}`}
+        >
+          {t("doc.more")}
+          <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${moreOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </button>
-        <button type="button" onClick={() => void downloadWord(doc.Filename, doc.Summary)} className={textButton}>
-          {t("doc.word")}
-        </button>
-        <EmailSummaryButton documentId={doc.ID} />
-        <ShareControl documentId={doc.ID} token={doc.shareToken} onChange={(shareToken) => onChange(doc.ID, { shareToken })} />
-        {doc.hasContent && (
-          <button type="button" onClick={() => setRewriteOpen((open) => !open)} className={textButton} aria-expanded={rewriteOpen}>
-            {rewriteOpen ? t("doc.closeRewrite") : t("doc.rewrite")}
-          </button>
+        {moreOpen && (
+          <div id={`doc-more-${doc.ID}`} className="mt-1 flex flex-wrap items-center gap-1" data-testid="more-actions">
+            <ReadAloudButton markdown={doc.Summary} />
+            <button type="button" onClick={() => downloadMarkdown(doc.Filename, doc.Summary)} className={textButton}>
+              {t("doc.markdown")}
+            </button>
+            <button type="button" onClick={() => void downloadWord(doc.Filename, doc.Summary)} className={textButton}>
+              {t("doc.word")}
+            </button>
+            <EmailSummaryButton documentId={doc.ID} />
+            <ShareControl documentId={doc.ID} token={doc.shareToken} onChange={(shareToken) => onChange(doc.ID, { shareToken })} />
+            {doc.hasContent && (
+              <button type="button" onClick={() => setRewriteOpen((open) => !open)} className={textButton} aria-expanded={rewriteOpen}>
+                {rewriteOpen ? t("doc.closeRewrite") : t("doc.rewrite")}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

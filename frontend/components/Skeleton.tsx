@@ -10,7 +10,7 @@ export function SkeletonLine({ className = "" }: { className?: string }) {
 // Stands in for a saved summary while the list loads.
 export function DocumentSkeleton() {
   return (
-    <div className="border-2 border-ink/40 rounded-md p-6" aria-hidden="true" data-testid="document-skeleton">
+    <div className="card" aria-hidden="true" data-testid="document-skeleton">
       <SkeletonLine className="h-7 w-1/2" />
       <SkeletonLine className="mt-3 w-1/4" />
       <div className="mt-6 space-y-3">

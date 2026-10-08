@@ -16,10 +16,9 @@ interface CopyButtonProps {
 }
 
 const LOOKS = {
-  button:
-    "bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas",
-  link: "text-sm uppercase tracking-widest text-ink/60 hover:text-ink underline underline-offset-2",
-  icon: "text-ink hover:opacity-70",
+  button: "btn btn-secondary btn-sm",
+  link: "btn btn-quiet btn-sm",
+  icon: "flex h-10 w-10 items-center justify-center rounded-lg text-ink/80 hover:bg-ink/10 hover:text-ink",
 } as const;
 
 export default function CopyButton({ text, what, variant = "button" }: CopyButtonProps) {
@@ -48,7 +47,7 @@ export default function CopyButton({ text, what, variant = "button" }: CopyButto
         aria-label={variant === "icon" ? t("copy.verb", { what }) : undefined}
         className={LOOKS[variant]}
       >
-        {variant === "icon" ? <CopyIcon className="w-7 h-7" /> : label}
+        {variant === "icon" ? <CopyIcon className="h-5 w-5" /> : label}
       </button>
       {/* Says the result aloud for screen readers, whatever the button looks like. */}
       <span role="status" className="sr-only">

@@ -74,7 +74,7 @@ export default function ReadAloudButton({ markdown }: ReadAloudButtonProps) {
         {playing ? t("readAloud.stop") : t("readAloud.start")}
       </button>
       {error && (
-        <span className="text-red-500 text-base" role="alert">
+        <span className="text-sm font-medium text-danger" role="alert">
           {error}
         </span>
       )}
