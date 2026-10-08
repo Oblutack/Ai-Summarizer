@@ -84,6 +84,8 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	// Checking a summary against its document costs no model call, but it is real work: its own bucket.
 	proofUserLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ChatPerMinute, rates.ChatBurst))
 	exportLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ExportPerMinute, rates.ExportBurst))
+	// Mailing a summary to yourself sends a real email, so it gets the same small allowance as an export.
+	emailLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ExportPerMinute, rates.ExportBurst))
 	turnstile := middleware.Turnstile()
 
 	fileBody := middleware.MaxBody(controllers.MaxPDFBytes + 1<<20)
@@ -113,6 +115,9 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r.POST("/auth/reset-password", authLimit, smallBody, controllers.ResetPassword)
 	r.POST("/auth/verify-email", authLimit, smallBody, controllers.VerifyEmail)
 
+	// Public: a summary its owner chose to share. Anyone with the link can read it.
+	r.GET("/shared/:token", authLimit, controllers.SharedDocument)
+
 	// Public: anonymous summaries (nothing is saved).
 	r.POST("/public/summarize", summarizeIPLimit, fileBody, turnstile, controllers.PublicSummarize)
 	r.POST("/public/summarize-multiple", summarizeIPLimit, multiBody, turnstile, controllers.PublicSummarizeMultiple)
@@ -131,10 +136,15 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		authorized.GET("/usage", controllers.Usage)
 		authorized.GET("/account/export", exportLimit, controllers.ExportAccount)
 		authorized.DELETE("/account", authLimit, smallBody, controllers.DeleteAccount)
+		authorized.PUT("/account/instructions", smallBody, controllers.SetInstructions)
 
 		// Saved documents.
 		authorized.GET("/documents", controllers.ListDocuments)
+		authorized.GET("/documents/tags", controllers.ListTags)
+		authorized.PUT("/documents/:id", smallBody, controllers.UpdateDocument)
 		authorized.DELETE("/documents/:id", controllers.DeleteDocument)
+		authorized.POST("/documents/:id/share", smallBody, controllers.ShareDocument)
+		authorized.DELETE("/documents/:id/share", controllers.UnshareDocument)
 		authorized.GET("/documents/:id/files/:fileId", controllers.DocumentFile)
 		authorized.POST("/documents/:id/proof", proofUserLimit, controllers.CheckDocumentSummary)
 
@@ -146,6 +156,10 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		verified.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryText)
 		verified.POST("/documents/:id/chat", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.ChatWithDocument)
 		verified.POST("/documents/:id/podcast", chatUserLimit, smallBody, controllers.ReplayStoredPodcast, middleware.Quota(middleware.QuotaChats), controllers.PodcastDocument)
+		verified.POST("/documents/:id/rewrite", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.RewriteDocument)
+		verified.POST("/documents/:id/suggestions", chatUserLimit, controllers.SuggestQuestions)
+		verified.POST("/documents/:id/study", chatUserLimit, smallBody, controllers.ReplayStoredStudy, middleware.Quota(middleware.QuotaChats), controllers.StudyDocument)
+		verified.POST("/documents/:id/email", emailLimit, controllers.EmailDocument)
 		verified.POST("/library/ask", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.AskLibrary)
 	}
 
