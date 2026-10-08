@@ -1,5 +1,9 @@
 import type { Config } from "tailwindcss";
 
+// The colours are defined in globals.css (and swapped for the dark theme); the "R G B" channels let
+// opacity modifiers such as text-ink/70 keep working.
+const color = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,13 +12,21 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Both are defined in globals.css (and swapped for the dark theme); the channels let opacity
-        // modifiers such as text-ink/50 keep working.
-        canvas: "rgb(var(--canvas) / <alpha-value>)",
-        ink: "rgb(var(--ink) / <alpha-value>)",
+        canvas: color("canvas"),
+        surface: color("surface"),
+        ink: color("ink"),
+        accent: color("accent"),
+        "accent-fg": color("accent-fg"),
+        danger: color("danger"),
+        "danger-fg": color("danger-fg"),
       },
       fontFamily: {
-        'bebas': ["Bebas Neue Pro Expanded Bold", "sans-serif"],
+        // Titles only.
+        display: ["Bebas Neue Pro Expanded Bold", "sans-serif"],
+        // Interface text.
+        sans: ["Inter Variable", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        // Text people read at length.
+        serif: ["Source Serif 4 Variable", "Georgia", "Cambria", "serif"],
       },
     },
   },

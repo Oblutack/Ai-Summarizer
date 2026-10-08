@@ -2,23 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
-/* The page is paper (canvas) and ink. The dark theme swaps them, so every bg-canvas / text-ink follows. */
+/* Paper and ink. Colours are stored as "R G B" so Tailwind can add opacity (text-ink/70, bg-accent/10).
+   The dark theme swaps them, so every bg-canvas / text-ink / bg-accent follows. */
 :root {
-  --canvas: 230 229 214;
+  --canvas: 230 229 214; /* the page */
+  --surface: 241 240 229; /* cards and fields sit a little lighter than the page */
   --ink: 34 34 34;
+  --accent: 31 78 121; /* fountain-pen blue: the main button, links, focus */
+  --accent-fg: 255 255 255; /* text on the accent colour */
+  --danger: 185 28 28; /* errors and deleting */
+  --danger-fg: 255 255 255;
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
   --canvas: 30 30 27;
+  --surface: 39 39 35;
   --ink: 226 224 208;
+  --accent: 138 180 224;
+  --accent-fg: 18 24 32;
+  --danger: 252 165 165;
+  --danger-fg: 60 10 10;
   color-scheme: dark;
 }
 
-/* The paper texture is light specks; on dark paper it is inverted so it stays a subtle grain. */
+@font-face {
+  font-family: "Bebas Neue Pro Expanded Bold";
+  src: url("./fonts/Bebas_Neue_Pro_Expanded_Bold.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    line-height: 1.6;
+  }
+
+  /* The wide display face is for big titles only; everything people read is set in a calm face. */
+  h1,
+  h2 {
+    @apply font-display tracking-wide;
+  }
+
+  /* Keyboard users can always see where they are. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+  }
+
+  ::placeholder {
+    color: rgb(var(--ink) / 0.7);
+    opacity: 1;
+  }
+
+  /* Slim scrollbars that stay visible, so a scrolling area looks like one. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--ink) / 0.35) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* A faint paper grain behind everything. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("/noise.png");
+  background-repeat: repeat;
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: -1;
+}
+
 :root[data-theme="dark"] body::before {
   filter: invert(1);
-  opacity: 0.12;
+  opacity: 0.08;
 }
 
 :root[data-theme="dark"] .texture-div-for-pdf-export {
@@ -26,89 +108,109 @@
   opacity: 0.06;
 }
 
-@font-face {
-  font-family: "Bebas Neue Pro Expanded Bold";
-  src: url("./fonts/Bebas_Neue_Pro_Expanded_Bold.otf") format("opentype"); /* Proverite ime fajla! */
-  font-weight: normal;
-  font-style: normal;
+/* The building blocks every screen is made from. */
+@layer components {
+  /* A piece of paper lying on the page. */
+  .card {
+    @apply rounded-2xl border border-ink/20 bg-surface p-5 shadow-[0_1px_2px_rgb(var(--ink)/0.06)] md:p-6;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-5 py-2 text-base font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-accent text-accent-fg hover:bg-accent/90;
+  }
+  .btn-secondary {
+    @apply border border-ink/40 bg-surface text-ink hover:bg-ink/10;
+  }
+  .btn-danger {
+    @apply bg-danger text-danger-fg hover:bg-danger/90;
+  }
+  /* A quiet action: looks like text until you point at it. */
+  .btn-quiet {
+    @apply min-h-0 rounded-md px-2 py-1 text-base font-medium text-ink/80 underline-offset-4 hover:bg-ink/10 hover:text-ink;
+  }
+  .btn-sm {
+    @apply min-h-[36px] px-3 py-1 text-sm;
+  }
+
+  /* Text boxes and menus */
+  .field {
+    @apply w-full rounded-lg border border-ink/40 bg-surface px-3 py-2 text-base text-ink focus-visible:border-accent focus-visible:outline-accent;
+  }
+
+  /* A label above a field, and small supporting text. */
+  .label {
+    @apply mb-1 block text-sm font-semibold text-ink/80;
+  }
+  .muted {
+    @apply text-ink/70;
+  }
+
+  /* A small rounded tag or filter. */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-ink/30 px-3 py-0.5 text-sm text-ink hover:bg-ink/10;
+  }
+  .chip[aria-pressed="true"] {
+    @apply border-accent bg-accent text-accent-fg hover:bg-accent/90;
+  }
+
+  /* Text people read for a while: summaries, answers, shared pages. */
+  .reading {
+    @apply font-serif text-lg leading-relaxed text-ink;
+  }
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-image: url("/noise.png");
-  background-repeat: repeat;
-  opacity: 0.6;
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* --- AŽURIRANI STILOVI ZA SLIDER --- */
+/* The word-count slider. */
 input[type="range"] {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
-  width: 15rem; /* Podrazumevana širina */
+  width: 100%;
+  min-width: 8rem;
+  height: 1.75rem;
 }
 
-input[type="range"]:focus {
-  outline: none;
-}
-
-/* Slider thumb - Chrome, Safari, Edge */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  /* centered with a transform rather than a margin-top */
   position: relative;
   top: 50%;
   transform: translateY(-50%);
-  height: 15px;
-  width: 15px;
+  height: 20px;
+  width: 20px;
   background-color: rgb(var(--canvas));
   border-radius: 9999px;
-  border: 3px solid rgb(var(--ink));
+  border: 3px solid rgb(var(--accent));
 }
 
-/* Slider thumb - Firefox */
 input[type="range"]::-moz-range-thumb {
-  /* Firefox centers the thumb by default, so no transform is needed */
-  height: 15px;
-  width: 15px;
+  height: 14px;
+  width: 14px;
   background-color: rgb(var(--canvas));
   border-radius: 9999px;
-  border: 3px solid rgb(var(--ink));
+  border: 3px solid rgb(var(--accent));
 }
 
-/* Slider track - Chrome, Safari, Edge */
 input[type="range"]::-webkit-slider-runnable-track {
-  background-color: rgb(var(--ink));
+  background-color: rgb(var(--ink) / 0.35);
   border-radius: 0.5rem;
   height: 4px;
 }
 
-/* Slider track - Firefox */
 input[type="range"]::-moz-range-track {
-  background-color: rgb(var(--ink));
+  background-color: rgb(var(--ink) / 0.35);
   border-radius: 0.5rem;
   height: 4px;
 }
 
-/* Sakrij scrollbar za Chrome, Safari i Operu */
-::-webkit-scrollbar {
-  display: none;
-}
-
-/* Sakrij scrollbar za IE, Edge i Firefox */
-* {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+input[type="range"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
