@@ -1,22 +1,33 @@
 "use client";
 import Markdown from "markdown-to-jsx";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import dynamic from "next/dynamic";
 import type { Document, FileInfo, ProofPassage, ProofResult } from "../types";
 import { API_URL, apiError } from "../lib/api";
+import { downloadMarkdown, downloadWord } from "../lib/exportDoc";
 import { createMarkdownOptions } from "../lib/markdown";
 import { saveElementAsPdf } from "../lib/pdfExport";
 import CopyButton from "./CopyButton";
 import DocumentChat from "./DocumentChat";
+import EmailSummaryButton from "./EmailSummaryButton";
 import PodcastPlayer from "./PodcastPlayer";
 import ProofView from "./ProofView";
+import ReadAloudButton from "./ReadAloudButton";
+import RewritePanel from "./RewritePanel";
+import ShareControl from "./ShareControl";
+import StudyPanel from "./StudyPanel";
+import TagEditor from "./TagEditor";
 import { DownloadIcon, TrashIcon } from "./Icon";
+import { useT } from "./I18nProvider";
+import { actionButton, fieldClass, textButton } from "./styles";
 
 interface DocumentCardProps {
   doc: Document;
   onDelete: (id: number) => void;
+  // Called with what changed (a new title, tags, summary or share link), so the list stays in step.
+  onChange: (id: number, patch: Partial<Document>) => void;
 }
 
 // The PDF viewer is large; it is only fetched when someone opens a page.
@@ -25,15 +36,38 @@ const PdfViewer = dynamic(() => import("./PdfViewer"), { ssr: false });
 // Saved cards use larger body text than the live form.
 const markdownOptions = createMarkdownOptions("text-2xl");
 
-export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
+// Selected text this short or long is not worth a question.
+const MIN_SELECTION = 4;
+const MAX_SELECTION = 300;
+
+interface Selected {
+  text: string;
+  top: number;
+  left: number;
+}
+
+export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardProps) {
+  const t = useT();
   const [chatOpen, setChatOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
+  const [studyOpen, setStudyOpen] = useState(false);
+  const [rewriteOpen, setRewriteOpen] = useState(false);
   // The proof check: each sentence of the summary compared with the original document.
   const [proof, setProof] = useState<ProofResult | null>(null);
   const [proofOpen, setProofOpen] = useState(false);
   const [proofLoading, setProofLoading] = useState(false);
   const [proofError, setProofError] = useState("");
   const [viewing, setViewing] = useState<{ file: FileInfo; page: number; passage: string } | null>(null);
+
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(doc.Filename);
+  const [titleError, setTitleError] = useState("");
+
+  // Text selected in the summary, with where to show the "ask about this" button, and the question it makes.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const [prefill, setPrefill] = useState<{ text: string } | undefined>();
 
   const toggleProof = async () => {
     if (proofOpen) {
@@ -47,7 +81,7 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
         const response = await axios.post<ProofResult>(`${API_URL}/documents/${doc.ID}/proof`);
         setProof(response.data);
       } catch (err) {
-        setProofError(apiError(err, "Could not check this summary."));
+        setProofError(apiError(err, t("doc.proofError")));
         return;
       } finally {
         setProofLoading(false);
@@ -62,23 +96,113 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
     saveElementAsPdf(element, doc.Filename.replace(/\.[^/.]+$/, "") + "-summary.pdf");
   };
 
+  const saveTitle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTitleError("");
+    try {
+      const response = await axios.put<{ Filename: string }>(`${API_URL}/documents/${doc.ID}`, { filename: titleDraft });
+      onChange(doc.ID, { Filename: response.data.Filename });
+      setRenaming(false);
+    } catch (err) {
+      setTitleError(apiError(err, t("doc.renameFailed")));
+    }
+  };
+
+  // Offer a question about the selected words, when a few words of this summary are selected.
+  const readSelection = useCallback(() => {
+    if (!doc.hasContent) return;
+    const selection = window.getSelection();
+    const container = contentRef.current;
+    const card = cardRef.current;
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0 || !container || !card) {
+      setSelected(null);
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const text = selection.toString().replace(/\s+/g, " ").trim();
+    if (!container.contains(range.commonAncestorContainer) || text.length < MIN_SELECTION || text.length > MAX_SELECTION) {
+      setSelected(null);
+      return;
+    }
+    const box = range.getBoundingClientRect();
+    const cardBox = card.getBoundingClientRect();
+    setSelected({ text, top: box.top - cardBox.top - 46, left: Math.max(8, box.left - cardBox.left) });
+  }, [doc.hasContent]);
+
+  // A click elsewhere collapses the selection; the button must go with it.
+  useEffect(() => {
+    if (!selected) return;
+    const onChange = () => {
+      if (window.getSelection()?.isCollapsed) setSelected(null);
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, [selected]);
+
+  const askAboutSelection = () => {
+    if (!selected) return;
+    setChatOpen(true);
+    setPrefill({ text: t("doc.prefillQuestion", { text: selected.text }) });
+    setSelected(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const summaryChanged = (summary: string) => {
+    onChange(doc.ID, { Summary: summary });
+    // Everything made from the old summary is gone with it.
+    setProof(null);
+    setProofOpen(false);
+    setPodcastOpen(false);
+    setStudyOpen(false);
+    setRewriteOpen(false);
+  };
+
   return (
     <motion.div
       layout // animate position changes when cards are added or removed
       initial={{ opacity: 0, y: 50, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-      className="bg-canvas border-2 border-ink p-6 rounded-md"
+      className="relative bg-canvas border-2 border-ink p-6 rounded-md"
+      ref={cardRef}
+      data-testid="document-card"
     >
       <div className="flex justify-between items-start">
-        <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">{doc.Filename}</h3>
+        {renaming ? (
+          <form onSubmit={saveTitle} className="flex-grow mr-4 flex flex-wrap items-center gap-3">
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              maxLength={200}
+              aria-label={t("doc.title")}
+              autoFocus
+              className={`${fieldClass} flex-grow min-w-0`}
+            />
+            <button type="submit" className={actionButton}>
+              {t("doc.save")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRenaming(false);
+                setTitleDraft(doc.Filename);
+                setTitleError("");
+              }}
+              className={textButton}
+            >
+              {t("common.cancel")}
+            </button>
+          </form>
+        ) : (
+          <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">{doc.Filename}</h3>
+        )}
 
         <div className="flex-shrink-0 flex items-center space-x-4">
-          <CopyButton variant="icon" what={`${doc.Filename} summary`} text={doc.Summary} />
+          <CopyButton variant="icon" what={t("doc.summaryOf", { title: doc.Filename })} text={doc.Summary} />
           <button
             onClick={handleDownloadPDF}
-            title="Save as PDF"
-            aria-label={`Save ${doc.Filename} as PDF`}
+            title={t("doc.savePdfTitle")}
+            aria-label={t("doc.savePdfAria", { title: doc.Filename })}
             className="text-ink hover:opacity-70"
           >
             <DownloadIcon className="w-8 h-8" />
@@ -86,20 +210,44 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
 
           <button
             onClick={() => onDelete(doc.ID)}
-            title="Delete Summary"
-            aria-label={`Delete ${doc.Filename}`}
+            title={t("doc.deleteTitle")}
+            aria-label={t("doc.deleteAria", { title: doc.Filename })}
             className="text-red-600 hover:opacity-70"
           >
             <TrashIcon className="w-7 h-7" />
           </button>
         </div>
       </div>
+      {titleError && (
+        <p className="text-red-500 text-lg" role="alert">
+          {titleError}
+        </p>
+      )}
 
-      <p className="text-ink/70 text-lg">Created on: {new Date(doc.CreatedAt).toLocaleDateString()}</p>
+      <p className="text-ink/70 text-lg">
+        {t("doc.created", { date: new Date(doc.CreatedAt).toLocaleDateString() })}
+        {!renaming && (
+          <>
+            {" · "}
+            <button
+              type="button"
+              onClick={() => {
+                setTitleDraft(doc.Filename);
+                setRenaming(true);
+              }}
+              className="underline underline-offset-4 hover:opacity-70"
+              aria-label={t("doc.renameAria", { title: doc.Filename })}
+            >
+              {t("doc.rename")}
+            </button>
+          </>
+        )}
+      </p>
+      <TagEditor documentId={doc.ID} tags={doc.tags ?? []} onChange={(tags) => onChange(doc.ID, { tags })} />
 
       <div className={proofOpen && proof ? "" : "max-h-48 overflow-y-auto"}>
         {/* The id is how the PDF export finds this card's content. */}
-        <div id={`doc-content-${doc.ID}`}>
+        <div id={`doc-content-${doc.ID}`} ref={contentRef} onMouseUp={readSelection} onKeyUp={readSelection}>
           <hr className="border-t border-dashed border-ink/50 my-3" />
           {proofOpen && proof ? (
             <ProofView
@@ -115,6 +263,19 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
         </div>
       </div>
 
+      {selected && (
+        <button
+          type="button"
+          // Pressing a button would clear the selection before the click lands.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={askAboutSelection}
+          style={{ top: selected.top, left: selected.left }}
+          className="absolute z-10 rounded-md border-2 border-ink bg-ink px-3 py-1 text-lg uppercase tracking-widest text-canvas shadow"
+        >
+          {t("doc.askAboutThis")}
+        </button>
+      )}
+
       {proofError && (
         <p className="mt-2 text-red-500 text-lg" role="alert">
           {proofError}
@@ -122,33 +283,43 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
       )}
 
       {doc.hasContent && (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={toggleProof}
-            disabled={proofLoading}
-            className="mr-3 bg-canvas text-ink text-xl uppercase font-bold py-1 px-5 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas disabled:opacity-50"
-          >
-            {proofLoading ? "Checking..." : proofOpen ? "Back to summary" : "Check against the original"}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={toggleProof} disabled={proofLoading} className={actionButton}>
+            {proofLoading ? t("doc.checking") : proofOpen ? t("doc.backToSummary") : t("doc.check")}
           </button>
-          <button
-            type="button"
-            onClick={() => setPodcastOpen((open) => !open)}
-            className="mr-3 bg-canvas text-ink text-xl uppercase font-bold py-1 px-5 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
-          >
-            {podcastOpen ? "Close podcast" : "Listen as a podcast"}
+          <button type="button" onClick={() => setPodcastOpen((open) => !open)} className={actionButton}>
+            {podcastOpen ? t("doc.closePodcast") : t("doc.podcast")}
           </button>
-          <button
-            type="button"
-            onClick={() => setChatOpen((open) => !open)}
-            className="bg-canvas text-ink text-xl uppercase font-bold py-1 px-5 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
-          >
-            {chatOpen ? "Close Chat" : "Chat With Document"}
+          <button type="button" onClick={() => setChatOpen((open) => !open)} className={actionButton}>
+            {chatOpen ? t("doc.closeChat") : t("doc.chat")}
           </button>
-          {podcastOpen && <PodcastPlayer documentId={doc.ID} />}
-          {chatOpen && <DocumentChat documentId={doc.ID} files={doc.files} />}
+          <button type="button" onClick={() => setStudyOpen((open) => !open)} className={actionButton}>
+            {studyOpen ? t("doc.closeStudy") : t("doc.study")}
+          </button>
         </div>
       )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2" data-testid="more-actions">
+        <ReadAloudButton markdown={doc.Summary} />
+        <button type="button" onClick={() => downloadMarkdown(doc.Filename, doc.Summary)} className={textButton}>
+          {t("doc.markdown")}
+        </button>
+        <button type="button" onClick={() => void downloadWord(doc.Filename, doc.Summary)} className={textButton}>
+          {t("doc.word")}
+        </button>
+        <EmailSummaryButton documentId={doc.ID} />
+        <ShareControl documentId={doc.ID} token={doc.shareToken} onChange={(shareToken) => onChange(doc.ID, { shareToken })} />
+        {doc.hasContent && (
+          <button type="button" onClick={() => setRewriteOpen((open) => !open)} className={textButton} aria-expanded={rewriteOpen}>
+            {rewriteOpen ? t("doc.closeRewrite") : t("doc.rewrite")}
+          </button>
+        )}
+      </div>
+
+      {rewriteOpen && <RewritePanel documentId={doc.ID} onDone={summaryChanged} />}
+      {podcastOpen && <PodcastPlayer documentId={doc.ID} />}
+      {chatOpen && <DocumentChat documentId={doc.ID} files={doc.files} prefill={prefill} />}
+      {studyOpen && <StudyPanel documentId={doc.ID} />}
 
       {viewing && (
         <PdfViewer

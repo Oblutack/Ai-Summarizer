@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
@@ -8,45 +8,86 @@ import type { Document } from "../../types";
 import { API_URL } from "../../lib/api";
 import dynamic from "next/dynamic";
 import { AnimatePresence } from "framer-motion";
+import { useT } from "../../components/I18nProvider";
+import { DocumentListSkeleton } from "../../components/Skeleton";
+import { fieldClass } from "../../components/styles";
+
+function Loading({ what }: { what: "common.loadingForm" | "common.loadingDocument" }) {
+  return <p>{useT()(what)}</p>;
+}
 
 const EInkForm = dynamic(() => import("../../components/EInkForm"), {
   ssr: false,
-  loading: () => <p>Loading form...</p>,
+  loading: () => <Loading what="common.loadingForm" />,
 });
 
 // Declared at module scope: creating this inside the component would give React a new component
 // type on every render, remounting every card (and discarding an open chat) each time.
 const DocumentCard = dynamic(() => import("../../components/DocumentCard"), {
   ssr: false,
-  loading: () => <p>Loading document...</p>,
+  loading: () => <Loading what="common.loadingDocument" />,
 });
 
 // Chat across every saved document.
 const LibraryChat = dynamic(() => import("../../components/LibraryChat"), { ssr: false });
 
 const PAGE_SIZE = 20;
+const SEARCH_DELAY_MS = 300;
+
+interface TagCount {
+  tag: string;
+  count: number;
+}
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const t = useT();
   const [documents, setDocuments] = useState<Document[]>([]);
+  // False until the first page of the current search has arrived: a skeleton is shown until then.
+  const [loaded, setLoaded] = useState(false);
   // Cursor for the next (older) page; empty when everything is loaded.
   const [nextCursor, setNextCursor] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState("");
 
-  const requestPage = useCallback(async (before?: string) => {
-    const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
-    if (before) query.set("before", before);
-    const response = await axios.get<Document[]>(`${API_URL}/documents?${query.toString()}`);
-    return { docs: response.data, next: (response.headers["x-next-cursor"] as string) || "" };
+  // What is typed in the search box, and what is actually searched (a moment later, so each keystroke is not a request).
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [tag, setTag] = useState("");
+  const [tags, setTags] = useState<TagCount[]>([]);
+  // The library chat is offered while anything with text is saved, even when a search hides it.
+  const [libraryAvailable, setLibraryAvailable] = useState(false);
+  // Only the newest search may fill the list.
+  const latest = useRef(0);
+
+  const requestPage = useCallback(
+    async (before?: string) => {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (before) params.set("before", before);
+      if (query) params.set("q", query);
+      if (tag) params.set("tag", tag);
+      const response = await axios.get<Document[]>(`${API_URL}/documents?${params.toString()}`);
+      return { docs: response.data, next: (response.headers["x-next-cursor"] as string) || "" };
+    },
+    [query, tag]
+  );
+
+  const fetchTags = useCallback(async () => {
+    try {
+      const response = await axios.get<TagCount[]>(`${API_URL}/documents/tags`);
+      setTags(response.data);
+    } catch {
+      // Tags only narrow the list; without them everything still works.
+    }
   }, []);
 
   // Loads (or refreshes) the newest page. Older pages the user already loaded are kept.
   const fetchDocuments = useCallback(async () => {
+    const mine = ++latest.current;
     try {
       const page = await requestPage();
-      if (!page) return;
+      if (mine !== latest.current) return;
       setLoadError("");
       setDocuments((prev) => {
         const oldest = page.docs.length > 0 ? page.docs[page.docs.length - 1].ID : 0;
@@ -55,23 +96,26 @@ export default function DashboardPage() {
         return [...page.docs, ...older];
       });
     } catch (error) {
+      if (mine !== latest.current) return;
       console.error("Failed to fetch documents", error);
-      setLoadError("Could not load your documents.");
+      setLoadError(t("dashboard.loadError"));
+    } finally {
+      if (mine === latest.current) setLoaded(true);
     }
-  }, [requestPage]);
+    void fetchTags();
+  }, [requestPage, fetchTags, t]);
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
       const page = await requestPage(nextCursor);
-      if (!page) return;
       setLoadError("");
       setDocuments((prev) => [...prev, ...page.docs.filter((d) => !prev.some((p) => p.ID === d.ID))]);
       setNextCursor(page.next);
     } catch (error) {
       console.error("Failed to load more documents", error);
-      setLoadError("Could not load more documents.");
+      setLoadError(t("dashboard.loadMoreError"));
     } finally {
       setLoadingMore(false);
     }
@@ -79,7 +123,7 @@ export default function DashboardPage() {
 
   const handleDeleteDocument = async (id: number) => {
     // Ask the user to confirm
-    if (!window.confirm("Are you sure you want to delete this summary?")) {
+    if (!window.confirm(t("dashboard.confirmDelete"))) {
       return;
     }
 
@@ -88,11 +132,21 @@ export default function DashboardPage() {
 
       // Remove the document locally so the UI responds immediately
       setDocuments((prev) => prev.filter((doc) => doc.ID !== id));
+      void fetchTags();
     } catch (error) {
       console.error("Failed to delete document", error);
-      setLoadError("Could not delete that document. Please try again.");
+      setLoadError(t("dashboard.deleteError"));
     }
   };
+
+  // A card changed (renamed, tagged, rewritten, shared): keep the list in step without reloading it.
+  const handleChange = useCallback(
+    (id: number, patch: Partial<Document>) => {
+      setDocuments((prev) => prev.map((d) => (d.ID === id ? { ...d, ...patch } : d)));
+      if (patch.tags) void fetchTags();
+    },
+    [fetchTags]
+  );
 
   useEffect(() => {
     if (!loading && !user) {
@@ -100,20 +154,38 @@ export default function DashboardPage() {
     }
   }, [user, loading, router]);
 
+  // The search box feeds the actual search after a short pause.
   useEffect(() => {
-    if (user) {
-      fetchDocuments();
-    }
-  }, [user, fetchDocuments]);
+    const timer = setTimeout(() => setQuery(search.trim()), SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search (or tag) starts a new list; the same filters again refresh the newest page.
+  useEffect(() => {
+    if (!user) return;
+    setLoaded(false);
+    setDocuments([]);
+    setNextCursor("");
+    void fetchDocuments();
+  }, [user, query, tag]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Without a search or tag, the list is everything: it says whether the library chat has anything to read.
+  useEffect(() => {
+    if (loaded && !query && !tag) setLibraryAvailable(documents.some((d) => d.hasContent));
+  }, [documents, loaded, query, tag]);
 
   if (loading) {
-    return <p className="text-center mt-20 text-2xl">Loading Dashboard...</p>;
+    return <p className="text-center mt-20 text-2xl">{t("common.loadingDashboard")}</p>;
   }
+
+  const filtering = Boolean(query || tag);
+  // The tag filter is only worth showing once there are tags (or one is chosen).
+  const showFilters = libraryAvailable || documents.length > 0 || filtering || tags.length > 0;
 
   return user ? (
     <div className="max-w-5xl mx-auto mt-8">
       <h1 className="text-4xl uppercase tracking-widest text-center mb-8">
-        Your Dashboard
+        {t("dashboard.title")}
       </h1>
 
       {/* New summary form */}
@@ -125,35 +197,79 @@ export default function DashboardPage() {
       </div>
 
       {/* One question across everything saved */}
-      {documents.some((d) => d.hasContent) && <LibraryChat />}
+      {libraryAvailable && <LibraryChat />}
 
       {/* Saved summaries */}
       <div>
         <h2 className="text-3xl uppercase tracking-widest text-center mb-6">
-          Saved Summaries
+          {t("dashboard.saved")}
         </h2>
+
+        {showFilters && (
+          <div className="mb-6" data-testid="filters">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              maxLength={100}
+              placeholder={t("dashboard.search")}
+              aria-label={t("dashboard.search")}
+              className={`${fieldClass} w-full`}
+            />
+            {(tags.length > 0 || tag) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={t("dashboard.filterByTag")}>
+                <button
+                  type="button"
+                  onClick={() => setTag("")}
+                  aria-pressed={!tag}
+                  className={`rounded-full border border-ink px-3 text-lg tracking-wider ${!tag ? "bg-ink text-canvas" : "hover:bg-ink/10"}`}
+                >
+                  {t("dashboard.all")}
+                </button>
+                {tags.map((t) => (
+                  <button
+                    key={t.tag}
+                    type="button"
+                    onClick={() => setTag(tag === t.tag ? "" : t.tag)}
+                    aria-pressed={tag === t.tag}
+                    className={`rounded-full border border-ink px-3 text-lg tracking-wider ${tag === t.tag ? "bg-ink text-canvas" : "hover:bg-ink/10"}`}
+                  >
+                    {t.tag} ({t.count})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {loadError && (
           <p className="text-center text-red-500 text-lg mb-4" role="alert">
             {loadError}
           </p>
         )}
-        <div className="space-y-6">
-          <AnimatePresence>
-            {documents.length > 0 ? (
-              documents.map((doc) => (
-                <DocumentCard
-                  key={doc.ID}
-                  doc={doc}
-                  onDelete={handleDeleteDocument}
-                />
-              ))
-            ) : (
-              <p className="text-center text-xl text-ink/60">
-                You have no saved documents yet.
-              </p>
-            )}
-          </AnimatePresence>
-        </div>
+
+        {!loaded ? (
+          <DocumentListSkeleton />
+        ) : (
+          <div className="space-y-6">
+            <AnimatePresence>
+              {documents.length > 0 ? (
+                documents.map((doc) => (
+                  <DocumentCard
+                    key={doc.ID}
+                    doc={doc}
+                    onDelete={handleDeleteDocument}
+                    onChange={handleChange}
+                  />
+                ))
+              ) : (
+                <p className="text-center text-xl text-ink/60">
+                  {filtering ? t("dashboard.noMatch") : t("dashboard.empty")}
+                </p>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {nextCursor && (
           <div className="mt-8 flex justify-center">
@@ -163,7 +279,7 @@ export default function DashboardPage() {
               disabled={loadingMore}
               className="bg-canvas text-ink text-2xl uppercase font-bold py-2 px-8 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loadingMore ? "Loading..." : "Load more"}
+              {loadingMore ? t("common.loading") : t("dashboard.loadMore")}
             </button>
           </div>
         )}

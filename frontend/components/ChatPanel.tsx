@@ -8,6 +8,7 @@ import { API_URL, apiError } from "../lib/api";
 import { linkifyCitations } from "../lib/citations";
 import CitationLink from "./CitationLink";
 import CopyButton from "./CopyButton";
+import { useT } from "./I18nProvider";
 import SourceList from "./SourceList";
 
 const MAX_QUESTION_CHARS = 1000;
@@ -38,11 +39,25 @@ interface ChatPanelProps {
   className?: string;
   // A name for tests to find this chat by.
   testId?: string;
+  // Where questions worth asking can be fetched (POST), shown before the first question.
+  suggestionsPath?: string;
+  // Text to put in the question box (and focus it). A new object each time, so the same text can be sent again.
+  prefill?: { text: string };
 }
 
 // A question-and-answer conversation whose answers cite their sources. Used for one document and
 // for the whole library: only where the questions go and how a source maps to a PDF differ.
-export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, viewerFor, className, testId }: ChatPanelProps) {
+export default function ChatPanel({
+  path,
+  idPrefix,
+  emptyText,
+  assistantLabel,
+  viewerFor,
+  className,
+  testId,
+  suggestionsPath,
+  prefill,
+}: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -52,6 +67,28 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
   // The original document open in the viewer, at a cited page.
   const [viewing, setViewing] = useState<ViewerTarget | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const t = useT();
+
+  // Questions worth asking, if this chat can offer them. They are a convenience, so a failure shows nothing.
+  useEffect(() => {
+    if (!suggestionsPath) return;
+    let cancelled = false;
+    axios
+      .post<{ questions: string[] }>(`${API_URL}${suggestionsPath}`)
+      .then((response) => !cancelled && setSuggestions(response.data.questions ?? []))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [suggestionsPath]);
+
+  useEffect(() => {
+    if (!prefill) return;
+    setQuestion(prefill.text);
+    inputRef.current?.focus();
+  }, [prefill]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -66,9 +103,7 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
     });
   }, [openSource, idPrefix]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = question.trim();
+  const send = async (text: string) => {
     if (!text || isSending) return;
 
     // Only the role and text go back to the server; the sources of earlier answers do not.
@@ -85,10 +120,15 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
         { role: "assistant", content: response.data.answer, sources: response.data.sources ?? [] },
       ]);
     } catch (err) {
-      setError(apiError(err, "Something went wrong. Please try again."));
+      setError(apiError(err, t("common.tryAgain")));
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    return send(question.trim());
   };
 
   return (
@@ -96,10 +136,26 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
       <div className="border border-dashed border-ink/50 rounded-sm p-3">
         <div className="max-h-72 overflow-y-auto space-y-3 text-xl">
           {messages.length === 0 && <p className="text-ink/50 tracking-wider">{emptyText}</p>}
+          {messages.length === 0 && suggestions.length > 0 && (
+            <ul className="flex flex-wrap gap-2" aria-label={t("chat.suggested")} data-testid="suggestions">
+              {suggestions.map((s) => (
+                <li key={s}>
+                  <button
+                    type="button"
+                    onClick={() => send(s)}
+                    disabled={isSending}
+                    className="rounded-full border border-ink/60 px-3 py-1 text-lg tracking-wide hover:bg-ink hover:text-canvas disabled:opacity-50"
+                  >
+                    {s}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {messages.map((m, i) => (
             <div key={i} className={m.role === "user" ? "text-right" : "text-left border-l-2 border-ink/40 pl-3"}>
               <p className="uppercase text-sm tracking-widest text-ink/50">
-                {m.role === "user" ? "You" : assistantLabel}
+                {m.role === "user" ? t("chat.you") : assistantLabel}
               </p>
               {m.role === "user" ? (
                 <p className="whitespace-pre-wrap">{m.content}</p>
@@ -122,7 +178,7 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
               )}
               {m.role === "assistant" && (
                 <div className="mt-1">
-                  <CopyButton variant="link" what="answer" text={m.content} />
+                  <CopyButton variant="link" what={t("copy.whatAnswer")} text={m.content} />
                 </div>
               )}
               {m.role === "assistant" && m.sources && (
@@ -140,7 +196,7 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
               )}
             </div>
           ))}
-          {isSending && <p className="text-ink/50 tracking-widest uppercase">Thinking...</p>}
+          {isSending && <p className="text-ink/50 tracking-widest uppercase">{t("chat.thinking")}</p>}
           <div ref={bottomRef} />
         </div>
 
@@ -152,10 +208,11 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
 
         <form onSubmit={handleSend} className="flex gap-3 mt-3">
           <input
+            ref={inputRef}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             maxLength={MAX_QUESTION_CHARS}
-            placeholder="Type a question"
+            placeholder={t("chat.placeholder")}
             className="flex-grow p-2 bg-canvas border-2 border-ink rounded-md focus:outline-none text-xl"
           />
           <button
@@ -163,7 +220,7 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
             disabled={isSending || !question.trim()}
             className="bg-ink text-canvas uppercase font-bold px-5 rounded-md border-2 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Ask
+            {t("chat.ask")}
           </button>
         </form>
       </div>
