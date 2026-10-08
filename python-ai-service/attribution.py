@@ -185,25 +185,50 @@ def _in_document(index: _Index, number: str) -> bool:
     return number in index.all_numbers
 
 
+MAX_COVERING_SENTENCES = 4
+# A further sentence is only worth adding if it explains at least this share of the wording.
+MIN_COVER_GAIN = 0.15
+
+
 def _numbers_near(index: _Index, wanted: set[str], near: list[int]) -> set[str]:
-    """The numbers in the sentences of the best passages that match the wanted words best. A passage
-    is often a whole page, so "somewhere in the passage" is too loose: a figure for one thing would
-    pass as the figure for its neighbour."""
-    # Number words ("seven") are what is being verified, so they must not help pick the sentence.
-    wanted = {t for t in wanted if t not in _NUMBER_WORDS} or wanted
-    scored: list[tuple[float, set[str]]] = []
+    """The numbers in the source sentences that, together, account for the summary sentence's wording.
+
+    A passage is often a whole page, so "somewhere in the passage" is too loose: a figure for one thing
+    would pass as the figure for its neighbour. But a summary sentence may also combine several source
+    sentences ("7 years for the unit, 3 for the motor"). So sentences are picked greedily, best first,
+    each one only if it explains words the earlier ones did not, and the numbers of all of them count.
+    A sentence that one source sentence covers completely stops there, which is what keeps a figure
+    borrowed from the next sentence over from passing."""
+    # Number words ("seven") are what is being verified, so they must not help pick the sentences.
+    remaining = {t for t in wanted if t not in _NUMBER_WORDS} or set(wanted)
+    total = sum(index.weight.get(t, 1.0) for t in remaining) or 1.0
+
+    candidates: list[tuple[set[str], set[str]]] = []
     for i in near:
         if i not in index._sentences:
             index._sentences[i] = [
                 (terms(sentence), set(numbers(sentence))) for sentence in _SENTENCE_END.split(index.passages[i].text)
             ]
-        scored += [(index.coverage(wanted, t), n) for t, n in index._sentences[i] if t]
-    if not scored:
+        candidates += [(t, n) for t, n in index._sentences[i] if t]
+    if not candidates:
         return set().union(*(index.numbers[i] for i in near)) if near else set()
-    best = max(c for c, _ in scored)
-    # A summary sentence may combine neighbouring sentences, so every close runner-up counts too.
-    close = [n for c, n in scored if c >= max(0.3, 0.75 * best)]
-    return set().union(*close)
+
+    def gain(sentence_terms: set[str]) -> float:
+        return sum(index.weight.get(t, 1.0) for t in remaining & sentence_terms)
+
+    chosen: set[str] = set()
+    for _ in range(MAX_COVERING_SENTENCES):
+        if not candidates:
+            break
+        best = max(candidates, key=lambda c: gain(c[0]))
+        if gain(best[0]) < MIN_COVER_GAIN * total:
+            break
+        chosen |= best[1]
+        remaining -= best[0]
+        candidates.remove(best)
+        if not remaining:
+            break
+    return chosen
 
 
 def check_summary(summary: str, text: str) -> dict:

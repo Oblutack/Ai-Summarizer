@@ -198,3 +198,18 @@ def test_a_figure_the_document_never_mentions_is_the_hard_flag():
 def test_quoted_lines_lose_their_marker():
     (unit,) = summary_units("> **Key takeaway:** change the filter every 90 days.")
     assert unit.text == "Key takeaway: change the filter every 90 days."
+
+
+def test_a_sentence_combining_two_source_sentences_may_use_the_numbers_of_both():
+    # 7 is the unit's figure and 3 the motor's: two sentences of the source, one of the summary.
+    result = check_summary("Warranty: 7 years for the unit, 3 years for the motor; consumables excluded.", SOURCE)
+    s = sentence(result, "Warranty")
+    assert s["missingNumbers"] == [] and s["elsewhereNumbers"] == []
+    assert s["support"] in (STRONG, WEAK)
+
+
+def test_a_figure_swapped_between_two_neighbouring_facts_is_still_caught():
+    result = check_summary("The electric motor is covered for seven years.", SOURCE)
+    assert sentence(result, "motor")["elsewhereNumbers"] == ["7"]
+    result = check_summary("The compressor unit is covered by a warranty of three years.", SOURCE)
+    assert sentence(result, "compressor")["elsewhereNumbers"] == ["3"]
