@@ -196,7 +196,7 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.calls.Add(1)
-	if strings.HasPrefix(r.URL.Path, "/summarize") {
+	if strings.HasPrefix(r.URL.Path, "/summarize") || r.URL.Path == "/overview" {
 		raw, _ := io.ReadAll(r.Body)
 		f.lastSummary.Store(r.URL.RawQuery + "\n" + string(raw))
 	}
