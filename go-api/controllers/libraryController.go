@@ -21,11 +21,12 @@ import (
 
 // Asking a question across all of a user's documents works in three steps: every saved document is
 // cut into page-sized passages and indexed (at save time, or on first use for older documents), the
-// best passages for the question are found with Postgres full-text search, and the AI service
-// answers from those passages and cites them.
+// best passages for the question are found, and the AI service answers from those passages and cites
+// them.
 //
-// The search is by keyword (with English stemming), not by meaning: the model provider offers no
-// embeddings, and keyword search already serves factual questions well.
+// Finding passages combines two rankings: by meaning (each passage has a vector from a small local
+// model in the AI service, see embeddings.go) and by keyword (Postgres full-text search with English
+// stemming). If the AI service has no embeddings to give, the keyword ranking is used alone.
 const (
 	maxLibraryHits       = 10    // passages sent to the model
 	maxPerDocument       = 4     // so one long document cannot crowd out the others
@@ -98,7 +99,7 @@ func indexDocument(ctx context.Context, requestID string, document models.Docume
 		}
 		rows = append(rows, row)
 	}
-	return initializers.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = initializers.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("DELETE FROM document_passages WHERE document_id = ?", document.ID).Error; err != nil {
 			return err
 		}
@@ -109,6 +110,15 @@ func indexDocument(ctx context.Context, requestID string, document models.Docume
 		}
 		return tx.Exec("UPDATE documents SET indexed_at = now() WHERE id = ?", document.ID).Error
 	})
+	if err != nil {
+		return err
+	}
+	toEmbed := make([]passageText, len(rows))
+	for i, r := range rows {
+		toEmbed[i] = passageText{ID: r.ID, Text: r.Text}
+	}
+	embedNewPassages(ctx, requestID, toEmbed)
+	return nil
 }
 
 // indexAfterSave indexes a document that was just saved. A failure is logged and never fails the
@@ -210,6 +220,92 @@ func searchPassages(ctx context.Context, userID uint, query string) ([]libraryHi
 	return run("simple", "to_tsvector('simple', p.text)")
 }
 
+// loadHits fetches passages by id (only the user's own), in the order of ids.
+func loadHits(ctx context.Context, userID uint, ids []uint) ([]libraryHit, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var hits []libraryHit
+	err := initializers.DB.WithContext(ctx).Raw(`
+		SELECT p.id, p.document_id, p.page, p.page_end, p.doc_name, p.text, d.filename AS title, d.created_at AS created_at
+		FROM document_passages p
+		JOIN documents d ON d.id = p.document_id AND d.deleted_at IS NULL
+		WHERE p.user_id = ? AND p.id IN ?`, userID, ids).Scan(&hits).Error
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint]libraryHit, len(hits))
+	for _, h := range hits {
+		byID[h.ID] = h
+	}
+	ordered := make([]libraryHit, 0, len(ids))
+	for _, id := range ids {
+		if h, ok := byID[id]; ok {
+			ordered = append(ordered, h)
+		}
+	}
+	return ordered, nil
+}
+
+// questionVector is the question as the AI service understands it, for searching by meaning.
+type questionVector struct {
+	model    string
+	minScore float64
+	vector   []byte
+}
+
+// searchLibrary finds the passages that best answer a question, best first: by meaning and by keyword
+// combined when there is a question vector, else by keyword alone.
+func searchLibrary(ctx context.Context, userID uint, keywordQuery string, question *questionVector) ([]libraryHit, error) {
+	byKeyword, err := searchPassages(ctx, userID, keywordQuery)
+	if err != nil {
+		return nil, err
+	}
+	if question == nil {
+		return byKeyword, nil
+	}
+	bySemantic, err := semanticSearch(ctx, userID, question.model, question.vector, question.minScore)
+	if err != nil {
+		// Keyword search still works, so a failure here costs quality and not the answer.
+		slog.Error("searching by meaning failed; using keyword search", "user_id", userID, "error", err)
+		return byKeyword, nil
+	}
+	if len(bySemantic) == 0 {
+		return byKeyword, nil
+	}
+
+	keywordIDs := make([]uint, len(byKeyword))
+	known := make(map[uint]libraryHit, len(byKeyword))
+	for i, h := range byKeyword {
+		keywordIDs[i] = h.ID
+		known[h.ID] = h
+	}
+	fused := fuseRankings(bySemantic, keywordIDs)
+	if len(fused) > candidateRows {
+		fused = fused[:candidateRows]
+	}
+	var missing []uint
+	for _, id := range fused {
+		if _, ok := known[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	loaded, err := loadHits(ctx, userID, missing)
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range loaded {
+		known[h.ID] = h
+	}
+	hits := make([]libraryHit, 0, len(fused))
+	for _, id := range fused {
+		if h, ok := known[id]; ok {
+			hits = append(hits, h)
+		}
+	}
+	return hits, nil
+}
+
 // limitHits keeps the best passages within the per-document, count and size limits.
 func limitHits(in []libraryHit) []libraryHit {
 	perDoc := map[uint]int{}
@@ -280,7 +376,14 @@ func AskLibrary(c *gin.Context) {
 
 	ensureIndexed(c.Request.Context(), requestID, user.ID)
 
-	found, err := searchPassages(c.Request.Context(), user.ID, query)
+	// Searching by meaning is a bonus: when the AI service gives no embeddings, only keywords are used.
+	var question *questionVector
+	if embedded, err := embedTexts(c.Request.Context(), requestID, []string{body.Question}, kindQuery); err == nil {
+		question = &questionVector{model: embedded.Model, minScore: embedded.MinScore, vector: embedded.Vectors[0]}
+		ensureEmbedded(c.Request.Context(), requestID, user.ID, embedded.Model)
+	}
+
+	found, err := searchLibrary(c.Request.Context(), user.ID, query, question)
 	if err != nil {
 		middleware.RefundQuota(c)
 		slog.Error("searching documents failed", "user_id", user.ID, "error", err, "request_id", requestID)

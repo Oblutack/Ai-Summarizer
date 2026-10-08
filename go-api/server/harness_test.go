@@ -11,9 +11,13 @@ import (
 	"ai-summarizer/go-api/testutil"
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"hash/fnv"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -98,9 +102,78 @@ type fakeAI struct {
 	lastAsk atomic.Value
 	// streamError makes streamed summaries end with an error event.
 	streamError atomic.Bool
+	// embedOn makes /embed work (off, it answers 503 like a service with embeddings switched off).
+	// embedCalls counts /embed calls, and embedModel names the model it reports (default "fake-model").
+	embedOn    atomic.Bool
+	embedCalls atomic.Int32
+	embedModel atomic.Value
+}
+
+// meaningOf stands in for an embedding model: words of the same group ("cat", "dog", "pet") share a
+// bucket, so a question about pets is close to a passage about cats and dogs without sharing a word.
+var meaningGroups = map[string]string{
+	"cat": "pet", "cats": "pet", "dog": "pet", "dogs": "pet", "pet": "pet", "pets": "pet", "animal": "pet", "animals": "pet",
+	"rent": "money", "pay": "money", "payment": "money", "cost": "money", "price": "money", "fee": "money", "euros": "money",
+}
+
+const fakeEmbedDim = 64
+
+var fakeStopWords = map[string]bool{"can": true, "the": true, "and": true, "are": true, "not": true, "for": true, "how": true, "what": true, "with": true, "from": true, "this": true, "that": true, "does": true, "much": true}
+
+func fakeEmbedding(text string) string {
+	vec := make([]float32, fakeEmbedDim)
+	for _, w := range regexp.MustCompile(`\p{L}+`).FindAllString(strings.ToLower(text), -1) {
+		if len(w) <= 2 || fakeStopWords[w] {
+			continue
+		}
+		if g, ok := meaningGroups[w]; ok {
+			w = g
+		}
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(w))
+		vec[h.Sum32()%fakeEmbedDim]++
+	}
+	var norm float64
+	for _, v := range vec {
+		norm += float64(v) * float64(v)
+	}
+	raw := make([]byte, 0, fakeEmbedDim*4)
+	for _, v := range vec {
+		if norm > 0 {
+			v = float32(float64(v) / math.Sqrt(norm))
+		}
+		raw = binary.LittleEndian.AppendUint32(raw, math.Float32bits(v))
+	}
+	return base64.StdEncoding.EncodeToString(raw)
+}
+
+func (f *fakeAI) embed(w http.ResponseWriter, r *http.Request) {
+	f.embedCalls.Add(1)
+	if !f.embedOn.Load() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"detail":"Embeddings are turned off"}`))
+		return
+	}
+	var in struct {
+		Texts []string `json:"texts"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&in)
+	vectors := make([]string, len(in.Texts))
+	for i, t := range in.Texts {
+		vectors[i] = fakeEmbedding(t)
+	}
+	model, _ := f.embedModel.Load().(string)
+	if model == "" {
+		model = "fake-model"
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"model": model, "dim": fakeEmbedDim, "minScore": 0.3, "vectors": vectors})
 }
 
 func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/embed" {
+		f.embed(w, r)
+		return
+	}
 	if r.URL.Path == "/passages" {
 		f.indexCalls.Add(1)
 		var in struct {
@@ -199,6 +272,7 @@ func newAppWithRates(t *testing.T, rates Rates) *app {
 		t.Setenv(k, "")
 	}
 
+	controllers.ResetEmbeddingBackoff()
 	ai := &fakeAI{}
 	aiSrv := httptest.NewServer(http.HandlerFunc(ai.handler))
 	t.Cleanup(aiSrv.Close)
