@@ -8,6 +8,7 @@ import type { Document, FileInfo, ProofPassage, ProofResult } from "../types";
 import { API_URL, apiError } from "../lib/api";
 import { createMarkdownOptions } from "../lib/markdown";
 import { saveElementAsPdf } from "../lib/pdfExport";
+import CopyButton from "./CopyButton";
 import DocumentChat from "./DocumentChat";
 import PodcastPlayer from "./PodcastPlayer";
 import ProofView from "./ProofView";
@@ -73,6 +74,7 @@ export default function DocumentCard({ doc, onDelete }: DocumentCardProps) {
         <h3 className="flex-grow font-bold text-2xl tracking-wider mr-4">{doc.Filename}</h3>
 
         <div className="flex-shrink-0 flex items-center space-x-4">
+          <CopyButton variant="icon" what={`${doc.Filename} summary`} text={doc.Summary} />
           <button
             onClick={handleDownloadPDF}
             title="Save as PDF"

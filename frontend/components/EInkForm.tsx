@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSummarizer } from "../hooks/useSummarizer";
 import { saveElementAsPdf } from "../lib/pdfExport";
+import { describeLength } from "../lib/readingTime";
+import CopyButton from "./CopyButton";
 import InputArea from "./summarizer/InputArea";
 import OutputPanel from "./summarizer/OutputPanel";
 import PageLimitPanel from "./summarizer/PageLimitPanel";
@@ -114,7 +116,14 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
         )}
 
         {s.summary && !s.isLoading && (
-          <div className="mt-4 w-full flex justify-center">
+          <p className="mt-3 text-center text-lg tracking-widest uppercase text-ink/60" data-testid="summary-length">
+            Summary: {describeLength(s.summary)}
+          </p>
+        )}
+
+        {s.summary && !s.isLoading && (
+          <div className="mt-4 w-full flex justify-center gap-3">
+            <CopyButton text={s.summary} what="summary" />
             <button
               type="button"
               onClick={handleDownloadPDF}

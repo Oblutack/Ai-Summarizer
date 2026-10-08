@@ -15,6 +15,40 @@ test.describe("summarizing without an account", () => {
     await expect(page.getByRole("button", { name: "Cancel" })).toHaveCount(0);
   });
 
+  test("a sample text can be loaded, summarized, and its length is shown", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "or try a sample text" }).click();
+    await expect(page.locator("#main-textarea")).toHaveValue(/Harbourside Library/);
+    // The attach button now sits under the text, and the sample link is gone.
+    await expect(page.getByRole("button", { name: "or try a sample text" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Summarize", exact: true }).click();
+    await expect(page.getByTestId("summary-length")).toContainText(/Summary: \d+ words? · \d+ min read/);
+  });
+
+  test("the last style, language and length are remembered on the next visit", async ({ page }) => {
+    await page.goto("/");
+    await page.getByLabel("Style").selectOption({ label: "Bullet Points" });
+    await page.getByLabel("Language").selectOption({ label: "German" });
+    await page.getByRole("slider").fill("300");
+    await expect(page.getByText("300 Words")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByLabel("Style")).toHaveValue("bullets");
+    await expect(page.getByLabel("Language")).toHaveValue("German");
+    await expect(page.getByText("300 Words")).toBeVisible();
+  });
+
+  test("unusable remembered settings fall back to the defaults", async ({ page }) => {
+    await page.addInitScript(() =>
+      localStorage.setItem("inkling.summaryPreferences", JSON.stringify({ wordCount: 5, style: "nope", language: "Klingon" }))
+    );
+    await page.goto("/");
+    await expect(page.getByLabel("Style")).toHaveValue("default");
+    await expect(page.getByLabel("Language")).toHaveValue("English");
+    await expect(page.getByText("150 Words")).toBeVisible();
+  });
+
   test("Save as PDF downloads a real PDF of the summary", async ({ page }) => {
     await page.goto("/");
     await summarizeText(page, ARTICLE);
@@ -114,7 +148,7 @@ test.describe("summarizing while signed in", () => {
     await expect(page.getByText("You have no saved documents yet.")).toBeVisible();
   });
 
-  test("chat answers questions about a saved document", async ({ page }) => {
+  test("chat answers questions about a saved document", async ({ page, context }) => {
     await newSignedInUser(page);
     await summarizeTextAndWaitForCard(page);
 
@@ -124,6 +158,11 @@ test.describe("summarizing while signed in", () => {
 
     await expect(page.getByText("When does work start?").first()).toBeVisible();
     await expect(page.getByText(/Stub answer to "When does work start\?"/)).toBeVisible();
+
+    // An answer can be copied.
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByTestId("document-chat").getByRole("button", { name: "Copy" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Stub answer to "When does work start?"');
 
     // A second question keeps the conversation going.
     await page.getByTestId("document-chat").getByPlaceholder("Type a question").fill("And who pays?");
@@ -231,6 +270,23 @@ test.describe("summarizing while signed in", () => {
     await page.getByRole("button", { name: "Back to summary" }).click();
     await expect(page.getByTestId("proof")).toHaveCount(0);
     await expect(page.locator("[id^=doc-content-]").getByText("Stub summary").first()).toBeVisible();
+  });
+
+  test("a summary can be copied from the form and from its saved card", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await newSignedInUser(page);
+    await summarizeText(page, ARTICLE);
+    await expect(page.getByRole("button", { name: "Save as PDF" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "summary copied" })).toBeAttached();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Stub summary");
+
+    await page.evaluate(() => navigator.clipboard.writeText("something else"));
+    await page.locator("h3").first().waitFor();
+    await page.getByRole("button", { name: /^Copy .* summary$/ }).first().click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Stub summary");
   });
 
   test("the proof check says so when the summary is in another language", async ({ page }) => {

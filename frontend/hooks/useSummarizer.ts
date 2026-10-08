@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { TURNSTILE_HEADER } from "../lib/api";
 import { readSummaryEvents, type SummaryEvent } from "../lib/sse";
+import { loadPreferences, savePreferences } from "../lib/preferences";
 import { MAX_FILES } from "../lib/summaryOptions";
 
 // Past this many words in pasted text, a page limit makes more sense than a word count.
@@ -36,6 +37,20 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
   const [chunks, setChunks] = useState({ done: 0, total: 0 });
   const [waiting, setWaiting] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  // The last style, language and length come back on the next visit. They are read after the first
+  // render (not in the initial state) so the server-rendered page and the first client render agree.
+  const preferencesLoaded = useRef(false);
+  useEffect(() => {
+    const saved = loadPreferences();
+    setWordCount(saved.wordCount);
+    setStyle(saved.style);
+    setLanguage(saved.language);
+    preferencesLoaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (preferencesLoaded.current) savePreferences({ wordCount, style, language });
+  }, [wordCount, style, language]);
 
   const showPageLimit = useMemo(
     () => files.length > 0 || inputText.trim().split(/\s+/).length > LONG_TEXT_WORDS,

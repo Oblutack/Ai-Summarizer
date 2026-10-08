@@ -1,4 +1,5 @@
 "use client";
+import { SAMPLE_TEXT } from "../../lib/sampleText";
 import { MAX_FILES } from "../../lib/summaryOptions";
 
 interface InputAreaProps {
@@ -36,7 +37,7 @@ export default function InputArea({
 
   return (
     <div className="w-full h-56 p-2 border-2 border-ink rounded-md">
-      <div className="relative w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
+      <div className="relative flex flex-col w-full h-full border border-dashed border-ink/50 rounded-sm p-4">
         {files.length > 0 ? (
           // Auto margins on the first/last child center the list when it fits, but unlike
           // justify-center they don't clip the top rows when it overflows and scrolls.
@@ -76,16 +77,26 @@ export default function InputArea({
               value={text}
               onChange={(e) => onTextChange(e.target.value)}
               aria-label="Text to summarize"
-              className="w-full h-full pb-12 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
+              className="w-full flex-1 min-h-0 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
             />
             {text ? (
-              <AttachLabel className="absolute bottom-4 left-4" />
+              // Its own row under the text, so long text scrolls above it instead of behind it.
+              <div className="flex-shrink-0 pt-2">
+                <AttachLabel className="w-fit" />
+              </div>
             ) : (
               <div className="absolute inset-0 flex flex-col justify-center items-center space-y-4 pointer-events-none">
                 <p className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl">
                   PASTE TEXT OR ATTACH PDF DOCUMENTS...
                 </p>
                 <AttachLabel className="pointer-events-auto" />
+                <button
+                  type="button"
+                  onClick={() => onTextChange(SAMPLE_TEXT)}
+                  className="pointer-events-auto text-lg uppercase tracking-widest text-ink/60 hover:text-ink underline underline-offset-2"
+                >
+                  or try a sample text
+                </button>
               </div>
             )}
           </>

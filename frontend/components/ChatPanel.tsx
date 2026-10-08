@@ -7,6 +7,7 @@ import type { ChatMessage, ChatSource } from "../types";
 import { API_URL, apiError } from "../lib/api";
 import { linkifyCitations } from "../lib/citations";
 import CitationLink from "./CitationLink";
+import CopyButton from "./CopyButton";
 import SourceList from "./SourceList";
 
 const MAX_QUESTION_CHARS = 1000;
@@ -118,6 +119,11 @@ export default function ChatPanel({ path, idPrefix, emptyText, assistantLabel, v
                 >
                   {linkifyCitations(m.content, m.sources)}
                 </Markdown>
+              )}
+              {m.role === "assistant" && (
+                <div className="mt-1">
+                  <CopyButton variant="link" what="answer" text={m.content} />
+                </div>
               )}
               {m.role === "assistant" && m.sources && (
                 <SourceList
