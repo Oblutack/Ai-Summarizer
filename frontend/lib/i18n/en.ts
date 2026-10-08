@@ -376,6 +376,11 @@ export const en = {
   "library.emptyScoped": "Ask about the {count} documents tagged “{tag}”...",
   "library.tagTip": "Tip: give your saved summaries tags (a course, a project, a client), then ask questions about just that group.",
   "library.headingScoped": "Ask “{tag}”",
+  "library.overviewButton": "Write an overview",
+  "library.overviewAgain": "Write it again",
+  "library.overviewHint": "One briefing on all {count} documents: what they say together, where they agree and where they differ.",
+  "library.overviewHeading": "Overview of “{tag}”",
+  "library.overviewNote": "Written from the saved summaries of these {count} documents.",
 } as const;
 
 export type MessageKey = keyof typeof en;

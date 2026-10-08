@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { ChatSource } from "../types";
 import ChatPanel from "./ChatPanel";
+import CollectionOverview from "./CollectionOverview";
 import { useT } from "./I18nProvider";
 
 interface LibraryChatProps {
@@ -65,9 +66,12 @@ export default function LibraryChat({ tags, activeTag }: LibraryChatProps) {
         <p className="muted mt-3 text-sm">{t("library.tagTip")}</p>
       )}
 
+      {/* A briefing on the whole group, once it has at least two documents to compare. */}
+      {selected && selected.count >= 2 && <CollectionOverview key={`overview-${selected.tag}`} tag={selected.tag} count={selected.count} />}
+
       {/* A new conversation for each group: an answer about one collection should not carry into another. */}
       <ChatPanel
-        key={effectiveScope}
+        key={`chat-${effectiveScope}`}
         path="/library/ask"
         idPrefix="library-source"
         emptyText={selected ? t("library.emptyScoped", { tag: selected.tag, count: selected.count }) : t("library.empty")}

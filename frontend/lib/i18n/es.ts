@@ -378,4 +378,9 @@ export const es: Record<MessageKey, string> = {
   "library.emptyScoped": "Pregunta sobre los {count} documentos con la etiqueta “{tag}”...",
   "library.tagTip": "Consejo: pon etiquetas a tus resúmenes guardados (un curso, un proyecto, un cliente) y pregunta solo sobre ese grupo.",
   "library.headingScoped": "Pregunta a «{tag}»",
+  "library.overviewButton": "Escribir un resumen general",
+  "library.overviewAgain": "Escribirlo de nuevo",
+  "library.overviewHint": "Un informe sobre los {count} documentos: qué dicen en conjunto, en qué coinciden y en qué se diferencian.",
+  "library.overviewHeading": "Resumen general de «{tag}»",
+  "library.overviewNote": "Escrito a partir de los resúmenes guardados de estos {count} documentos.",
 };

@@ -378,4 +378,9 @@ export const bs: Record<MessageKey, string> = {
   "library.emptyScoped": "Pitajte o {count} dokumenata s oznakom „{tag}“...",
   "library.tagTip": "Savjet: dodajte oznake svojim sačuvanim sažcima (kurs, projekt, klijent), pa postavljajte pitanja samo o toj grupi.",
   "library.headingScoped": "Pitaj „{tag}“",
+  "library.overviewButton": "Napiši pregled",
+  "library.overviewAgain": "Napiši ponovo",
+  "library.overviewHint": "Jedan pregled svih {count} dokumenata: što zajedno govore, u čemu se slažu i u čemu se razlikuju.",
+  "library.overviewHeading": "Pregled „{tag}“",
+  "library.overviewNote": "Napisano na temelju sačuvanih sažetaka ovih {count} dokumenata.",
 };

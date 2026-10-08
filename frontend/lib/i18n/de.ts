@@ -378,4 +378,9 @@ export const de: Record<MessageKey, string> = {
   "library.emptyScoped": "Fragen Sie zu den {count} Dokumenten mit dem Tag „{tag}“...",
   "library.tagTip": "Tipp: Geben Sie Ihren gespeicherten Zusammenfassungen Tags (ein Kurs, ein Projekt, ein Kunde) und stellen Sie Fragen nur zu dieser Gruppe.",
   "library.headingScoped": "„{tag}“ befragen",
+  "library.overviewButton": "Überblick schreiben",
+  "library.overviewAgain": "Neu schreiben",
+  "library.overviewHint": "Ein Überblick über alle {count} Dokumente: was sie zusammen aussagen, wo sie übereinstimmen und wo sie sich unterscheiden.",
+  "library.overviewHeading": "Überblick über „{tag}“",
+  "library.overviewNote": "Geschrieben aus den gespeicherten Zusammenfassungen dieser {count} Dokumente.",
 };

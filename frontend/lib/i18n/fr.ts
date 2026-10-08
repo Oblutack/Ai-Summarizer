@@ -378,4 +378,9 @@ export const fr: Record<MessageKey, string> = {
   "library.emptyScoped": "Posez une question sur les {count} documents avec l'étiquette « {tag} »...",
   "library.tagTip": "Astuce : ajoutez des étiquettes à vos résumés enregistrés (un cours, un projet, un client), puis posez des questions sur ce groupe seulement.",
   "library.headingScoped": "Interroger « {tag} »",
+  "library.overviewButton": "Rédiger une vue d'ensemble",
+  "library.overviewAgain": "Le rédiger à nouveau",
+  "library.overviewHint": "Une synthèse des {count} documents : ce qu'ils disent ensemble, où ils concordent et où ils diffèrent.",
+  "library.overviewHeading": "Vue d'ensemble de « {tag} »",
+  "library.overviewNote": "Rédigé à partir des résumés enregistrés de ces {count} documents.",
 };
