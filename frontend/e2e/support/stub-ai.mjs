@@ -2,6 +2,7 @@
 // It speaks the same HTTP contract the Go gateway expects (see python-ai-service/main.py):
 //   GET  /healthz
 //   POST /summarize-text[?stream=true]   JSON {text}
+//   POST /summarize-url[?stream=true]    JSON {url}: the page is titled "Page from <host>"
 //   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s)
 //   POST /chat                           JSON {text, question, history}
 //   POST /embed                          JSON {texts, kind}: word-bucket vectors, synonyms share a bucket
@@ -110,6 +111,22 @@ const server = http.createServer(async (req, res) => {
     if (stream) return streamSummary(res, summary, { text }, flags);
     if (flags.fail) return json(res, 502, { detail: "The language model is unavailable. Please try again." });
     return json(res, 200, { summary, text });
+  }
+
+  if (url.pathname === "/summarize-url") {
+    const { url: address = "" } = JSON.parse(body.toString("utf8") || "{}");
+    // Addresses the real service would refuse, so tests can see how the page shows the reason.
+    if (address.includes("private.example")) {
+      return json(res, 422, { detail: "That address is not on the public internet, so Inkling cannot open it." });
+    }
+    if (address.includes("empty.example")) {
+      return json(res, 422, { detail: "Inkling could not find readable text on that page." });
+    }
+    const title = `Page from ${new URL(address).hostname}`;
+    const text = `(stub) article text read from ${address}`;
+    const summary = summaryOf(title, text, url.searchParams);
+    if (stream) return streamSummary(res, summary, { filename: title, text }, { slow: address.includes("slow.example") });
+    return json(res, 200, { filename: title, summary, text });
   }
 
   if (url.pathname === "/summarize" || url.pathname === "/summarize-multiple") {
