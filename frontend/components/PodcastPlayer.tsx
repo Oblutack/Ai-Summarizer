@@ -5,6 +5,7 @@ import { API_URL, apiError } from "../lib/api";
 import { languageCode, pickVoices, scriptToMarkdown, splitForSpeech } from "../lib/podcast";
 import { LANGUAGES } from "../lib/summaryOptions";
 import type { PodcastScript } from "../types";
+import { useT } from "./I18nProvider";
 
 const HOSTS = { A: "Alex", B: "Sam" } as const;
 const RATES = [0.8, 1, 1.15, 1.3, 1.5];
@@ -18,6 +19,7 @@ interface PodcastPlayerProps {
 // A short two-host conversation about a document. The server writes the script (once, then it is kept);
 // the browser reads it aloud with two of its own voices, so nothing is sent anywhere to be spoken.
 export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
+  const t = useT();
   const [script, setScript] = useState<PodcastScript | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,7 +47,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
         const response = await axios.post<PodcastScript>(`${API_URL}/documents/${documentId}/podcast`, opts);
         setScript(response.data);
       } catch (err) {
-        setError(apiError(err, "Could not make the podcast."));
+        setError(apiError(err, t("podcast.failed")));
       } finally {
         setLoading(false);
       }
@@ -124,7 +126,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
             run.current++;
             setStatus("idle");
             setCurrent(-1);
-            setError("Your browser could not read this aloud. The script is still here to read.");
+            setError(t("podcast.speechFailed"));
           };
           synth.speak(utterance);
         };
@@ -161,7 +163,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
     <div className="mt-4 border-2 border-ink rounded-md p-3" data-testid="podcast">
       {loading && (
         <p className="text-xl tracking-wider uppercase text-ink/70" role="status">
-          Writing the script... this takes a few seconds.
+          {t("podcast.writing")}
         </p>
       )}
 
@@ -177,15 +179,12 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
             {script.title}
           </h4>
           <p className="text-base text-ink/70">
-            A conversation between {HOSTS.A} and {HOSTS.B}, written from this document. Voices are your browser&apos;s
-            own.
+            {t("podcast.intro", { a: HOSTS.A, b: HOSTS.B })}
           </p>
 
           {!canSpeak && (
             <p className="mt-2 text-lg" role="status">
-              {synth
-                ? "Your browser has no speech voices installed, so it cannot read this aloud. You can still read the script."
-                : "Your browser cannot read text aloud. You can still read the script."}
+              {synth ? t("podcast.noVoices") : t("podcast.noSpeech")}
             </p>
           )}
 
@@ -197,7 +196,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 disabled={!canSpeak}
                 className="rounded-md border-2 border-ink bg-ink px-5 py-1 uppercase font-bold text-canvas hover:opacity-90 disabled:opacity-40"
               >
-                Play
+                {t("podcast.play")}
               </button>
             )}
             {status === "playing" && (
@@ -206,7 +205,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 onClick={pause}
                 className="rounded-md border-2 border-ink px-5 py-1 uppercase font-bold hover:bg-ink hover:text-canvas"
               >
-                Pause
+                {t("podcast.pause")}
               </button>
             )}
             {status === "paused" && (
@@ -215,7 +214,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 onClick={resume}
                 className="rounded-md border-2 border-ink bg-ink px-5 py-1 uppercase font-bold text-canvas hover:opacity-90"
               >
-                Resume
+                {t("podcast.resume")}
               </button>
             )}
             {status !== "idle" && (
@@ -224,11 +223,11 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 onClick={stop}
                 className="rounded-md border-2 border-ink px-5 py-1 uppercase font-bold hover:bg-ink hover:text-canvas"
               >
-                Stop
+                {t("podcast.stop")}
               </button>
             )}
             <label className="flex items-center gap-2">
-              <span className="uppercase tracking-wider text-base">Speed</span>
+              <span className="uppercase tracking-wider text-base">{t("podcast.speed")}</span>
               <select
                 value={rate}
                 onChange={(e) => setRate(Number(e.target.value))}
@@ -246,7 +245,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
               onClick={download}
               className="rounded-md border-2 border-ink px-4 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
             >
-              Save script
+              {t("podcast.saveScript")}
             </button>
           </div>
 
@@ -259,7 +258,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 ] as const
               ).map(([host, value, set]) => (
                 <label key={host} className="flex items-center gap-2">
-                  <span className="uppercase tracking-wider">{HOSTS[host]}&apos;s voice</span>
+                  <span className="uppercase tracking-wider">{t("podcast.voiceOf", { host: HOSTS[host] })}</span>
                   <select
                     value={value}
                     onChange={(e) => set(e.target.value)}
@@ -276,7 +275,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
             </div>
           )}
 
-          <ol className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1 text-xl" aria-label="Script">
+          <ol className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1 text-xl" aria-label={t("podcast.script")}>
             {script.turns.map((turn, i) => (
               <li
                 key={i}
@@ -289,7 +288,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                   onClick={() => canSpeak && speakFrom(i)}
                   disabled={!canSpeak}
                   className="block w-full text-left disabled:cursor-default"
-                  aria-label={canSpeak ? `Play from ${HOSTS[turn.speaker]}: ${turn.text}` : undefined}
+                  aria-label={canSpeak ? t("podcast.playFrom", { host: HOSTS[turn.speaker], text: turn.text }) : undefined}
                 >
                   <span className="mr-2 text-sm uppercase tracking-widest text-ink/50">{HOSTS[turn.speaker]}</span>
                   {turn.text}
@@ -300,16 +299,16 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
 
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-dashed border-ink/40 pt-3 text-base">
             <label className="flex items-center gap-2">
-              <span className="uppercase tracking-wider">Language</span>
+              <span className="uppercase tracking-wider">{t("form.language")}</span>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
                 className="rounded border-2 border-ink bg-canvas px-1"
               >
-                <option value="">Same as the document</option>
+                <option value="">{t("podcast.sameAsDocument")}</option>
                 {LANGUAGES.map((l) => (
                   <option key={l} value={l}>
-                    {l}
+                    {t(`lang.${l}`)}
                   </option>
                 ))}
               </select>
@@ -323,7 +322,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
               disabled={loading}
               className="rounded-md border-2 border-ink px-4 py-1 uppercase hover:bg-ink hover:text-canvas disabled:opacity-40"
             >
-              Write a new one
+              {t("podcast.newOne")}
             </button>
           </div>
         </>

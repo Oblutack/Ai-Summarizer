@@ -7,8 +7,10 @@ import { useSearchParams } from "next/navigation";
 import FormContainer from "../../components/FormContainer";
 import { ErrorText, Field, PrimaryButton } from "../../components/ui";
 import { API_URL, apiError } from "../../lib/api";
+import { useT } from "../../components/I18nProvider";
 
 function ResetPasswordForm() {
+  const t = useT();
   // The token travels in the link's query string; it is sent to the API in a POST body, never logged by us.
   const token = useSearchParams().get("token") ?? "";
   const [password, setPassword] = useState("");
@@ -21,7 +23,7 @@ function ResetPasswordForm() {
     e.preventDefault();
     setError("");
     if (password !== confirm) {
-      setError("The two passwords don't match.");
+      setError(t("reset.mismatch"));
       return;
     }
     setSubmitting(true);
@@ -29,7 +31,7 @@ function ResetPasswordForm() {
       await axios.post(`${API_URL}/auth/reset-password`, { token, password });
       setDone(true);
     } catch (err) {
-      setError(apiError(err, "Something went wrong. Please try again."));
+      setError(apiError(err, t("common.tryAgain")));
     } finally {
       setSubmitting(false);
     }
@@ -37,11 +39,11 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <FormContainer title="Reset Password">
+      <FormContainer title={t("forgot.title")}>
         <div className="space-y-6 text-2xl text-center">
-          <p>This link is incomplete. Please use the link from your email, or request a new one.</p>
+          <p>{t("reset.incomplete")}</p>
           <Link href="/forgot-password" className="underline hover:opacity-70">
-            Request a new link
+            {t("reset.requestNew")}
           </Link>
         </div>
       </FormContainer>
@@ -50,14 +52,14 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <FormContainer title="Password changed">
+      <FormContainer title={t("reset.doneTitle")}>
         <div className="space-y-6 text-2xl text-center">
-          <p>Your password has been changed and you were signed out everywhere.</p>
+          <p>{t("reset.done")}</p>
           <Link
             href="/login"
             className="inline-block bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90"
           >
-            Log in
+            {t("common.logIn")}
           </Link>
         </div>
       </FormContainer>
@@ -65,22 +67,22 @@ function ResetPasswordForm() {
   }
 
   return (
-    <FormContainer title="Choose a new password">
+    <FormContainer title={t("reset.chooseTitle")}>
       <form onSubmit={handleSubmit} className="w-full flex flex-col items-center space-y-6 text-2xl">
         <Field
           id="password"
-          label="New password"
+          label={t("reset.newPassword")}
           type="password"
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
           minLength={8}
           maxLength={72}
-          hint="At least 8 characters."
+          hint={t("common.passwordHint")}
         />
         <Field
           id="confirm"
-          label="Repeat password"
+          label={t("reset.repeat")}
           type="password"
           value={confirm}
           onChange={setConfirm}
@@ -90,7 +92,7 @@ function ResetPasswordForm() {
         />
         <ErrorText>{error}</ErrorText>
         <PrimaryButton type="submit" disabled={submitting}>
-          {submitting ? "Saving..." : "Save"}
+          {submitting ? t("reset.saving") : t("reset.save")}
         </PrimaryButton>
       </form>
     </FormContainer>

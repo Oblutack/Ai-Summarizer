@@ -7,8 +7,10 @@ import FormContainer from "../../components/FormContainer";
 import TurnstileWidget, { turnstileEnabled } from "../../components/Turnstile";
 import { ErrorText, Field, PrimaryButton, SuccessText } from "../../components/ui";
 import { API_URL, TURNSTILE_HEADER, apiError } from "../../lib/api";
+import { useT } from "../../components/I18nProvider";
 
 export default function ForgotPasswordPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -31,7 +33,7 @@ export default function ForgotPasswordPage() {
       );
       setMessage(response.data.message);
     } catch (err) {
-      setError(apiError(err, "Something went wrong. Please try again."));
+      setError(apiError(err, t("common.tryAgain")));
     } finally {
       setHumanToken("");
       setHumanReset((n) => n + 1);
@@ -40,25 +42,25 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <FormContainer title="Reset Password">
+    <FormContainer title={t("forgot.title")}>
       <form
         onSubmit={handleSubmit}
         className="w-full flex flex-col items-center space-y-6 text-2xl"
       >
         <p className="text-lg text-center opacity-80">
-          Enter your email and we&apos;ll send you a link to choose a new password.
+          {t("forgot.intro")}
         </p>
-        <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
+        <Field id="email" label={t("common.email")} type="email" value={email} onChange={setEmail} autoComplete="email" />
 
         <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />
         <SuccessText>{message}</SuccessText>
         <ErrorText>{error}</ErrorText>
 
         <PrimaryButton type="submit" disabled={submitting || (turnstileEnabled && !humanToken)}>
-          {submitting ? "Sending..." : "Send link"}
+          {submitting ? t("forgot.sending") : t("forgot.send")}
         </PrimaryButton>
         <Link href="/login" className="text-lg underline hover:opacity-70">
-          Back to login
+          {t("forgot.back")}
         </Link>
       </form>
     </FormContainer>

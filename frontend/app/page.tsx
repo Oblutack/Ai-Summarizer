@@ -2,11 +2,16 @@
 
 import dynamic from "next/dynamic";
 import { API_URL } from "../lib/api";
+import { useT } from "../components/I18nProvider";
 
 const EInkForm = dynamic(() => import("../components/EInkForm"), {
   ssr: false,
-  loading: () => <p>Loading form...</p>,
+  loading: () => <LoadingText />,
 });
+
+function LoadingText() {
+  return <p>{useT()("common.loadingForm")}</p>;
+}
 
 export default function Home() {
   return (

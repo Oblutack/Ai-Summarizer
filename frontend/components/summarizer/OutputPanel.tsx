@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import Markdown from "markdown-to-jsx";
 import { createMarkdownOptions } from "../../lib/markdown";
+import { useT } from "../I18nProvider";
 
 const markdownOptions = createMarkdownOptions();
 
@@ -14,6 +15,7 @@ interface OutputPanelProps {
 
 export default function OutputPanel({ summary, isLoading, progress, stageLabel }: OutputPanelProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
 
   // Follow the text as it streams in.
   useEffect(() => {
@@ -58,11 +60,11 @@ export default function OutputPanel({ summary, isLoading, progress, stageLabel }
             className="text-xl md:text-2xl text-ink/70 tracking-wider whitespace-pre-wrap text-left"
           >
             <Markdown options={markdownOptions}>
-              {summary || "SUMMARIZED TEXT OUTPUT APPEARS HERE."}
+              {summary || t("form.outputPlaceholder")}
             </Markdown>
             {isLoading && (
               <p className="mt-2 text-base uppercase tracking-widest text-ink/50" role="status">
-                Writing...
+                {t("form.writing")}
               </p>
             )}
           </div>

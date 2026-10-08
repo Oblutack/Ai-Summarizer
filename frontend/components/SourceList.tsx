@@ -1,6 +1,8 @@
 "use client";
 import { describeSource } from "../lib/citations";
 import type { ChatSource } from "../types";
+import { LOCALES } from "../lib/i18n";
+import { useI18n } from "./I18nProvider";
 
 interface SourceListProps {
   sources: ChatSource[];
@@ -24,13 +26,14 @@ export default function SourceList({
   onOpenDocument,
   canOpenDocument,
 }: SourceListProps) {
+  const { t, language } = useI18n();
   if (sources.length === 0) return null;
   return (
     <div className="mt-2 border-t border-dashed border-ink/40 pt-2" data-testid="sources">
-      <p className="uppercase text-sm tracking-widest text-ink/50">Sources</p>
+      <p className="uppercase text-sm tracking-widest text-ink/50">{t("sources.title")}</p>
       <ul className="space-y-1 mt-1">
         {sources.map((s) => {
-          const where = describeSource(s);
+          const where = describeSource(s, t, LOCALES[language]);
           return (
             <li key={s.id} id={`${idPrefix}-${s.id}`}>
               <details
@@ -44,7 +47,7 @@ export default function SourceList({
                   <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 mr-2 text-sm leading-none border border-ink rounded">
                     {s.id}
                   </span>
-                  {where || "Excerpt"}
+                  {where || t("sources.excerpt")}
                 </summary>
                 <blockquote className="mt-1 mb-2 border-l-2 border-ink/40 pl-3 text-base whitespace-pre-wrap">
                   {s.text}
@@ -55,7 +58,7 @@ export default function SourceList({
                     onClick={() => onOpenDocument(s)}
                     className="mb-2 rounded border-2 border-ink px-3 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
                   >
-                    Open page {s.page} in the document
+                    {t("sources.open", { page: s.page })}
                   </button>
                 )}
               </details>

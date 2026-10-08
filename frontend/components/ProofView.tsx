@@ -2,6 +2,8 @@
 import { describeSource } from "../lib/citations";
 import { fileForPassage, numberWarnings, proofHeadline, supportLabel, supportMark } from "../lib/proof";
 import type { FileInfo, ProofPassage, ProofResult } from "../types";
+import { LOCALES } from "../lib/i18n";
+import { useI18n } from "./I18nProvider";
 
 interface ProofViewProps {
   result: ProofResult;
@@ -13,24 +15,26 @@ interface ProofViewProps {
 // A summary laid out sentence by sentence, each marked by how well the original document backs it,
 // and each opening to show the passage it was matched with.
 export default function ProofView({ result, files, onOpenDocument }: ProofViewProps) {
+  const { t, language } = useI18n();
   return (
     <div data-testid="proof" className="text-xl">
       <p className="font-bold" data-testid="proof-headline">
-        {proofHeadline(result)}
+        {proofHeadline(result, t)}
       </p>
 
       {!result.verifiable && (
         <p className="mt-1 text-lg" role="status">
-          Hardly any wording matches, so this summary is probably in a different language than the document. The
-          check compares words, so it cannot tell here.
+          {t("proof.language")}
         </p>
       )}
 
       <p className="mt-1 text-base text-ink/70">
-        <span aria-hidden="true">● </span>found &nbsp;
-        <span aria-hidden="true">◐ </span>partly found &nbsp;
-        <span aria-hidden="true">○ </span>not found. This compares wording, not meaning: &ldquo;partly&rdquo; or
-        &ldquo;not found&rdquo; means look closer, not that it is wrong.
+        <span aria-hidden="true">● </span>
+        {t("proof.legendFound")} &nbsp;
+        <span aria-hidden="true">◐ </span>
+        {t("proof.legendPartly")} &nbsp;
+        <span aria-hidden="true">○ </span>
+        {t("proof.legendNot")}
       </p>
 
       <ul className="mt-3 space-y-2">
@@ -42,14 +46,14 @@ export default function ProofView({ result, files, onOpenDocument }: ProofViewPr
               </li>
             );
           }
-          const warnings = numberWarnings(s);
+          const warnings = numberWarnings(s, t);
           return (
             <li key={i} data-support={s.support}>
               <details>
                 <summary className="cursor-pointer">
                   <span
                     role="img"
-                    aria-label={supportLabel(s.support)}
+                    aria-label={supportLabel(s.support, t)}
                     className={s.support === "none" ? "mr-2 text-red-600" : "mr-2"}
                   >
                     {supportMark(s.support)}
@@ -62,19 +66,19 @@ export default function ProofView({ result, files, onOpenDocument }: ProofViewPr
                   )}
                 </summary>
                 <div className="ml-6 mt-1 space-y-2 text-base">
-                  <p className="text-ink/70">{supportLabel(s.support)}</p>
+                  <p className="text-ink/70">{supportLabel(s.support, t)}</p>
                   {warnings.map((w) => (
                     <p key={w} className="text-red-600" role="note">
                       &#9888; {w}
                     </p>
                   ))}
-                  {s.passages.length === 0 && <p>No passage of the document matches this sentence.</p>}
+                  {s.passages.length === 0 && <p>{t("proof.noPassage")}</p>}
                   {s.passages.map((p) => {
                     const file = fileForPassage(files, p);
                     return (
                       <div key={p.id}>
                         <p className="uppercase tracking-widest text-sm text-ink/50">
-                          {describeSource(p) || "Excerpt"}
+                          {describeSource(p, t, LOCALES[language]) || t("sources.excerpt")}
                         </p>
                         <blockquote className="border-l-2 border-ink/40 pl-3 whitespace-pre-wrap">{p.text}</blockquote>
                         {file && p.page != null && (
@@ -83,7 +87,7 @@ export default function ProofView({ result, files, onOpenDocument }: ProofViewPr
                             onClick={() => onOpenDocument(file, p)}
                             className="mt-1 rounded border-2 border-ink px-3 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
                           >
-                            Open page {p.page} in the document
+                            {t("sources.open", { page: p.page })}
                           </button>
                         )}
                       </div>

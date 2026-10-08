@@ -8,6 +8,7 @@ import FormContainer from "../../components/FormContainer";
 import Link from "next/link";
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import { API_URL, apiError } from "../../lib/api";
+import { useT } from "../../components/I18nProvider";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const router = useRouter();
   const { login } = useAuth();
+  const t = useT();
 
   const googleLoginButtonRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +37,7 @@ export default function LoginPage() {
       login(response.data.user);
       router.push("/dashboard");
     } catch (err) {
-      setError(apiError(err, "Login failed."));
+      setError(apiError(err, t("login.failed")));
     }
   };
   const handleGoogleLoginSuccess = async (
@@ -43,7 +45,7 @@ export default function LoginPage() {
   ) => {
     const idToken = credentialResponse.credential;
     if (!idToken) {
-      setError("Google login failed.");
+      setError(t("login.googleFailedShort"));
       return;
     }
 
@@ -55,12 +57,12 @@ export default function LoginPage() {
       login(response.data.user);
       router.push("/dashboard");
     } catch (err) {
-      setError(apiError(err, "Failed to log in with Google."));
+      setError(apiError(err, t("login.googleFailed")));
     }
   };
 
   return (
-    <FormContainer title="Login">
+    <FormContainer title={t("login.title")}>
       {/* Email / password form */}
       <form
         onSubmit={handleSubmit}
@@ -71,7 +73,7 @@ export default function LoginPage() {
             className="block uppercase tracking-wider mb-1"
             htmlFor="email"
           >
-            Email
+            {t("common.email")}
           </label>
           <input
             className="w-full p-3 bg-canvas border-2 border-ink rounded-md focus:outline-none"
@@ -87,7 +89,7 @@ export default function LoginPage() {
             className="block uppercase tracking-wider mb-1"
             htmlFor="password"
           >
-            Password
+            {t("common.password")}
           </label>
           <input
             className="w-full p-3 bg-canvas border-2 border-ink rounded-md focus:outline-none"
@@ -100,7 +102,7 @@ export default function LoginPage() {
           />
           <p className="mt-2 text-base">
             <Link href="/forgot-password" className="underline hover:opacity-70">
-              Forgot your password?
+              {t("login.forgot")}
             </Link>
           </p>
         </div>
@@ -115,13 +117,13 @@ export default function LoginPage() {
           type="submit"
           className="bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90 disabled:opacity-50"
         >
-          Sign In
+          {t("login.submit")}
         </button>
       </form>
 
       {/* Separator */}
       <div className="text-center my-6 uppercase tracking-wider text-ink/60">
-        Or
+        {t("login.or")}
       </div>
 
       {/* Google sign-in */}
@@ -151,7 +153,7 @@ export default function LoginPage() {
               d="M43.611 20.083H42V20H24v8h11.303c-0.792 2.237-2.231 4.16-4.087 5.571l5.657 5.657C41.813 36.467 44 32.062 44 27.521c0-2.641-0.649-5.114-1.789-7.225z"
             ></path>
           </svg>
-          <span>Sign in with Google</span>
+          <span>{t("login.google")}</span>
         </button>
       </div>
 
@@ -163,7 +165,7 @@ export default function LoginPage() {
         <GoogleLogin
           onSuccess={handleGoogleLoginSuccess}
           onError={() => {
-            setError("Google Login Failed");
+            setError(t("login.googleError"));
           }}
         />
       </div>

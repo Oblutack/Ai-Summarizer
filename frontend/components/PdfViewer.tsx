@@ -6,6 +6,7 @@ import type { TextItem } from "pdfjs-dist/types/src/display/api";
 import { API_URL, apiError } from "../lib/api";
 import { findHighlight } from "../lib/pdfHighlight";
 import type { FileInfo } from "../types";
+import { useT } from "./I18nProvider";
 
 interface PdfViewerProps {
   documentId: number;
@@ -28,6 +29,7 @@ const MAX_PAGE_WIDTH = 900;
 // Shows one of the user's original PDFs in a pop-up, opened on a cited page with the cited passage
 // marked. The file is fetched from the API with the session cookie and drawn by PDF.js.
 export default function PdfViewer({ documentId, file, page: openOn, passage, onClose }: PdfViewerProps) {
+  const t = useT();
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(openOn);
   const [error, setError] = useState("");
@@ -73,7 +75,7 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
         setPdf(doc);
         setPageNumber((n) => Math.min(Math.max(1, n), doc.numPages));
       } catch (err) {
-        if (!cancelled) setError(apiError(err, "Could not open this document."));
+        if (!cancelled) setError(apiError(err, t("pdf.openFailed")));
       }
     })();
     return () => {
@@ -134,7 +136,7 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
       } catch (err) {
         // A render interrupted by switching pages is not an error.
         if (!cancelled && !(err instanceof Error && err.name === "RenderingCancelledException")) {
-          setError("Could not draw this page.");
+          setError(t("pdf.drawFailed"));
         }
       }
     })();
@@ -159,7 +161,7 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${file.name}, page ${pageNumber}`}
+        aria-label={t("pdf.aria", { name: file.name, page: pageNumber })}
         tabIndex={-1}
         data-testid="pdf-viewer"
         className="flex max-h-[94vh] w-full max-w-4xl flex-col rounded-lg border-2 border-ink bg-canvas outline-none"
@@ -173,19 +175,19 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
               type="button"
               onClick={() => go(-1)}
               disabled={!pdf || pageNumber <= 1}
-              aria-label="Previous page"
+              aria-label={t("pdf.prev")}
               className="rounded border-2 border-ink px-3 hover:bg-ink hover:text-canvas disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink"
             >
               &larr;
             </button>
             <span aria-live="polite" data-testid="pdf-page">
-              {pdf ? `Page ${pageNumber} of ${total}` : "Loading..."}
+              {pdf ? t("pdf.pageOf", { page: pageNumber, total }) : t("common.loading")}
             </span>
             <button
               type="button"
               onClick={() => go(1)}
               disabled={!pdf || pageNumber >= total}
-              aria-label="Next page"
+              aria-label={t("pdf.next")}
               className="rounded border-2 border-ink px-3 hover:bg-ink hover:text-canvas disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink"
             >
               &rarr;
@@ -195,14 +197,14 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
               onClick={onClose}
               className="ml-2 rounded border-2 border-ink px-3 uppercase hover:bg-ink hover:text-canvas"
             >
-              Close
+              {t("pdf.close")}
             </button>
           </div>
         </div>
 
         {pageNumber === openOn && located === false && (
           <p className="border-b border-dashed border-ink/40 px-4 py-1 text-base" role="status">
-            The cited passage could not be pinpointed on this page, so the whole page is shown.
+            {t("pdf.notLocated")}
           </p>
         )}
 

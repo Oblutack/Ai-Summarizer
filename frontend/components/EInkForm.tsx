@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useSummarizer } from "../hooks/useSummarizer";
 import { saveElementAsPdf } from "../lib/pdfExport";
 import { describeLength } from "../lib/readingTime";
+import { useT } from "./I18nProvider";
 import CopyButton from "./CopyButton";
 import InputArea from "./summarizer/InputArea";
 import OutputPanel from "./summarizer/OutputPanel";
@@ -19,6 +20,7 @@ interface EInkFormProps {
 
 export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) {
   const { user } = useAuth();
+  const t = useT();
 
   // Anonymous visitors prove they're human (when the site has Turnstile configured); signed-in
   // users are identified by their session instead.
@@ -98,7 +100,7 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
               whileTap={{ scale: 0.97 }}
               whileHover={{ scale: 1.03 }}
             >
-              Summarize
+              {t("form.summarize")}
             </motion.button>
           )}
         </form>
@@ -110,26 +112,26 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
               onClick={s.cancel}
               className="bg-red-600 text-white text-2xl md:text-3xl uppercase font-bold py-2 px-8 md:py-3 md:px-12 rounded-md hover:bg-red-700"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         )}
 
         {s.summary && !s.isLoading && (
           <p className="mt-3 text-center text-lg tracking-widest uppercase text-ink/60" data-testid="summary-length">
-            Summary: {describeLength(s.summary)}
+            {t("form.lengthLine", { length: describeLength(s.summary, t) })}
           </p>
         )}
 
         {s.summary && !s.isLoading && (
           <div className="mt-4 w-full flex justify-center gap-3">
-            <CopyButton text={s.summary} what="summary" />
+            <CopyButton text={s.summary} what={t("copy.whatSummary")} />
             <button
               type="button"
               onClick={handleDownloadPDF}
               className="bg-canvas text-ink text-xl uppercase font-bold py-2 px-6 rounded-md border-2 border-ink hover:bg-ink hover:text-canvas"
             >
-              Save as PDF
+              {t("form.savePdf")}
             </button>
           </div>
         )}

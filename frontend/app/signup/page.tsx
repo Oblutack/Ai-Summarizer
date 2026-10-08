@@ -7,8 +7,10 @@ import FormContainer from "../../components/FormContainer";
 import TurnstileWidget, { turnstileEnabled } from "../../components/Turnstile";
 import { ErrorText, Field, PrimaryButton } from "../../components/ui";
 import { API_URL, TURNSTILE_HEADER, apiError } from "../../lib/api";
+import { useT } from "../../components/I18nProvider";
 
 export default function SignupPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -30,7 +32,7 @@ export default function SignupPage() {
       );
       setCreated(true);
     } catch (err) {
-      setError(apiError(err, "An unexpected error occurred."));
+      setError(apiError(err, t("signup.failed")));
       // The human-check token is single use, so ask for a new one before the next attempt.
       setHumanToken("");
       setHumanReset((n) => n + 1);
@@ -41,17 +43,19 @@ export default function SignupPage() {
 
   if (created) {
     return (
-      <FormContainer title="Check your email">
+      <FormContainer title={t("signup.checkTitle")}>
         <div className="space-y-6 text-2xl text-center">
           <p>
-            We sent a confirmation link to <strong>{email}</strong>. Open it to confirm your address.
+            {t("signup.sentBefore")}
+            <strong>{email}</strong>
+            {t("signup.sentAfter")}
           </p>
-          <p className="text-lg opacity-70">You can already log in while you wait.</p>
+          <p className="text-lg opacity-70">{t("signup.later")}</p>
           <Link
             href="/login"
             className="inline-block bg-ink text-canvas text-3xl uppercase font-bold py-3 px-12 rounded-md border-2 border-b-8 border-ink hover:opacity-90"
           >
-            Log in
+            {t("common.logIn")}
           </Link>
         </div>
       </FormContainer>
@@ -59,14 +63,14 @@ export default function SignupPage() {
   }
 
   return (
-    <FormContainer title="Sign Up">
+    <FormContainer title={t("signup.title")}>
       <form
         onSubmit={handleSubmit}
         className="w-full flex flex-col items-center space-y-6 text-2xl"
       >
         <Field
           id="email"
-          label="Email"
+          label={t("common.email")}
           type="email"
           value={email}
           onChange={setEmail}
@@ -74,21 +78,21 @@ export default function SignupPage() {
         />
         <Field
           id="password"
-          label="Password"
+          label={t("common.password")}
           type="password"
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
           minLength={8}
           maxLength={72}
-          hint="At least 8 characters."
+          hint={t("common.passwordHint")}
         />
 
         <TurnstileWidget onToken={setHumanToken} resetKey={humanReset} />
         <ErrorText>{error}</ErrorText>
 
         <PrimaryButton type="submit" disabled={submitting || (turnstileEnabled && !humanToken)}>
-          {submitting ? "Creating..." : "Sign Up"}
+          {submitting ? t("signup.creating") : t("signup.title")}
         </PrimaryButton>
       </form>
     </FormContainer>

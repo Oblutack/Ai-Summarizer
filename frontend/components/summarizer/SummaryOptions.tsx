@@ -1,5 +1,6 @@
 "use client";
 import { LANGUAGES, SUMMARY_STYLES } from "../../lib/summaryOptions";
+import { useT } from "../I18nProvider";
 
 interface SummaryOptionsProps {
   wordCount: number;
@@ -25,12 +26,13 @@ export default function SummaryOptions({
   onLanguageChange,
 }: SummaryOptionsProps) {
   const dim = wordCountDisabled ? "opacity-50" : "";
+  const t = useT();
 
   return (
     <>
       <div className="w-full flex flex-col md:flex-row justify-center items-center md:space-x-4">
         <label htmlFor="word-count" className={`uppercase tracking-widest ${dim}`}>
-          Summary Word Count:
+          {t("form.wordCount")}
         </label>
         <div className="flex flex-col items-center my-2 md:my-0">
           <input
@@ -53,22 +55,22 @@ export default function SummaryOptions({
             ))}
           </div>
         </div>
-        <span className={`w-28 text-center tracking-widest ${dim}`}>{wordCount} Words</span>
+        <span className={`w-28 text-center tracking-widest ${dim}`}>{t("form.words", { n: wordCount })}</span>
       </div>
 
       <div className="w-full flex flex-col md:flex-row justify-center items-center gap-4 md:gap-8">
         <label className="flex items-center gap-3 uppercase tracking-widest">
-          Style
+          {t("form.style")}
           <select value={style} onChange={(e) => onStyleChange(e.target.value)} className={selectClass}>
             {SUMMARY_STYLES.map((s) => (
               <option key={s.value} value={s.value}>
-                {s.label}
+                {t(`style.${s.value}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex items-center gap-3 uppercase tracking-widest">
-          Language
+          {t("form.language")}
           <select
             value={language}
             onChange={(e) => onLanguageChange(e.target.value)}
@@ -76,7 +78,7 @@ export default function SummaryOptions({
           >
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>
-                {l}
+                {t(`lang.${l}`)}
               </option>
             ))}
           </select>

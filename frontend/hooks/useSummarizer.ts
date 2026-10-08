@@ -5,6 +5,7 @@ import { TURNSTILE_HEADER } from "../lib/api";
 import { readSummaryEvents, type SummaryEvent } from "../lib/sse";
 import { loadPreferences, savePreferences } from "../lib/preferences";
 import { MAX_FILES } from "../lib/summaryOptions";
+import { useT } from "../components/I18nProvider";
 
 // Past this many words in pasted text, a page limit makes more sense than a word count.
 const LONG_TEXT_WORDS = 1000;
@@ -23,6 +24,7 @@ interface UseSummarizerOptions {
 
 export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSummarizerOptions) {
   const { refresh } = useAuth();
+  const t = useT();
 
   const [wordCount, setWordCount] = useState(150);
   const [pageLimit, setPageLimit] = useState("");
@@ -78,10 +80,10 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
 
   const stageLabel =
     stage === "summarizing" && chunks.total > 1
-      ? `Summarized ${chunks.done} of ${chunks.total} sections...`
+      ? t("stage.sections", { done: chunks.done, total: chunks.total })
       : stage === "writing"
-      ? "Writing the summary..."
-      : "Reading your document...";
+      ? t("stage.writing")
+      : t("stage.reading");
 
   const changeText = useCallback((value: string) => {
     setInputText(value);
@@ -103,16 +105,16 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       }
 
       if (pdfs.length < picked.length) {
-        setError("Only PDF files are supported.");
+        setError(t("form.errPdfOnly"));
       } else if (merged.length > MAX_FILES) {
-        setError(`You can attach up to ${MAX_FILES} PDFs at once.`);
+        setError(t("form.errMaxFiles", { max: MAX_FILES }));
       } else {
         setError("");
       }
       setFiles(merged.slice(0, MAX_FILES));
       setInputText("");
     },
-    [files]
+    [files, t]
   );
 
   const removeFile = useCallback((index: number) => {
@@ -164,7 +166,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
         setSummary((prev) => prev + event.text);
         return;
       case "error":
-        setError(event.message || "An error occurred.");
+        setError(event.message || t("form.errGeneric"));
         return "error";
       case "done":
         return "done";
@@ -173,7 +175,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
 
   const submit = async () => {
     if (files.length === 0 && !inputText) {
-      setError("Please attach a PDF or paste some text.");
+      setError(t("form.errNeedInput"));
       return;
     }
 
@@ -196,7 +198,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
         const body = await response.json().catch(() => null);
         // A rejected session means we were signed out elsewhere: re-check, which clears the user.
         if (response.status === 401 && body?.code === "unauthenticated") refresh();
-        setError(body?.error || "An error occurred.");
+        setError(body?.error || t("form.errGeneric"));
         return;
       }
 
@@ -208,15 +210,15 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       if (outcome === "done") {
         onSummaryCreated?.();
       } else if (!outcome) {
-        setError("The summary was interrupted. Please try again.");
+        setError(t("form.errInterrupted"));
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        setError("Summarization was cancelled.");
+        setError(t("form.errCancelled"));
       } else if (err instanceof TypeError) {
-        setError("Could not reach the server. Check your connection and try again.");
+        setError(t("form.errNetwork"));
       } else {
-        setError("An unexpected error occurred.");
+        setError(t("form.errUnexpected"));
       }
     } finally {
       humanCheck?.reset();

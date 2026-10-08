@@ -1,5 +1,6 @@
 "use client";
 import { SAMPLE_TEXT } from "../../lib/sampleText";
+import { useT } from "../I18nProvider";
 import { MAX_FILES } from "../../lib/summaryOptions";
 
 interface InputAreaProps {
@@ -14,10 +15,11 @@ const attachButtonClass =
   "cursor-pointer flex items-center space-x-3 border-2 border-ink px-4 py-2 rounded-md bg-canvas hover:bg-ink hover:text-canvas";
 
 function AttachLabel({ className = "" }: { className?: string }) {
+  const t = useT();
   return (
     <label htmlFor="pdf-upload" className={`${attachButtonClass} ${className}`}>
       <span className="text-2xl">📎</span>
-      <span className="text-xl tracking-wider">ATTACH PDFS</span>
+      <span className="text-xl tracking-wider">{t("form.attach")}</span>
     </label>
   );
 }
@@ -29,6 +31,7 @@ export default function InputArea({
   onFilesPicked,
   onRemoveFile,
 }: InputAreaProps) {
+  const t = useT();
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // allow picking the same file again after removing it
@@ -52,8 +55,8 @@ export default function InputArea({
                   type="button"
                   onClick={() => onRemoveFile(i)}
                   className="text-ink/50 hover:text-red-600 text-3xl leading-none flex-shrink-0"
-                  title="Remove file"
-                  aria-label={`Remove ${f.name}`}
+                  title={t("form.removeFile")}
+                  aria-label={t("form.removeFileNamed", { name: f.name })}
                 >
                   &times;
                 </button>
@@ -64,7 +67,7 @@ export default function InputArea({
                 htmlFor="pdf-upload"
                 className="cursor-pointer border-2 border-ink px-4 py-1 rounded-md bg-canvas hover:bg-ink hover:text-canvas text-xl tracking-wider"
               >
-                + ADD MORE PDFS
+                {t("form.addMore")}
               </label>
             )}
           </div>
@@ -76,7 +79,7 @@ export default function InputArea({
               id="main-textarea"
               value={text}
               onChange={(e) => onTextChange(e.target.value)}
-              aria-label="Text to summarize"
+              aria-label={t("form.textAria")}
               className="w-full flex-1 min-h-0 bg-transparent focus:outline-none resize-none text-xl tracking-wider text-left scrollbar-hide ms-overflow-style-none"
             />
             {text ? (
@@ -87,7 +90,7 @@ export default function InputArea({
             ) : (
               <div className="absolute inset-0 flex flex-col justify-center items-center space-y-4 pointer-events-none">
                 <p className="text-3xl text-center tracking-wider text-ink/50 md:text-2xl">
-                  PASTE TEXT OR ATTACH PDF DOCUMENTS...
+                  {t("form.dropHint")}
                 </p>
                 <AttachLabel className="pointer-events-auto" />
                 <button
@@ -95,7 +98,7 @@ export default function InputArea({
                   onClick={() => onTextChange(SAMPLE_TEXT)}
                   className="pointer-events-auto text-lg uppercase tracking-widest text-ink/60 hover:text-ink underline underline-offset-2"
                 >
-                  or try a sample text
+                  {t("form.trySample")}
                 </button>
               </div>
             )}
