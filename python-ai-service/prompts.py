@@ -56,7 +56,23 @@ def _language_line(language: str) -> str:
     return f"\n        Write the entire output in {language}." if language != DEFAULT_LANGUAGE else ""
 
 
-def summary_prompt(material: str, target_words: int, style: str, language: str, kind: str = "text") -> str:
+MAX_INSTRUCTIONS_CHARS = 500
+
+
+def _instructions_block(instructions: str) -> str:
+    """The reader's own standing preferences. They adjust tone and focus; they never replace the format."""
+    instructions = " ".join(instructions.split())
+    if not instructions:
+        return ""
+    return (
+        "\n        The reader has these standing preferences for every summary. Follow them where they do not "
+        f"conflict with the Markdown format and style above: {instructions}"
+    )
+
+
+def summary_prompt(
+    material: str, target_words: int, style: str, language: str, kind: str = "text", instructions: str = ""
+) -> str:
     """Builds the final summarization prompt.
 
     kind: "text" for raw text, "summaries" for already-condensed chunk summaries,
@@ -78,7 +94,7 @@ def summary_prompt(material: str, target_words: int, style: str, language: str, 
 
     return f"""{task}
         **Format the entire output strictly as Markdown.**
-        {STYLE_INSTRUCTIONS[style]}{_language_line(language)}
+        {STYLE_INSTRUCTIONS[style]}{_language_line(language)}{_instructions_block(instructions)}
 
         ---
 

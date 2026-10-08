@@ -65,11 +65,18 @@ class SummaryCache:
 
 
 def summary_key(
-    kind: str, material: str, target_words: int, style: str, language: str, model: str, prompt_version: str
+    kind: str,
+    material: str,
+    target_words: int,
+    style: str,
+    language: str,
+    model: str,
+    prompt_version: str,
+    instructions: str = "",
 ) -> str:
     """Hashes everything that can change the output; the (possibly huge) text is never stored."""
     h = hashlib.sha256()
-    for part in (kind, str(target_words), style, language, model, prompt_version):
+    for part in (kind, str(target_words), style, language, model, prompt_version, instructions):
         h.update(part.encode("utf-8"))
         h.update(b"\x00")
     h.update(material.encode("utf-8"))

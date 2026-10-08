@@ -42,6 +42,7 @@ from prompts import (
     DEFAULT_LANGUAGE,
     DEFAULT_STYLE,
     LANGUAGES,
+    MAX_INSTRUCTIONS_CHARS,
     PROMPT_VERSION,
     STYLE_INSTRUCTIONS,
     chat_prompt,
@@ -50,6 +51,14 @@ from prompts import (
     summary_prompt,
 )
 from retrieval import PAGE_BREAK, Passage, select_passages
+from study import (
+    flashcards_prompt,
+    parse_flashcards,
+    parse_quiz,
+    parse_suggestions,
+    quiz_prompt,
+    suggestions_prompt,
+)
 
 load_dotenv()
 configure_logging()
@@ -151,6 +160,19 @@ class PassagesPayload(BaseModel):
 class EmbedPayload(BaseModel):
     texts: list[str]
     kind: str = "passage"
+
+
+class StudyPayload(BaseModel):
+    summary: str
+    text: str = ""
+    language: Optional[str] = None
+    kind: str = "flashcards"
+
+
+class SuggestPayload(BaseModel):
+    summary: str
+    text: str = ""
+    language: Optional[str] = None
 
 
 class PodcastPayload(BaseModel):
@@ -303,7 +325,9 @@ def options():
     return {"styles": list(STYLE_INSTRUCTIONS), "languages": LANGUAGES}
 
 
-def validate_options(word_count: int, page_limit: int, style: str, language: str) -> None:
+def validate_options(word_count: int, page_limit: int, style: str, language: str, instructions: str = "") -> None:
+    if len(instructions) > MAX_INSTRUCTIONS_CHARS:
+        raise HTTPException(422, f"instructions must be at most {MAX_INSTRUCTIONS_CHARS} characters")
     if not MIN_WORDS <= word_count <= MAX_WORDS:
         raise HTTPException(422, f"word_count must be between {MIN_WORDS} and {MAX_WORDS}")
     if not 0 <= page_limit <= MAX_PAGE_LIMIT:
@@ -437,21 +461,24 @@ async def summarize_file(
     page_limit: int = Form(0),
     style: str = Form(DEFAULT_STYLE),
     language: str = Form(DEFAULT_LANGUAGE),
+    instructions: str = Form(""),
     stream: bool = Query(False),
 ):
-    validate_options(word_count, page_limit, style, language)
+    validate_options(word_count, page_limit, style, language, instructions)
     text = await read_pdf_upload(file)
     check_text(text)
 
     if stream:
 
         def prepare(progress):
-            return prepare_summary_prompt(text, word_count, page_limit, style, language, progress)
+            return prepare_summary_prompt(
+                text, word_count, page_limit, style, language, progress, instructions=instructions
+            )
 
-        key = text_cache_key(text, word_count, page_limit, style, language)
+        key = text_cache_key(text, word_count, page_limit, style, language, instructions)
         return sse_response(summary_event_stream(prepare, {"filename": file.filename, "text": text}, key))
 
-    summary = await summarize_or_fail(text, word_count, page_limit, style, language)
+    summary = await summarize_or_fail(text, word_count, page_limit, style, language, instructions)
     return {"filename": file.filename, "summary": summary, "text": text}
 
 
@@ -462,20 +489,23 @@ async def summarize_text(
     page_limit: int = Query(0),
     style: str = Query(DEFAULT_STYLE),
     language: str = Query(DEFAULT_LANGUAGE),
+    instructions: str = Query(""),
     stream: bool = Query(False),
 ):
-    validate_options(word_count, page_limit, style, language)
+    validate_options(word_count, page_limit, style, language, instructions)
     check_text(payload.text)
 
     if stream:
 
         def prepare(progress):
-            return prepare_summary_prompt(payload.text, word_count, page_limit, style, language, progress)
+            return prepare_summary_prompt(
+                payload.text, word_count, page_limit, style, language, progress, instructions=instructions
+            )
 
-        key = text_cache_key(payload.text, word_count, page_limit, style, language)
+        key = text_cache_key(payload.text, word_count, page_limit, style, language, instructions)
         return sse_response(summary_event_stream(prepare, None, key))
 
-    summary = await summarize_or_fail(payload.text, word_count, page_limit, style, language)
+    summary = await summarize_or_fail(payload.text, word_count, page_limit, style, language, instructions)
     return {"summary": summary}
 
 
@@ -486,9 +516,10 @@ async def summarize_multiple(
     page_limit: int = Form(0),
     style: str = Form(DEFAULT_STYLE),
     language: str = Form(DEFAULT_LANGUAGE),
+    instructions: str = Form(""),
     stream: bool = Query(False),
 ):
-    validate_options(word_count, page_limit, style, language)
+    validate_options(word_count, page_limit, style, language, instructions)
     if not 1 <= len(files) <= MAX_FILES:
         raise HTTPException(422, f"Upload between 1 and {MAX_FILES} PDF files")
 
@@ -496,18 +527,18 @@ async def summarize_multiple(
     check_documents(docs)
     extra = {"filename": label_for(docs), "text": combine_documents(docs)}
 
-    key = multi_cache_key(docs, word_count, page_limit, style, language)
+    key = multi_cache_key(docs, word_count, page_limit, style, language, instructions)
     if stream:
 
         def prepare(progress):
-            return prepare_multi_prompt(docs, word_count, page_limit, style, language, progress)
+            return prepare_multi_prompt(docs, word_count, page_limit, style, language, progress, instructions)
 
         return sse_response(summary_event_stream(prepare, extra, key))
 
     try:
         summary = summary_cache.get(key)
         if summary is None:
-            summary = await process_multi_summary(docs, word_count, page_limit, style, language)
+            summary = await process_multi_summary(docs, word_count, page_limit, style, language, instructions)
             summary_cache.put(key, summary)
     except Exception as exc:
         raise to_http_error(exc) from exc
@@ -634,6 +665,7 @@ async def embed_texts(payload: EmbedPayload):
 
 MAX_PROOF_SUMMARY_CHARS = 30_000
 PODCAST_ATTEMPTS = 3
+STUDY_ATTEMPTS = 3
 
 
 @app.post("/podcast")
@@ -658,6 +690,54 @@ async def podcast(payload: PodcastPayload):
         if script:
             return script
     raise HTTPException(502, "The language model did not return a usable script. Please try again.")
+
+
+def check_generation_input(summary: str, text: str, language: Optional[str]) -> None:
+    if not summary.strip():
+        raise HTTPException(422, "A summary is required")
+    if language and not is_valid_language(language):
+        raise HTTPException(422, "Unsupported language")
+    if len(summary) > MAX_PROOF_SUMMARY_CHARS or len(text) > MAX_MULTI_TEXT_CHARS + 10_000:
+        raise HTTPException(413, "The document is too long")
+
+
+async def generate_until_usable(prompt: str, parse: Callable[[str], object | None], failure: str):
+    """Asks the model, and asks again when its reply cannot be read: models sometimes ignore the layout."""
+    for _ in range(STUDY_ATTEMPTS):
+        try:
+            reply = await call_llm(prompt)
+        except Exception as exc:
+            raise to_http_error(exc, failure) from exc
+        parsed = parse(reply)
+        if parsed:
+            return parsed
+    raise HTTPException(502, "The language model did not return a usable result. Please try again.")
+
+
+@app.post("/suggest")
+async def suggest_questions(payload: SuggestPayload):
+    """Questions a reader could ask about a document, for the chat to offer."""
+    check_generation_input(payload.summary, payload.text, payload.language)
+    prompt = suggestions_prompt(payload.summary, payload.text, payload.language)
+    questions = await generate_until_usable(
+        prompt, parse_suggestions, "The language model failed to suggest questions."
+    )
+    return {"questions": questions}
+
+
+@app.post("/study")
+async def study_material(payload: StudyPayload):
+    """Flashcards or a multiple-choice quiz made from a document."""
+    check_generation_input(payload.summary, payload.text, payload.language)
+    if payload.kind == "flashcards":
+        prompt = flashcards_prompt(payload.summary, payload.text, payload.language)
+        cards = await generate_until_usable(prompt, parse_flashcards, "The language model failed to write flashcards.")
+        return {"kind": "flashcards", "cards": cards}
+    if payload.kind == "quiz":
+        prompt = quiz_prompt(payload.summary, payload.text, payload.language)
+        questions = await generate_until_usable(prompt, parse_quiz, "The language model failed to write a quiz.")
+        return {"kind": "quiz", "questions": questions}
+    raise HTTPException(422, "kind must be 'flashcards' or 'quiz'")
 
 
 @app.post("/proof")
@@ -690,28 +770,41 @@ def combine_documents(docs: list[tuple[str, str]]) -> str:
     return "\n\n".join(f"=== {name} ===\n{text}" for name, text in docs)
 
 
-async def summarize_or_fail(text: str, word_count: int, page_limit: int, style: str, language: str) -> str:
+async def summarize_or_fail(
+    text: str, word_count: int, page_limit: int, style: str, language: str, instructions: str = ""
+) -> str:
     """Runs the summarizer, turning failures into client-safe HTTP errors."""
     check_text(text)
-    key = text_cache_key(text, word_count, page_limit, style, language)
+    key = text_cache_key(text, word_count, page_limit, style, language, instructions)
     cached = summary_cache.get(key)
     if cached is not None:
         return cached
     try:
-        summary = await process_summary(text, word_count, page_limit, style, language)
+        summary = await process_summary(text, word_count, page_limit, style, language, instructions)
     except Exception as exc:
         raise to_http_error(exc) from exc
     summary_cache.put(key, summary)
     return summary
 
 
-def text_cache_key(text: str, word_count: int, page_limit: int, style: str, language: str) -> str:
+def text_cache_key(
+    text: str, word_count: int, page_limit: int, style: str, language: str, instructions: str = ""
+) -> str:
     return summary_key(
-        "text", text, target_words_for(word_count, page_limit), style, language, active_model_or_none(), PROMPT_VERSION
+        "text",
+        text,
+        target_words_for(word_count, page_limit),
+        style,
+        language,
+        active_model_or_none(),
+        PROMPT_VERSION,
+        instructions,
     )
 
 
-def multi_cache_key(docs: list[tuple[str, str]], word_count: int, page_limit: int, style: str, language: str) -> str:
+def multi_cache_key(
+    docs: list[tuple[str, str]], word_count: int, page_limit: int, style: str, language: str, instructions: str = ""
+) -> str:
     return summary_key(
         "docs",
         combine_documents(docs),
@@ -720,6 +813,7 @@ def multi_cache_key(docs: list[tuple[str, str]], word_count: int, page_limit: in
         language,
         active_model_or_none(),
         PROMPT_VERSION,
+        instructions,
     )
 
 
@@ -774,12 +868,15 @@ async def prepare_summary_prompt(
     style: str = DEFAULT_STYLE,
     language: str = DEFAULT_LANGUAGE,
     progress: Optional[ProgressCallback] = None,
+    instructions: str = "",
 ) -> str:
     """Builds the final prompt, doing any map-reduce condensing it needs first."""
     target_words = target_words_for(word_count, page_limit)
     if page_limit > 0 or len(text) > SINGLE_SHOT_MAX_CHARS:
-        return summary_prompt(await condense(text, progress), target_words, style, language, kind="summaries")
-    return summary_prompt(text, target_words, style, language, kind="text")
+        return summary_prompt(
+            await condense(text, progress), target_words, style, language, kind="summaries", instructions=instructions
+        )
+    return summary_prompt(text, target_words, style, language, kind="text", instructions=instructions)
 
 
 async def process_summary(
@@ -788,8 +885,9 @@ async def process_summary(
     page_limit: int,
     style: str = DEFAULT_STYLE,
     language: str = DEFAULT_LANGUAGE,
+    instructions: str = "",
 ) -> str:
-    prompt = await prepare_summary_prompt(text, word_count, page_limit, style, language)
+    prompt = await prepare_summary_prompt(text, word_count, page_limit, style, language, instructions=instructions)
     summary = await call_llm(prompt)
     if not summary:
         raise ValueError("The model returned an empty or invalid summary.")
@@ -803,6 +901,7 @@ async def prepare_multi_prompt(
     style: str = DEFAULT_STYLE,
     language: str = DEFAULT_LANGUAGE,
     progress: Optional[ProgressCallback] = None,
+    instructions: str = "",
 ) -> str:
     """Builds the combined prompt for several documents. Long documents are condensed first so
     the combined material fits in a single prompt and each document keeps its share of it."""
@@ -816,7 +915,9 @@ async def prepare_multi_prompt(
     if len(material) > REDUCE_MAX_CHARS:
         material = await condense(material, progress)
 
-    return summary_prompt(material, target_words_for(word_count, page_limit), style, language, kind="documents")
+    return summary_prompt(
+        material, target_words_for(word_count, page_limit), style, language, kind="documents", instructions=instructions
+    )
 
 
 async def process_multi_summary(
@@ -825,8 +926,9 @@ async def process_multi_summary(
     page_limit: int,
     style: str = DEFAULT_STYLE,
     language: str = DEFAULT_LANGUAGE,
+    instructions: str = "",
 ) -> str:
-    prompt = await prepare_multi_prompt(docs, word_count, page_limit, style, language)
+    prompt = await prepare_multi_prompt(docs, word_count, page_limit, style, language, instructions=instructions)
     summary = await call_llm(prompt)
     if not summary:
         raise ValueError("The model returned an empty or invalid summary.")
