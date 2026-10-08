@@ -50,12 +50,12 @@ export default function StudyPanel({ documentId }: StudyPanelProps) {
   );
 
   return (
-    <div className="mt-4 rounded-md border-2 border-ink p-3" data-testid="study">
+    <div className="mt-4 rounded-xl border border-ink/20 bg-canvas/50 p-4" data-testid="study">
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => load("flashcards")} aria-pressed={kind === "flashcards"} className={actionButton}>
+        <button type="button" onClick={() => load("flashcards")} aria-pressed={kind === "flashcards"} className={`${actionButton} aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-fg`}>
           {t("study.flashcards")}
         </button>
-        <button type="button" onClick={() => load("quiz")} aria-pressed={kind === "quiz"} className={actionButton}>
+        <button type="button" onClick={() => load("quiz")} aria-pressed={kind === "quiz"} className={`${actionButton} aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-fg`}>
           {t("study.quiz")}
         </button>
         {kind && !loading && (
@@ -65,14 +65,14 @@ export default function StudyPanel({ documentId }: StudyPanelProps) {
         )}
       </div>
 
-      {!kind && <p className="mt-3 text-lg text-ink/70">{t("study.intro")}</p>}
+      {!kind && <p className="mt-3 text-base text-ink/70">{t("study.intro")}</p>}
       {loading && (
-        <p className="mt-3 text-xl tracking-wider uppercase text-ink/70" role="status">
+        <p className="mt-3 text-base font-medium text-ink/70" role="status">
           {t("study.writing")}
         </p>
       )}
       {error && (
-        <p className="mt-3 text-red-500 text-lg" role="alert">
+        <p className="mt-3 text-base font-medium text-danger" role="alert">
           {error}
         </p>
       )}
@@ -102,14 +102,14 @@ function Flashcards({ cards }: { cards: StudyCard[] }) {
         type="button"
         onClick={() => setFlipped((f) => !f)}
         aria-label={flipped ? t("study.showQuestion") : t("study.showAnswer")}
-        className="block w-full min-h-40 rounded-md border-2 border-ink p-6 text-center text-2xl hover:bg-ink/5"
+        className="block min-h-44 w-full rounded-2xl border border-ink/30 bg-surface p-6 text-center text-xl shadow-sm hover:bg-ink/5"
         data-testid="flashcard"
       >
-        <span className="block text-base uppercase tracking-widest text-ink/60">{flipped ? t("study.answer") : t("study.question")}</span>
+        <span className="block text-xs font-semibold uppercase tracking-widest text-ink/70">{flipped ? t("study.answer") : t("study.question")}</span>
         <span className="mt-2 block">{flipped ? card.back : card.front}</span>
       </button>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <span className="text-lg tracking-widest" data-testid="flashcard-position">
+        <span className="text-sm font-medium tabular-nums" data-testid="flashcard-position">
           {position + 1} / {order.length}
         </span>
         <div className="flex flex-wrap gap-3">
@@ -148,7 +148,7 @@ function Quiz({ questions }: { questions: QuizQuestion[] }) {
   if (done) {
     return (
       <div className="mt-3" data-testid="quiz-result">
-        <p className="text-2xl">
+        <p className="text-xl font-semibold">
           {t("quiz.score", { score, total: questions.length })}
         </p>
         <button
@@ -177,10 +177,10 @@ function Quiz({ questions }: { questions: QuizQuestion[] }) {
 
   return (
     <div className="mt-3" data-testid="quiz">
-      <p className="text-base uppercase tracking-widest text-ink/60">
+      <p className="text-xs font-semibold uppercase tracking-widest text-ink/70">
         {t("quiz.progress", { n: index + 1, total: questions.length })}
       </p>
-      <p className="mt-1 text-2xl">{q.question}</p>
+      <p className="mt-1 text-xl font-semibold">{q.question}</p>
       <ul className="mt-3 space-y-2">
         {q.options.map((option, i) => {
           const right = answered && i === q.answer;
@@ -191,8 +191,8 @@ function Quiz({ questions }: { questions: QuizQuestion[] }) {
                 type="button"
                 onClick={() => choose(i)}
                 disabled={answered}
-                className={`w-full rounded-md border-2 px-4 py-2 text-left text-xl ${
-                  right ? "border-ink bg-ink text-canvas" : wrong ? "border-red-600 text-red-600" : "border-ink hover:bg-ink/5"
+                className={`w-full rounded-lg border px-4 py-3 text-left text-base ${
+                  right ? "border-accent bg-accent text-accent-fg" : wrong ? "border-danger text-danger" : "border-ink/40 hover:bg-ink/5"
                 } disabled:cursor-default`}
               >
                 {right && <span className="sr-only">{t("quiz.correctSr")}</span>}
@@ -205,8 +205,8 @@ function Quiz({ questions }: { questions: QuizQuestion[] }) {
       </ul>
       {answered && (
         <div className="mt-3" role="status">
-          <p className="text-xl">{chosen === q.answer ? t("quiz.correct") : t("quiz.notQuite", { answer: q.options[q.answer] })}</p>
-          {q.explanation && <p className="text-lg text-ink/70">{q.explanation}</p>}
+          <p className="text-base font-semibold">{chosen === q.answer ? t("quiz.correct") : t("quiz.notQuite", { answer: q.options[q.answer] })}</p>
+          {q.explanation && <p className="text-sm text-ink/70">{q.explanation}</p>}
           <button
             type="button"
             onClick={() => (index + 1 < questions.length ? (setIndex(index + 1), setChosen(null)) : setDone(true))}

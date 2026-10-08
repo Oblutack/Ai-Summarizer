@@ -160,41 +160,41 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
   const canSpeak = !!synth && voices.length > 0;
 
   return (
-    <div className="mt-4 border-2 border-ink rounded-md p-3" data-testid="podcast">
+    <div className="mt-4 rounded-xl border border-ink/20 bg-canvas/50 p-4" data-testid="podcast">
       {loading && (
-        <p className="text-xl tracking-wider uppercase text-ink/70" role="status">
+        <p className="text-base font-medium text-ink/70" role="status">
           {t("podcast.writing")}
         </p>
       )}
 
       {error && (
-        <p className="text-red-500 text-lg" role="alert">
+        <p className="text-base font-medium text-danger" role="alert">
           {error}
         </p>
       )}
 
       {script && (
         <>
-          <h4 className="text-2xl font-bold tracking-wide" data-testid="podcast-title">
+          <h4 className="text-xl font-semibold" data-testid="podcast-title">
             {script.title}
           </h4>
-          <p className="text-base text-ink/70">
+          <p className="text-sm text-ink/70">
             {t("podcast.intro", { a: HOSTS.A, b: HOSTS.B })}
           </p>
 
           {!canSpeak && (
-            <p className="mt-2 text-lg" role="status">
+            <p className="mt-2 text-base" role="status">
               {synth ? t("podcast.noVoices") : t("podcast.noSpeech")}
             </p>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-xl">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {status === "idle" && (
               <button
                 type="button"
                 onClick={() => speakFrom(0)}
                 disabled={!canSpeak}
-                className="rounded-md border-2 border-ink bg-ink px-5 py-1 uppercase font-bold text-canvas hover:opacity-90 disabled:opacity-40"
+                className="btn btn-primary btn-sm"
               >
                 {t("podcast.play")}
               </button>
@@ -203,7 +203,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
               <button
                 type="button"
                 onClick={pause}
-                className="rounded-md border-2 border-ink px-5 py-1 uppercase font-bold hover:bg-ink hover:text-canvas"
+                className="btn btn-secondary btn-sm"
               >
                 {t("podcast.pause")}
               </button>
@@ -212,7 +212,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
               <button
                 type="button"
                 onClick={resume}
-                className="rounded-md border-2 border-ink bg-ink px-5 py-1 uppercase font-bold text-canvas hover:opacity-90"
+                className="btn btn-primary btn-sm"
               >
                 {t("podcast.resume")}
               </button>
@@ -221,17 +221,17 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
               <button
                 type="button"
                 onClick={stop}
-                className="rounded-md border-2 border-ink px-5 py-1 uppercase font-bold hover:bg-ink hover:text-canvas"
+                className="btn btn-secondary btn-sm"
               >
                 {t("podcast.stop")}
               </button>
             )}
             <label className="flex items-center gap-2">
-              <span className="uppercase tracking-wider text-base">{t("podcast.speed")}</span>
+              <span className="text-sm font-semibold text-ink/80">{t("podcast.speed")}</span>
               <select
                 value={rate}
                 onChange={(e) => setRate(Number(e.target.value))}
-                className="rounded border-2 border-ink bg-canvas px-1"
+                className="h-9 rounded-lg border border-ink/40 bg-surface px-2 text-sm"
               >
                 {RATES.map((r) => (
                   <option key={r} value={r}>
@@ -243,14 +243,14 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
             <button
               type="button"
               onClick={download}
-              className="rounded-md border-2 border-ink px-4 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
+              className="btn btn-quiet btn-sm"
             >
               {t("podcast.saveScript")}
             </button>
           </div>
 
           {canSpeak && (
-            <div className="mt-2 flex flex-wrap gap-4 text-base">
+            <div className="mt-2 flex flex-wrap gap-4 text-sm">
               {(
                 [
                   ["A", voiceA, setVoiceA],
@@ -258,11 +258,11 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 ] as const
               ).map(([host, value, set]) => (
                 <label key={host} className="flex items-center gap-2">
-                  <span className="uppercase tracking-wider">{t("podcast.voiceOf", { host: HOSTS[host] })}</span>
+                  <span className="text-sm font-semibold text-ink/80">{t("podcast.voiceOf", { host: HOSTS[host] })}</span>
                   <select
                     value={value}
                     onChange={(e) => set(e.target.value)}
-                    className="max-w-[16rem] rounded border-2 border-ink bg-canvas px-1"
+                    className="h-9 max-w-[16rem] rounded-lg border border-ink/40 bg-surface px-2 text-sm"
                   >
                     {voices.map((v) => (
                       <option key={v.voiceURI} value={v.voiceURI}>
@@ -275,13 +275,13 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
             </div>
           )}
 
-          <ol className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1 text-xl" aria-label={t("podcast.script")}>
+          <ol className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1 text-base" aria-label={t("podcast.script")}>
             {script.turns.map((turn, i) => (
               <li
                 key={i}
                 data-testid={`podcast-turn-${i}`}
                 data-active={current === i}
-                className={`border-l-4 pl-3 ${current === i ? "border-ink font-bold" : "border-ink/20"}`}
+                className={`border-l-4 pl-3 ${current === i ? "border-accent font-semibold" : "border-ink/20"}`}
               >
                 <button
                   type="button"
@@ -290,20 +290,20 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                   className="block w-full text-left disabled:cursor-default"
                   aria-label={canSpeak ? t("podcast.playFrom", { host: HOSTS[turn.speaker], text: turn.text }) : undefined}
                 >
-                  <span className="mr-2 text-sm uppercase tracking-widest text-ink/50">{HOSTS[turn.speaker]}</span>
+                  <span className="mr-2 text-xs font-semibold uppercase tracking-widest text-ink/70">{HOSTS[turn.speaker]}</span>
                   {turn.text}
                 </button>
               </li>
             ))}
           </ol>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-dashed border-ink/40 pt-3 text-base">
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-ink/15 pt-3 text-sm">
             <label className="flex items-center gap-2">
-              <span className="uppercase tracking-wider">{t("form.language")}</span>
+              <span className="text-sm font-semibold text-ink/80">{t("form.language")}</span>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="rounded border-2 border-ink bg-canvas px-1"
+                className="h-9 rounded-lg border border-ink/40 bg-surface px-2 text-sm"
               >
                 <option value="">{t("podcast.sameAsDocument")}</option>
                 {LANGUAGES.map((l) => (
@@ -320,7 +320,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
                 void load({ language, regenerate: true });
               }}
               disabled={loading}
-              className="rounded-md border-2 border-ink px-4 py-1 uppercase hover:bg-ink hover:text-canvas disabled:opacity-40"
+              className="btn btn-secondary btn-sm"
             >
               {t("podcast.newOne")}
             </button>

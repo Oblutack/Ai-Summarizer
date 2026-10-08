@@ -132,10 +132,10 @@ export default function ChatPanel({
   };
 
   return (
-    <div className={className ?? "mt-4 border-2 border-ink rounded-md p-2"} data-testid={testId}>
-      <div className="border border-dashed border-ink/50 rounded-sm p-3">
-        <div className="max-h-72 overflow-y-auto space-y-3 text-xl">
-          {messages.length === 0 && <p className="text-ink/50 tracking-wider">{emptyText}</p>}
+    <div className={className ?? "mt-4 rounded-xl border border-ink/20 bg-canvas/50 p-4"} data-testid={testId}>
+      <div>
+        <div className="max-h-96 space-y-4 overflow-y-auto pr-1 text-base">
+          {messages.length === 0 && <p className="text-ink/70">{emptyText}</p>}
           {messages.length === 0 && suggestions.length > 0 && (
             <ul className="flex flex-wrap gap-2" aria-label={t("chat.suggested")} data-testid="suggestions">
               {suggestions.map((s) => (
@@ -144,7 +144,7 @@ export default function ChatPanel({
                     type="button"
                     onClick={() => send(s)}
                     disabled={isSending}
-                    className="rounded-full border border-ink/60 px-3 py-1 text-lg tracking-wide hover:bg-ink hover:text-canvas disabled:opacity-50"
+                    className="chip py-1.5 text-sm disabled:opacity-50"
                   >
                     {s}
                   </button>
@@ -153,8 +153,8 @@ export default function ChatPanel({
             </ul>
           )}
           {messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "text-right" : "text-left border-l-2 border-ink/40 pl-3"}>
-              <p className="uppercase text-sm tracking-widest text-ink/50">
+            <div key={i} className={m.role === "user" ? "ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-sm bg-ink/10 px-4 py-2" : "reading max-w-[95%] border-l-2 border-accent/60 pl-4 text-base"}>
+              <p className="mb-0.5 font-sans text-xs font-semibold uppercase tracking-widest text-ink/70">
                 {m.role === "user" ? t("chat.you") : assistantLabel}
               </p>
               {m.role === "user" ? (
@@ -167,9 +167,9 @@ export default function ChatPanel({
                         component: CitationLink,
                         props: { onSelect: (id: number) => setOpenSource({ message: i, id }) },
                       },
-                      p: { props: { className: "mb-2" } },
-                      ul: { props: { className: "list-disc list-inside mb-2 ml-4" } },
-                      ol: { props: { className: "list-decimal list-inside mb-2 ml-4" } },
+                      p: { props: { className: "mb-2 last:mb-0" } },
+                      ul: { props: { className: "mb-2 list-disc pl-5" } },
+                      ol: { props: { className: "mb-2 list-decimal pl-5" } },
                     },
                   }}
                 >
@@ -196,29 +196,29 @@ export default function ChatPanel({
               )}
             </div>
           ))}
-          {isSending && <p className="text-ink/50 tracking-widest uppercase">{t("chat.thinking")}</p>}
+          {isSending && <p className="text-sm font-medium text-ink/70">{t("chat.thinking")}</p>}
           <div ref={bottomRef} />
         </div>
 
         {error && (
-          <p className="text-red-500 text-lg mt-2" role="alert">
+          <p className="mt-2 text-sm font-medium text-danger" role="alert">
             {error}
           </p>
         )}
 
-        <form onSubmit={handleSend} className="flex gap-3 mt-3">
+        <form onSubmit={handleSend} className="mt-4 flex gap-2">
           <input
             ref={inputRef}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             maxLength={MAX_QUESTION_CHARS}
             placeholder={t("chat.placeholder")}
-            className="flex-grow p-2 bg-canvas border-2 border-ink rounded-md focus:outline-none text-xl"
+            className="field flex-1"
           />
           <button
             type="submit"
             disabled={isSending || !question.trim()}
-            className="bg-ink text-canvas uppercase font-bold px-5 rounded-md border-2 border-ink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primary"
           >
             {t("chat.ask")}
           </button>

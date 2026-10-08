@@ -18,11 +18,11 @@ export default function LibraryChat() {
       : undefined;
 
   return (
-    <section aria-labelledby="library-heading" className="mb-12 border-2 border-ink rounded-lg p-6" data-testid="library">
-      <h2 id="library-heading" className="text-3xl uppercase tracking-widest text-center">
+    <section aria-labelledby="library-heading" className="card mb-8" data-testid="library">
+      <h2 id="library-heading" className="text-2xl md:text-3xl">
         {t("library.heading")}
       </h2>
-      <p className="text-center text-lg text-ink/70 mt-1">
+      <p className="muted mt-1">
         {t("library.intro")}
       </p>
       <ChatPanel
@@ -31,7 +31,7 @@ export default function LibraryChat() {
         emptyText={t("library.empty")}
         assistantLabel={t("library.label")}
         viewerFor={viewerFor}
-        className="mt-4 border-2 border-ink rounded-md p-2"
+        className="mt-4 rounded-xl border border-ink/20 bg-canvas/50 p-4"
       />
     </section>
   );

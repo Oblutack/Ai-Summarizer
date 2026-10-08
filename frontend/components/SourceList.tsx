@@ -29,9 +29,9 @@ export default function SourceList({
   const { t, language } = useI18n();
   if (sources.length === 0) return null;
   return (
-    <div className="mt-2 border-t border-dashed border-ink/40 pt-2" data-testid="sources">
-      <p className="uppercase text-sm tracking-widest text-ink/50">{t("sources.title")}</p>
-      <ul className="space-y-1 mt-1">
+    <div className="mt-3 border-t border-ink/15 pt-2" data-testid="sources">
+      <p className="text-xs font-semibold uppercase tracking-widest text-ink/70">{t("sources.title")}</p>
+      <ul className="mt-1 space-y-1">
         {sources.map((s) => {
           const where = describeSource(s, t, LOCALES[language]);
           return (
@@ -43,20 +43,20 @@ export default function SourceList({
                   if (isOpen !== (openId === s.id)) onToggle(s.id, isOpen);
                 }}
               >
-                <summary className="cursor-pointer text-base">
-                  <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 mr-2 text-sm leading-none border border-ink rounded">
+                <summary className="cursor-pointer text-sm">
+                  <span className="mr-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded border border-ink/50 px-1 text-xs leading-none">
                     {s.id}
                   </span>
                   {where || t("sources.excerpt")}
                 </summary>
-                <blockquote className="mt-1 mb-2 border-l-2 border-ink/40 pl-3 text-base whitespace-pre-wrap">
+                <blockquote className="mb-2 mt-1 whitespace-pre-wrap border-l-2 border-accent/60 pl-3 text-sm">
                   {s.text}
                 </blockquote>
                 {onOpenDocument && s.page != null && (canOpenDocument?.(s) ?? true) && (
                   <button
                     type="button"
                     onClick={() => onOpenDocument(s)}
-                    className="mb-2 rounded border-2 border-ink px-3 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
+                    className="btn btn-secondary btn-sm mb-2"
                   >
                     {t("sources.open", { page: s.page })}
                   </button>

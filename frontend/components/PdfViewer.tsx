@@ -164,10 +164,10 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
         aria-label={t("pdf.aria", { name: file.name, page: pageNumber })}
         tabIndex={-1}
         data-testid="pdf-viewer"
-        className="flex max-h-[94vh] w-full max-w-4xl flex-col rounded-lg border-2 border-ink bg-canvas outline-none"
+        className="flex max-h-[94vh] w-full max-w-4xl flex-col rounded-2xl border border-ink/20 bg-surface shadow-2xl outline-none"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-ink px-4 py-2 text-xl">
-          <p className="truncate font-bold" title={file.name}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/15 px-4 py-2 text-base">
+          <p className="truncate font-semibold" title={file.name}>
             {file.name}
           </p>
           <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
               onClick={() => go(-1)}
               disabled={!pdf || pageNumber <= 1}
               aria-label={t("pdf.prev")}
-              className="rounded border-2 border-ink px-3 hover:bg-ink hover:text-canvas disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink"
+              className="btn btn-secondary btn-sm"
             >
               &larr;
             </button>
@@ -188,14 +188,14 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
               onClick={() => go(1)}
               disabled={!pdf || pageNumber >= total}
               aria-label={t("pdf.next")}
-              className="rounded border-2 border-ink px-3 hover:bg-ink hover:text-canvas disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink"
+              className="btn btn-secondary btn-sm"
             >
               &rarr;
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="ml-2 rounded border-2 border-ink px-3 uppercase hover:bg-ink hover:text-canvas"
+              className="btn btn-primary btn-sm ml-2"
             >
               {t("pdf.close")}
             </button>
@@ -203,14 +203,14 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
         </div>
 
         {pageNumber === openOn && located === false && (
-          <p className="border-b border-dashed border-ink/40 px-4 py-1 text-base" role="status">
+          <p className="border-b border-ink/15 px-4 py-1.5 text-sm" role="status">
             {t("pdf.notLocated")}
           </p>
         )}
 
         <div ref={scrollRef} className="overflow-auto p-3">
           {error ? (
-            <p className="text-red-500 text-lg" role="alert">
+            <p className="text-base font-medium text-danger" role="alert">
               {error}
             </p>
           ) : (

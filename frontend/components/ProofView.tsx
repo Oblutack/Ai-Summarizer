@@ -17,18 +17,18 @@ interface ProofViewProps {
 export default function ProofView({ result, files, onOpenDocument }: ProofViewProps) {
   const { t, language } = useI18n();
   return (
-    <div data-testid="proof" className="text-xl">
+    <div data-testid="proof" className="font-sans text-base">
       <p className="font-bold" data-testid="proof-headline">
         {proofHeadline(result, t)}
       </p>
 
       {!result.verifiable && (
-        <p className="mt-1 text-lg" role="status">
+        <p className="mt-1 text-base" role="status">
           {t("proof.language")}
         </p>
       )}
 
-      <p className="mt-1 text-base text-ink/70">
+      <p className="mt-1 text-sm text-ink/70">
         <span aria-hidden="true">● </span>
         {t("proof.legendFound")} &nbsp;
         <span aria-hidden="true">◐ </span>
@@ -41,7 +41,7 @@ export default function ProofView({ result, files, onOpenDocument }: ProofViewPr
         {result.sentences.map((s, i) => {
           if (s.kind === "heading" || s.support === null) {
             return (
-              <li key={i} className="pt-2 text-xl font-bold tracking-wide">
+              <li key={i} className="pt-3 text-lg font-semibold">
                 {s.text}
               </li>
             );
@@ -54,21 +54,21 @@ export default function ProofView({ result, files, onOpenDocument }: ProofViewPr
                   <span
                     role="img"
                     aria-label={supportLabel(s.support, t)}
-                    className={s.support === "none" ? "mr-2 text-red-600" : "mr-2"}
+                    className={s.support === "none" ? "mr-2 text-danger" : "mr-2"}
                   >
                     {supportMark(s.support)}
                   </span>
                   {s.text}
                   {warnings.length > 0 && (
-                    <span className="ml-2 text-base text-red-600" aria-hidden="true">
+                    <span className="ml-2 text-base text-danger" aria-hidden="true">
                       &#9888;
                     </span>
                   )}
                 </summary>
-                <div className="ml-6 mt-1 space-y-2 text-base">
+                <div className="ml-7 mt-1 space-y-2 text-sm">
                   <p className="text-ink/70">{supportLabel(s.support, t)}</p>
                   {warnings.map((w) => (
-                    <p key={w} className="text-red-600" role="note">
+                    <p key={w} className="text-danger" role="note">
                       &#9888; {w}
                     </p>
                   ))}
@@ -77,15 +77,15 @@ export default function ProofView({ result, files, onOpenDocument }: ProofViewPr
                     const file = fileForPassage(files, p);
                     return (
                       <div key={p.id}>
-                        <p className="uppercase tracking-widest text-sm text-ink/50">
+                        <p className="text-xs font-semibold uppercase tracking-widest text-ink/70">
                           {describeSource(p, t, LOCALES[language]) || t("sources.excerpt")}
                         </p>
-                        <blockquote className="border-l-2 border-ink/40 pl-3 whitespace-pre-wrap">{p.text}</blockquote>
+                        <blockquote className="whitespace-pre-wrap border-l-2 border-accent/60 pl-3">{p.text}</blockquote>
                         {file && p.page != null && (
                           <button
                             type="button"
                             onClick={() => onOpenDocument(file, p)}
-                            className="mt-1 rounded border-2 border-ink px-3 py-1 text-base uppercase hover:bg-ink hover:text-canvas"
+                            className="btn btn-secondary btn-sm mt-1"
                           >
                             {t("sources.open", { page: p.page })}
                           </button>
