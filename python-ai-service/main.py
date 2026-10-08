@@ -17,6 +17,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
 from pypdf import PdfReader
 
+import embeddings
 from attribution import check_summary
 from cache import from_env as cache_from_env
 from cache import summary_key
@@ -145,6 +146,11 @@ class AskPayload(BaseModel):
 
 class PassagesPayload(BaseModel):
     text: str
+
+
+class EmbedPayload(BaseModel):
+    texts: list[str]
+    kind: str = "passage"
 
 
 class PodcastPayload(BaseModel):
@@ -602,6 +608,27 @@ async def passages_of(payload: PassagesPayload):
     found = await asyncio.to_thread(select_passages, payload.text, "", len(payload.text) + 1)
     return {
         "passages": [{"text": p.text, "page": p.page, "pageEnd": p.page_end, "document": p.document} for p in found]
+    }
+
+
+@app.post("/embed")
+async def embed_texts(payload: EmbedPayload):
+    """Turns passages or a question into vectors, so the gateway can search by meaning."""
+    if payload.kind not in embeddings.KINDS:
+        raise HTTPException(422, "kind must be 'passage' or 'query'")
+    if not payload.texts or any(not t.strip() for t in payload.texts):
+        raise HTTPException(422, "Texts must not be empty")
+    if len(payload.texts) > embeddings.MAX_TEXTS:
+        raise HTTPException(413, "Too many texts")
+    try:
+        vectors = await asyncio.to_thread(embeddings.embed, payload.texts, payload.kind)
+    except embeddings.EmbeddingsUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return {
+        "model": embeddings.model_name(),
+        "dim": len(vectors[0]) // 4,
+        "minScore": embeddings.min_score(),
+        "vectors": [embeddings.encode(v) for v in vectors],
     }
 
 

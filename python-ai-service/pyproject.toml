@@ -1,7 +1,7 @@
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = [".venv"]
+extend-exclude = [".venv", "evals"]
 
 [tool.ruff.lint]
 select = [
@@ -26,7 +26,7 @@ ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
 no_implicit_optional = true
-exclude = ['^[.]venv/', '^test_', '^conftest[.]py$']
+exclude = ['^[.]venv/', '^evals/', '^test_', '^conftest[.]py$']
 
 [tool.pytest.ini_options]
 testpaths = ["."]
