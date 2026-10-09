@@ -17,7 +17,7 @@ import EmailSummaryButton from "./EmailSummaryButton";
 import OriginalText from "./OriginalText";
 import PodcastPlayer from "./PodcastPlayer";
 import ProofView from "./ProofView";
-import ReadAloudButton from "./ReadAloudButton";
+import ReadAloudPlayer, { ReadAloudToggle } from "./ReadAloudPlayer";
 import RewritePanel from "./RewritePanel";
 import ShareControl from "./ShareControl";
 import StudyPanel from "./StudyPanel";
@@ -60,6 +60,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
   // The quieter actions (export, email, share, rewrite) stay tucked away, unless there is a link to show.
   const [moreOpen, setMoreOpen] = useState(Boolean(doc.shareToken));
   const [textOpen, setTextOpen] = useState(false);
+  const [readOpen, setReadOpen] = useState(false);
   // The proof check: each sentence of the summary compared with the original document.
   const [proof, setProof] = useState<ProofResult | null>(null);
   const [proofOpen, setProofOpen] = useState(false);
@@ -323,7 +324,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
         </button>
         {moreOpen && (
           <div id={`doc-more-${doc.ID}`} className="mt-1 flex flex-wrap items-center gap-1" data-testid="more-actions">
-            <ReadAloudButton markdown={doc.Summary} />
+            <ReadAloudToggle open={readOpen} onToggle={() => setReadOpen((open) => !open)} />
             <button type="button" onClick={() => downloadMarkdown(doc.Filename, doc.Summary)} className={textButton}>
               {t("doc.markdown")}
             </button>
@@ -348,6 +349,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
         )}
       </div>
 
+      {readOpen && <ReadAloudPlayer markdown={doc.Summary} onClose={() => setReadOpen(false)} />}
       {rewriteOpen && <RewritePanel documentId={doc.ID} onDone={summaryChanged} />}
       {textOpen && doc.hasContent && <OriginalText documentId={doc.ID} transcript={transcript} />}
       {podcastOpen && <PodcastPlayer documentId={doc.ID} />}

@@ -215,7 +215,6 @@ export const en = {
   "copy.whatAnswer": "answer",
   "copy.whatLink": "link",
   "readAloud.start": "Read aloud",
-  "readAloud.stop": "Stop reading",
   "readAloud.failed": "Your browser could not read this aloud.",
   "email.send": "Email me this",
   "tags.add": "Add a tag",
@@ -393,6 +392,16 @@ export const en = {
   "doc.originalText": "Original text",
   "doc.textLoading": "Loading the text...",
   "doc.textFailed": "The text could not be loaded.",
+  "playback.previous": "Previous",
+  "playback.next": "Next",
+  "playback.position": "Position",
+  "playback.positionText": "Part {n} of {total}",
+  "playback.left": "about {n} min left",
+  "playback.leftLess": "less than a minute left",
+  "readAloud.panel": "Reading aloud",
+  "readAloud.close": "Close the reader",
+  "readAloud.nowReading": "Now reading",
+  "readAloud.voice": "Voice",
 } as const;
 
 export type MessageKey = keyof typeof en;

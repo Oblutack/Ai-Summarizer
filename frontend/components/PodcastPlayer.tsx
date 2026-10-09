@@ -1,16 +1,15 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { useSpeechPlayer, type SpeechItem } from "../hooks/useSpeechPlayer";
 import { API_URL, apiError } from "../lib/api";
-import { languageCode, pickVoices, scriptToMarkdown, splitForSpeech } from "../lib/podcast";
+import { languageCode, scriptToMarkdown } from "../lib/podcast";
 import { LANGUAGES } from "../lib/summaryOptions";
 import type { PodcastScript } from "../types";
 import { useT } from "./I18nProvider";
+import PlaybackControls from "./PlaybackControls";
 
 const HOSTS = { A: "Alex", B: "Sam" } as const;
-const RATES = [0.8, 1, 1.15, 1.3, 1.5];
-
-type Status = "idle" | "playing" | "paused";
 
 interface PodcastPlayerProps {
   documentId: number;
@@ -25,18 +24,13 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
   const [error, setError] = useState("");
   const [language, setLanguage] = useState("");
 
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voiceA, setVoiceA] = useState("");
-  const [voiceB, setVoiceB] = useState("");
-  const [rate, setRate] = useState(1);
-  const [status, setStatus] = useState<Status>("idle");
-  const [current, setCurrent] = useState(-1);
-
-  const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-  // Bumped to make the callbacks of an earlier playback do nothing once it has been replaced or stopped.
-  const run = useRef(0);
-  const settings = useRef({ rate, voiceA, voiceB, voices });
-  settings.current = { rate, voiceA, voiceB, voices };
+  const items: SpeechItem[] = useMemo(
+    () => (script?.turns ?? []).map((turn) => ({ text: turn.text, role: turn.speaker })),
+    [script]
+  );
+  const wanted = script?.language ? languageCode(script.language) : typeof navigator !== "undefined" ? navigator.language || "en" : "en";
+  const player = useSpeechPlayer(items, wanted);
+  const { stop } = player;
 
   // Ask for the script: the stored one if there is one, else a newly written one.
   const load = useCallback(
@@ -52,99 +46,19 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
         setLoading(false);
       }
     },
-    [documentId]
+    [documentId, t]
   );
 
   useEffect(() => {
     void load({ language: "", regenerate: false });
   }, [load]);
 
-  // The browser's voices arrive asynchronously in some browsers.
+  // The line being spoken stays in view.
+  const list = useRef<HTMLOListElement | null>(null);
   useEffect(() => {
-    if (!synth) return;
-    const read = () => setVoices(synth.getVoices());
-    read();
-    synth.addEventListener?.("voiceschanged", read);
-    return () => synth.removeEventListener?.("voiceschanged", read);
-  }, [synth]);
-
-  // Choose two different voices for the hosts once there are voices and a script.
-  useEffect(() => {
-    if (voices.length === 0) return;
-    const wanted = script?.language ? languageCode(script.language) : (navigator.language ?? "en");
-    const [a, b] = pickVoices(voices, wanted);
-    setVoiceA((cur) => cur || a?.voiceURI || "");
-    setVoiceB((cur) => cur || b?.voiceURI || "");
-  }, [voices, script?.language]);
-
-  const stop = useCallback(() => {
-    run.current++;
-    synth?.cancel();
-    setStatus("idle");
-    setCurrent(-1);
-  }, [synth]);
-
-  // Stop talking when the player goes away.
-  useEffect(() => () => stop(), [stop]);
-
-  const speakFrom = useCallback(
-    (start: number) => {
-      if (!synth || !script) return;
-      synth.cancel();
-      const id = ++run.current;
-      setStatus("playing");
-      setError("");
-
-      const speakTurn = (i: number) => {
-        if (run.current !== id) return;
-        if (i >= script.turns.length) {
-          setStatus("idle");
-          setCurrent(-1);
-          return;
-        }
-        setCurrent(i);
-        const turn = script.turns[i];
-        const chunks = splitForSpeech(turn.text);
-
-        const speakChunk = (k: number) => {
-          if (run.current !== id) return;
-          if (k >= chunks.length) {
-            speakTurn(i + 1);
-            return;
-          }
-          const { rate: r, voiceA: a, voiceB: b, voices: all } = settings.current;
-          const utterance = new SpeechSynthesisUtterance(chunks[k]);
-          const wanted = turn.speaker === "A" ? a : b;
-          const voice = all.find((v) => v.voiceURI === wanted);
-          if (voice) utterance.voice = voice;
-          utterance.rate = r;
-          // With a single voice installed, a lower pitch is what tells the second host apart.
-          if (a === b && turn.speaker === "B") utterance.pitch = 0.8;
-          utterance.onend = () => speakChunk(k + 1);
-          utterance.onerror = (event) => {
-            if (run.current !== id || event.error === "interrupted" || event.error === "canceled") return;
-            run.current++;
-            setStatus("idle");
-            setCurrent(-1);
-            setError(t("podcast.speechFailed"));
-          };
-          synth.speak(utterance);
-        };
-        speakChunk(0);
-      };
-      speakTurn(start);
-    },
-    [synth, script]
-  );
-
-  const pause = () => {
-    synth?.pause();
-    setStatus("paused");
-  };
-  const resume = () => {
-    synth?.resume();
-    setStatus("playing");
-  };
+    if (player.index < 0) return;
+    list.current?.querySelector<HTMLElement>(`[data-testid="podcast-turn-${player.index}"]`)?.scrollIntoView?.({ block: "nearest" });
+  }, [player.index]);
 
   const download = () => {
     if (!script) return;
@@ -157,7 +71,7 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
     URL.revokeObjectURL(url);
   };
 
-  const canSpeak = !!synth && voices.length > 0;
+  const canSpeak = player.canSpeak;
 
   return (
     <div className="mt-4 rounded-xl border border-ink/20 bg-canvas/50 p-4" data-testid="podcast">
@@ -173,98 +87,61 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
         </p>
       )}
 
+      {player.failed && (
+        <p className="text-base font-medium text-danger" role="alert">
+          {t("podcast.speechFailed")}
+        </p>
+      )}
+
       {script && (
         <>
           <h4 className="text-xl font-semibold" data-testid="podcast-title">
             {script.title}
           </h4>
-          <p className="text-sm text-ink/70">
-            {t("podcast.intro", { a: HOSTS.A, b: HOSTS.B })}
-          </p>
+          <p className="text-sm text-ink/70">{t("podcast.intro", { a: HOSTS.A, b: HOSTS.B })}</p>
 
           {!canSpeak && (
             <p className="mt-2 text-base" role="status">
-              {synth ? t("podcast.noVoices") : t("podcast.noSpeech")}
+              {player.supported ? t("podcast.noVoices") : t("podcast.noSpeech")}
             </p>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {status === "idle" && (
-              <button
-                type="button"
-                onClick={() => speakFrom(0)}
-                disabled={!canSpeak}
-                className="btn btn-primary btn-sm"
-              >
-                {t("podcast.play")}
+          <div className="mt-3 flex flex-col gap-2">
+            <PlaybackControls
+              label={t("podcast.script")}
+              status={player.status}
+              index={player.index}
+              count={items.length}
+              rate={player.rate}
+              remaining={player.remaining}
+              disabled={!canSpeak}
+              onPlay={() => player.play(0)}
+              onPause={player.pause}
+              onResume={player.resume}
+              onStop={player.stop}
+              onPrevious={player.previous}
+              onNext={player.next}
+              onSeek={player.seek}
+              onRate={player.setRate}
+            />
+            <div>
+              <button type="button" onClick={download} className="btn btn-quiet btn-sm">
+                {t("podcast.saveScript")}
               </button>
-            )}
-            {status === "playing" && (
-              <button
-                type="button"
-                onClick={pause}
-                className="btn btn-secondary btn-sm"
-              >
-                {t("podcast.pause")}
-              </button>
-            )}
-            {status === "paused" && (
-              <button
-                type="button"
-                onClick={resume}
-                className="btn btn-primary btn-sm"
-              >
-                {t("podcast.resume")}
-              </button>
-            )}
-            {status !== "idle" && (
-              <button
-                type="button"
-                onClick={stop}
-                className="btn btn-secondary btn-sm"
-              >
-                {t("podcast.stop")}
-              </button>
-            )}
-            <label className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-ink/80">{t("podcast.speed")}</span>
-              <select
-                value={rate}
-                onChange={(e) => setRate(Number(e.target.value))}
-                className="h-9 rounded-lg border border-ink/40 bg-surface px-2 text-sm"
-              >
-                {RATES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}x
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={download}
-              className="btn btn-quiet btn-sm"
-            >
-              {t("podcast.saveScript")}
-            </button>
+            </div>
           </div>
 
           {canSpeak && (
             <div className="mt-2 flex flex-wrap gap-4 text-sm">
-              {(
-                [
-                  ["A", voiceA, setVoiceA],
-                  ["B", voiceB, setVoiceB],
-                ] as const
-              ).map(([host, value, set]) => (
+              {(["A", "B"] as const).map((host) => (
                 <label key={host} className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-ink/80">{t("podcast.voiceOf", { host: HOSTS[host] })}</span>
                   <select
-                    value={value}
-                    onChange={(e) => set(e.target.value)}
+                    value={player.voiceOf(host)}
+                    onChange={(e) => player.setVoice(host, e.target.value)}
                     className="h-9 max-w-[16rem] rounded-lg border border-ink/40 bg-surface px-2 text-sm"
                   >
-                    {voices.map((v) => (
+                    {player.voices.map((v) => (
                       <option key={v.voiceURI} value={v.voiceURI}>
                         {v.name} ({v.lang})
                       </option>
@@ -275,17 +152,18 @@ export default function PodcastPlayer({ documentId }: PodcastPlayerProps) {
             </div>
           )}
 
-          <ol className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1 text-base" aria-label={t("podcast.script")}>
+          <ol ref={list} className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1 text-base" aria-label={t("podcast.script")}>
             {script.turns.map((turn, i) => (
               <li
                 key={i}
                 data-testid={`podcast-turn-${i}`}
-                data-active={current === i}
-                className={`border-l-4 pl-3 ${current === i ? "border-accent font-semibold" : "border-ink/20"}`}
+                data-active={player.index === i}
+                aria-current={player.index === i ? "true" : undefined}
+                className={`border-l-4 pl-3 ${player.index === i ? "border-accent font-semibold" : "border-ink/20"}`}
               >
                 <button
                   type="button"
-                  onClick={() => canSpeak && speakFrom(i)}
+                  onClick={() => canSpeak && player.play(i)}
                   disabled={!canSpeak}
                   className="block w-full text-left disabled:cursor-default"
                   aria-label={canSpeak ? t("podcast.playFrom", { host: HOSTS[turn.speaker], text: turn.text }) : undefined}
