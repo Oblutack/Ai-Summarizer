@@ -36,7 +36,8 @@ export default function SummaryOptions({
           <label htmlFor="word-count" className="label mb-0">
             {t("form.wordCount")}
           </label>
-          <span className="text-sm font-semibold tabular-nums">{t("form.words", { n: wordCount })}</span>
+          {/* With files attached the page limit sets the length, so the number would only be a dimmed, low-contrast distraction. */}
+          {!wordCountDisabled && <span className="text-sm font-semibold tabular-nums">{t("form.words", { n: wordCount })}</span>}
         </div>
         <input
           id="word-count"
