@@ -110,6 +110,16 @@ func signedIn(c *gin.Context) bool {
 }
 
 // checkUpload rejects a file that is too big for its kind, or a recording from someone who is not signed in.
+// readFields are the options for the AI service, plus permission to read scanned pages (OCR) when the person is
+// signed in: it is real work on the server, so the public routes do not get it.
+func readFields(c *gin.Context, opts summaryOptions) map[string]string {
+	fields := opts.fields()
+	if signedIn(c) {
+		fields["ocr"] = "true"
+	}
+	return fields
+}
+
 func checkUpload(c *gin.Context, name string, size int64) *apiError {
 	if isAudio(name) {
 		if !signedIn(c) {
@@ -422,7 +432,7 @@ func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, apiErr
 	}
 
-	return multipartRequest(c, withStream("/summarize", stream), opts.fields(), "file", []*multipart.FileHeader{file})
+	return multipartRequest(c, withStream("/summarize", stream), readFields(c, opts), "file", []*multipart.FileHeader{file})
 }
 
 func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
@@ -454,7 +464,7 @@ func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, &apiError{http.StatusRequestEntityTooLarge, fmt.Sprintf("The files are too large together (max %d MB).", MaxCombinedBytes()>>20)}
 	}
 
-	return multipartRequest(c, withStream("/summarize-multiple", stream), opts.fields(), "files", files)
+	return multipartRequest(c, withStream("/summarize-multiple", stream), readFields(c, opts), "files", files)
 }
 
 // buildURLRequest sends a web address to the AI service, which fetches and reads the page itself (it is
@@ -486,7 +496,7 @@ func buildURLRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		return nil, &apiError{http.StatusInternalServerError, "Failed to prepare the request."}
 	}
 	q := url.Values{}
-	for k, v := range opts.fields() {
+	for k, v := range readFields(c, opts) {
 		q.Set(k, v)
 	}
 	if stream {
