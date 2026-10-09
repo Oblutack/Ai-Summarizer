@@ -314,7 +314,7 @@ MEETING_CASE = Case(
         Fact("Aisha fixes the bugs by 28 March", (r"aisha[^.\n]{0,120}28 march|28 march[^.\n]{0,120}aisha|aisha[^.\n]{0,120}march 28|march 28[^.\n]{0,120}aisha",)),
     ),
     traps=(
-        Trap("action given to the wrong person", r"priya[^.;,\n\d]{0,60}(?:venue|bugs)|tom[^.;,\n\d]{0,60}(?:budget to finance|bugs)|aisha[^.;,\n\d]{0,60}(?:venue|budget)"),
+        Trap("action given to the wrong person", r"\bpriya(?: nair)?(?:\W{0,3}(?:will|to|should|must)\b|\s*:)[^.;,\n\d]{0,50}(?:venue|bugs)|\btom(?: becker)?(?:\W{0,3}(?:will|to|should|must)\b|\s*:)[^.;,\n\d]{0,50}(?:budget|bugs)|\baisha(?: khan)?(?:\W{0,3}(?:will|to|should|must)\b|\s*:)[^.;,\n\d]{0,50}(?:venue|budget)"),
         Trap("launch date wrong", r"launch[^.;,\n\d]{0,40}(?:moved|delayed|postponed|pushed)[^.;,\n\d]{0,20}to (?:21|28|31) ?(?:march)?|launch[^.;,\n\d]{0,40}(?:to|until) (?:11|14) march"),
     ),
     variants=(TAKEAWAYS, DEFAULT),
@@ -581,9 +581,11 @@ OVERVIEW_CASE = Case(
     traps=(
         Trap(
             "a shared risk that is not shared",
-            r"(?:all three|all documents|every (?:report|document)|each (?:report|document))[^.;,\n\d]{0,60}"
-            r"(?:shar|name|cite|mention|identif|highlight|point|flag|list)[^.;\n]{0,60}"
-            r"(?:single cloud|cloud provider|customer concentration|infrastructure costs)",
+            # "All three reports name customer concentration as the main risk": one risk, credited to all.
+            # ("Each report lists a main risk: cloud provider (Q1), infrastructure costs (Q2)..." is right.)
+            r"(?:all three|all documents|every (?:report|document)|each (?:report|document))\s+(?:\w+\s+){0,2}"
+            r"(?:shar\w*|name\w*|cite\w*|mention\w*|identif\w*|highlight\w*|point\w*|flag\w*|list\w*)\s+"
+            r"(?:the |a |an )?(?:main |primary |key |same )*(?:single cloud|cloud provider|customer concentration|infrastructure costs)",
         ),
         Trap("year on year", r"\bq[23]\b(?:[^.\n]|(?<=\d)\.(?=\d)){0,70}(?:year[- ]?(?:over|on)[- ]?year|\byoy\b)"),
         Trap("wrong currency", r"[$£]|\b(?:dollars?|usd)\b"),

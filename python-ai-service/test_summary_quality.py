@@ -295,3 +295,27 @@ def test_year_on_year_is_right_for_q1_of_the_overview_and_wrong_for_q2_and_q3():
     assert "year on year" not in score(overview, "- Q1: 4.0 million euros, +5% YoY.\n- Q2: +10% QoQ.").traps_hit
     assert "year on year" in score(overview, "- Q2: 4.4 million euros, +10% YoY.").traps_hit
     assert "year on year" in score(overview, "- Q3: down 7% year over year.").traps_hit
+
+
+def test_a_list_of_people_is_not_a_wrong_assignment_but_a_swapped_action_is():
+    meeting = by_id("meeting")
+    harmless = "Priya Nair, Tom Becker and Aisha Khan have deadlines for the budget, the venue and the bug fixes."
+    assert "action given to the wrong person" not in score(meeting, harmless).traps_hit
+    for wrong in ("Priya will book the venue.", "Aisha Khan: send the revised budget.", "Tom Becker to fix the bugs."):
+        assert "action given to the wrong person" in score(meeting, wrong).traps_hit, wrong
+    right = "Priya Nair will send the budget; Tom Becker will book the venue; Aisha Khan will fix the bugs."
+    assert "action given to the wrong person" not in score(meeting, right).traps_hit
+
+
+def test_a_per_quarter_list_of_risks_is_not_a_shared_risk():
+    overview = by_id("overview")
+    right = (
+        "Each report lists a main risk: cloud provider (Q1), infrastructure costs (Q2), customer concentration (Q3)."
+    )
+    assert "a shared risk that is not shared" not in score(overview, right).traps_hit
+    for wrong in (
+        "All three reports name customer concentration as the main risk.",
+        "Every report identifies the same cloud provider dependence.",
+        "All documents highlight infrastructure costs.",
+    ):
+        assert "a shared risk that is not shared" in score(overview, wrong).traps_hit, wrong
