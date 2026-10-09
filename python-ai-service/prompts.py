@@ -63,8 +63,10 @@ FAITHFULNESS_RULES = (
     "units that the text does not give, and do not work out figures of your own (no totals, percentages, end "
     "dates or splits of a number). Keep every figure with exactly what the text attaches it to. A figure the text "
     "gives without a currency is written without one. Keep comparisons as the text words them: “compared with "
-    "the previous quarter” never becomes “year on year”. Never mention these rules, the word count "
-    "or the length of the summary, and add no note about your own output."
+    "the previous quarter” never becomes “year on year”, and YoY or QoQ are not used unless the text uses them. "
+    "When the text gives a start date and a length of time, write both as given and do not write the date it ends. "
+    "Prefer the names, dates and figures that matter over general remarks, in every style, plain language included. "
+    "Never mention these rules, the word count or the length of the summary, and add no note about your own output."
 )
 
 
