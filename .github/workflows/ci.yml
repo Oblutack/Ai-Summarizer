@@ -72,6 +72,8 @@ jobs:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: python-ai-service/requirements*.txt
+      # The tests that read a scanned page for real need the Tesseract program, with English.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: ruff check .
       - run: ruff format --check .
