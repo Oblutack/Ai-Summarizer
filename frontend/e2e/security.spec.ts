@@ -12,6 +12,9 @@ test.describe("browser security", () => {
       const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
       expect(scriptSrc, path).not.toContain("'unsafe-inline'");
       expect(scriptSrc, path).not.toContain("'unsafe-eval'");
+      // Sound can only come from this site or from the browser itself, never from another address.
+      const mediaSrc = csp.split(";").find((d) => d.trim().startsWith("media-src")) ?? "";
+      expect(mediaSrc.trim().split(/\s+/).slice(1), path).toEqual(["'self'", "blob:"]);
       expect(response.headers()["x-frame-options"]).toBe("DENY");
       expect(response.headers()["x-content-type-options"]).toBe("nosniff");
       expect(response.headers()["x-powered-by"]).toBeUndefined();

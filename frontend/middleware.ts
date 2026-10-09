@@ -26,6 +26,8 @@ export function middleware(request: NextRequest) {
     // The PDF viewer runs PDF.js in a worker served from this site.
     "worker-src 'self' blob:",
     "img-src 'self' data: blob:",
+    // Recordings are played from a blob made in the browser (one that was just made, or one fetched for the player).
+    "media-src 'self' blob:",
     "font-src 'self' data:",
     `connect-src 'self' ${apiOrigin} ${google} ${turnstile}${isDev ? " ws:" : ""}`.replace(/\s+/g, " ").trim(),
     `frame-src ${google} ${turnstile}`,
