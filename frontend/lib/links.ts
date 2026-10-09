@@ -23,8 +23,11 @@ export function webLinkIn(text: string): string | null {
 export const AUDIO_EXTENSIONS = [".mp3", ".mpga", ".mpeg", ".m4a", ".mp4", ".wav", ".ogg", ".flac", ".webm"] as const;
 export const MAX_AUDIO_MB = 25;
 
+// Photos of pages. Their text is read on the server (OCR), which is real work, so they are for signed-in people.
+export const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"] as const;
+
 // The file types that can be summarized, as the extensions the file picker offers.
-export const DOCUMENT_EXTENSIONS = [".pdf", ".docx", ".pptx", ...AUDIO_EXTENSIONS] as const;
+export const DOCUMENT_EXTENSIONS = [".pdf", ".docx", ".pptx", ...AUDIO_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;
 
 function endsWithAny(name: string, extensions: readonly string[]): boolean {
   const lower = name.toLowerCase();
@@ -37,6 +40,10 @@ export function isPdfFile(name: string): boolean {
 
 export function isAudioFile(name: string): boolean {
   return endsWithAny(name, AUDIO_EXTENSIONS);
+}
+
+export function isImageFile(name: string): boolean {
+  return endsWithAny(name, IMAGE_EXTENSIONS);
 }
 
 export function isDocumentFile(name: string): boolean {

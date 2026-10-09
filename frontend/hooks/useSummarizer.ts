@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { TURNSTILE_HEADER } from "../lib/api";
 import { readSummaryEvents, type SummaryEvent } from "../lib/sse";
-import { isAudioFile, isDocumentFile, MAX_AUDIO_MB, webLinkIn } from "../lib/links";
+import { isAudioFile, isDocumentFile, isImageFile, MAX_AUDIO_MB, webLinkIn } from "../lib/links";
+import { shrinkPhoto } from "../lib/photos";
 import { loadPreferences, savePreferences } from "../lib/preferences";
 import { MAX_FILES } from "../lib/summaryOptions";
 import { useT } from "../components/I18nProvider";
@@ -89,6 +90,8 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       ? t("stage.writing")
       : files.some((f) => isAudioFile(f.name))
       ? t("stage.transcribing")
+      : files.some((f) => isImageFile(f.name))
+      ? t("stage.scanning")
       : t("stage.reading");
 
   const changeText = useCallback((value: string) => {
@@ -108,6 +111,11 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       if (!user && documents.some((f) => isAudioFile(f.name))) {
         documents = documents.filter((f) => !isAudioFile(f.name));
         refused = t("form.errAudioSignIn");
+      }
+      // Reading the text in a photo is real work on the server, so photos are for signed-in people too.
+      if (!user && documents.some((f) => isImageFile(f.name))) {
+        documents = documents.filter((f) => !isImageFile(f.name));
+        refused = refused || t("form.errPhotoSignIn");
       }
       const tooBig = documents.filter((f) => isAudioFile(f.name) && f.size > MAX_AUDIO_MB * 1024 * 1024);
       if (tooBig.length > 0) {
@@ -149,11 +157,11 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
   const cancel = () => abortRef.current?.abort();
 
   // Builds the request for the current input. Streaming is requested with ?stream=true.
-  const buildRequest = (headers: Record<string, string>): { url: string; init: RequestInit } => {
-    if (files.length > 0) {
-      const multiple = files.length > 1;
+  const buildRequest = (headers: Record<string, string>, uploads: File[]): { url: string; init: RequestInit } => {
+    if (uploads.length > 0) {
+      const multiple = uploads.length > 1;
       const formData = new FormData();
-      files.forEach((f) => formData.append(multiple ? "files" : "file", f));
+      uploads.forEach((f) => formData.append(multiple ? "files" : "file", f));
       formData.append("wordCount", String(wordCount));
       formData.append("pageLimit", pageLimit);
       formData.append("style", style);
@@ -211,7 +219,9 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     try {
       const headers: Record<string, string> = {};
       if (humanCheck?.token) headers[TURNSTILE_HEADER] = humanCheck.token;
-      const { url, init } = buildRequest(headers);
+      // Big photos are made smaller first (the list on screen keeps showing the originals).
+      const uploads = await Promise.all(files.map((f) => (isImageFile(f.name) ? shrinkPhoto(f) : f)));
+      const { url, init } = buildRequest(headers, uploads);
       // credentials: "include" sends the session cookie to the API.
       const response = await fetch(url, { ...init, credentials: "include", signal: controller.signal });
 
@@ -264,6 +274,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     wordCount, setWordCount, pageLimit, setPageLimit, style, setStyle, language, setLanguage,
     // input
     files, inputText, link, changeText, addFiles, removeFile, hasAudio: files.some((f) => isAudioFile(f.name)),
+    hasPhotos: files.some((f) => isImageFile(f.name)),
     // result
     summary, error, isLoading, progress, stageLabel, showPageLimit, exportBaseName,
     // actions

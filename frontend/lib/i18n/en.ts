@@ -136,7 +136,7 @@ export const en = {
   "form.writing": "Writing...",
   "form.attach": "Attach files",
   "form.addMore": "Add more files",
-  "form.dropHint": "Paste text or a web link here, or attach PDF, Word, PowerPoint or audio files...",
+  "form.dropHint": "Paste text or a web link here, or attach PDF, Word, PowerPoint, audio or photo files...",
   "form.trySample": "or try a sample text",
   "form.removeFile": "Remove file",
   "form.removeFileNamed": "Remove {name}",
@@ -144,7 +144,7 @@ export const en = {
   "form.summarize": "Summarize",
   "form.savePdf": "Save as PDF",
   "form.lengthLine": "Summary: {length}",
-  "form.errFileType": "Only PDF, Word (.docx), PowerPoint (.pptx) and audio files are supported.",
+  "form.errFileType": "Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP) are supported.",
   "form.errMaxFiles": "You can attach up to {max} files at once.",
   "form.errGeneric": "An error occurred.",
   "form.errNeedInput": "Please attach a file, paste a web link or paste some text.",
@@ -420,6 +420,10 @@ export const en = {
   "doc.recordingLoading": "Loading the recording...",
   "doc.recordingFailed": "The recording could not be loaded.",
   "sources.playFrom": "Play from {time}",
+  "form.takePhoto": "Take a photo",
+  "form.errPhotoSignIn": "Sign in to summarize a photo.",
+  "form.photoHint": "The text in a photo is read first, so this takes a little longer. Several photos become the pages of one document, in the order shown.",
+  "stage.scanning": "Reading the text in the photos...",
 } as const;
 
 export type MessageKey = keyof typeof en;

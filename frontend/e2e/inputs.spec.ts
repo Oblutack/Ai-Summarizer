@@ -87,13 +87,13 @@ test.describe("Word and PowerPoint files", () => {
       { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") },
       docx("kept.docx"),
     ]);
-    await expect(alertOf(page)).toHaveText("Only PDF, Word (.docx), PowerPoint (.pptx) and audio files are supported.");
+    await expect(alertOf(page)).toHaveText("Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP) are supported.");
     await expect(page.getByText("kept.docx")).toBeVisible();
     await expect(page.getByText("notes.txt")).toHaveCount(0);
   });
 
-  test("the file picker offers documents and recordings", async ({ page }) => {
+  test("the file picker offers documents, recordings and photos", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("#pdf-upload")).toHaveAttribute("accept", ".pdf,.docx,.pptx,.mp3,.mpga,.mpeg,.m4a,.mp4,.wav,.ogg,.flac,.webm");
+    await expect(page.locator("#pdf-upload")).toHaveAttribute("accept", ".pdf,.docx,.pptx,.mp3,.mpga,.mpeg,.m4a,.mp4,.wav,.ogg,.flac,.webm,.jpg,.jpeg,.png,.webp");
   });
 });

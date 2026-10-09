@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { SAMPLE_TEXT } from "../../lib/sampleText";
-import { DOCUMENT_EXTENSIONS, isAudioFile } from "../../lib/links";
+import { DOCUMENT_EXTENSIONS, isAudioFile, isImageFile } from "../../lib/links";
 import { MAX_FILES } from "../../lib/summaryOptions";
 import AudioPlayer from "../AudioPlayer";
 import Recorder from "../Recorder";
@@ -14,7 +14,9 @@ interface InputAreaProps {
   link?: string | null;
   // Set when a recording is attached.
   hasAudio?: boolean;
-  // Whether the microphone can be offered: recordings are for signed-in people.
+  // Set when a photo is attached.
+  hasPhotos?: boolean;
+  // Whether the microphone and the camera can be offered: recordings and photos are for signed-in people.
   canRecord?: boolean;
   onTextChange: (value: string) => void;
   onFilesPicked: (files: File[]) => void;
@@ -33,6 +35,29 @@ function AudioPreview({ file }: { file: File }) {
   return url ? <AudioPlayer src={url} label={file.name} /> : null;
 }
 
+// A small picture of an attached photo, so the right page is easy to tell from the others. Like the audio player,
+// its address is made from the file in this browser and let go of afterwards: nothing is sent.
+function PhotoThumbnail({ file }: { file: File }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const made = URL.createObjectURL(file);
+    setUrl(made);
+    return () => URL.revokeObjectURL(made);
+  }, [file]);
+  // The file name beside it says what it is.
+  // eslint-disable-next-line @next/next/no-img-element
+  return url ? <img src={url} alt="" className="h-12 w-12 flex-shrink-0 rounded-md border border-ink/20 object-cover" data-testid="photo-thumbnail" /> : null;
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13.5" r="3.5" />
+    </svg>
+  );
+}
+
 function PaperclipIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -43,8 +68,13 @@ function PaperclipIcon() {
 
 // The place to put the words: a text box that also takes PDFs. Once PDFs are attached they replace the
 // text box with a list, since a summary comes from one or the other.
-export default function InputArea({ files, text, link, hasAudio, canRecord, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
+export default function InputArea({ files, text, link, hasAudio, hasPhotos, canRecord, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
   const t = useT();
+  // Whether the main pointer is a finger (a phone or tablet) is only known in the browser. There the camera can be
+  // offered; on a computer the Attach button already offers the picture files.
+  const [touchScreen, setTouchScreen] = useState(false);
+  useEffect(() => setTouchScreen(window.matchMedia("(pointer: coarse)").matches), []);
+  const canTakePhoto = Boolean(canRecord) && touchScreen;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? []);
@@ -62,7 +92,8 @@ export default function InputArea({ files, text, link, hasAudio, canRecord, onTe
               className="rounded-lg border border-ink/20 bg-canvas/60 px-3 py-2"
             >
               <div className="flex items-center justify-between gap-3">
-              <span className="truncate text-base font-medium" title={f.name}>
+              {isImageFile(f.name) && <PhotoThumbnail file={f} />}
+              <span className="min-w-0 flex-1 truncate text-base font-medium" title={f.name}>
                 {f.name}
               </span>
               <button
@@ -104,6 +135,12 @@ export default function InputArea({ files, text, link, hasAudio, canRecord, onTe
           </label>
         )}
         {canRecord && files.length < MAX_FILES && <Recorder onRecorded={(file) => onFilesPicked([file])} />}
+        {canTakePhoto && files.length < MAX_FILES && (
+          <label htmlFor="photo-capture" className="btn btn-quiet cursor-pointer gap-2">
+            <CameraIcon />
+            {t("form.takePhoto")}
+          </label>
+        )}
         {files.length === 0 && !text && (
           <button type="button" onClick={() => onTextChange(SAMPLE_TEXT)} className="btn btn-quiet underline">
             {t("form.trySample")}
@@ -112,6 +149,11 @@ export default function InputArea({ files, text, link, hasAudio, canRecord, onTe
         {hasAudio && (
           <p className="px-2 text-sm font-medium text-accent" role="status" data-testid="audio-hint">
             {t("form.audioHint")}
+          </p>
+        )}
+        {hasPhotos && (
+          <p className="px-2 text-sm font-medium text-accent" role="status" data-testid="photo-hint">
+            {t("form.photoHint")}
           </p>
         )}
         {link && (
@@ -123,6 +165,10 @@ export default function InputArea({ files, text, link, hasAudio, canRecord, onTe
 
       {/* Always mounted so both the empty-state and the file-list buttons can open it. */}
       <input id="pdf-upload" type="file" className="sr-only" onChange={handleFileChange} accept={DOCUMENT_EXTENSIONS.join(",")} multiple tabIndex={-1} />
+      {/* Listing the formats (and not image/*) makes iPhones hand over a JPEG instead of a HEIC picture. */}
+      {canTakePhoto && (
+        <input id="photo-capture" type="file" className="sr-only" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp" capture="environment" tabIndex={-1} />
+      )}
     </div>
   );
 }
