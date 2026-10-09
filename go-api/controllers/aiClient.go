@@ -32,7 +32,7 @@ const (
 	minWords      = 50
 	maxWords      = 1000
 	maxPageLimit  = 20
-	aiCallTimeout = 3 * time.Minute
+	aiCallTimeout = 5 * time.Minute // a long recording is transcribed before it is summarized
 )
 
 var aiHTTPClient = &http.Client{Timeout: aiCallTimeout}
@@ -46,14 +46,61 @@ type URLPayload struct {
 	URL string `json:"url"`
 }
 
-const unsupportedFileMessage = "Only PDF, Word (.docx) and PowerPoint (.pptx) files are supported."
+const unsupportedFileMessage = "Only PDF, Word (.docx), PowerPoint (.pptx) and audio files are supported."
 
 // documentExtensions are the file types that can be summarized. Only PDFs are kept as originals: the
 // viewer shows PDF pages.
 var documentExtensions = []string{".pdf", ".docx", ".pptx"}
 
+// audioExtensions are recordings (and videos, of which only the sound is used). They are transcribed first, then
+// summarized like any text. Transcribing costs money, so recordings are for signed-in users.
+var audioExtensions = []string{".mp3", ".mpga", ".mpeg", ".m4a", ".mp4", ".wav", ".ogg", ".flac", ".webm"}
+
+func isAudio(name string) bool {
+	return contains(audioExtensions, strings.ToLower(filepath.Ext(name)))
+}
+
 func isDocumentFile(name string) bool {
-	return contains(documentExtensions, strings.ToLower(filepath.Ext(name)))
+	return contains(documentExtensions, strings.ToLower(filepath.Ext(name))) || isAudio(name)
+}
+
+// MaxAudioBytes is the largest recording accepted: MAX_AUDIO_MB megabytes, 25 unless set (what the speech-to-text
+// provider takes on its free tier; its paid tier takes 100).
+func MaxAudioBytes() int64 {
+	mb := 25
+	if v, err := strconv.Atoi(os.Getenv("MAX_AUDIO_MB")); err == nil && v > 0 {
+		mb = v
+	}
+	return int64(mb) << 20
+}
+
+// MaxUploadBytes is the biggest request body a signed-in person's single upload may have.
+func MaxUploadBytes() int64 { return max(MaxPDFBytes, MaxAudioBytes()) }
+
+// MaxCombinedBytes is the same across several files.
+func MaxCombinedBytes() int64 { return max(MaxMultiBytes, MaxAudioBytes()) }
+
+// signedIn reports whether the request comes from a signed-in user (the public routes have none).
+func signedIn(c *gin.Context) bool {
+	_, ok := c.Get(middleware.UserKey)
+	return ok
+}
+
+// checkUpload rejects a file that is too big for its kind, or a recording from someone who is not signed in.
+func checkUpload(c *gin.Context, name string, size int64) *apiError {
+	if isAudio(name) {
+		if !signedIn(c) {
+			return &apiError{http.StatusUnauthorized, "Sign in to summarize a recording."}
+		}
+		if size > MaxAudioBytes() {
+			return &apiError{http.StatusRequestEntityTooLarge, fmt.Sprintf("%s is too large (max %d MB for a recording).", name, MaxAudioBytes()>>20)}
+		}
+		return nil
+	}
+	if size > MaxPDFBytes {
+		return &apiError{http.StatusRequestEntityTooLarge, name + " is too large (max 10 MB per file)."}
+	}
+	return nil
 }
 
 func isPDF(name string) bool {
@@ -342,10 +389,13 @@ func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		return nil, &apiError{http.StatusBadRequest, "A PDF, Word or PowerPoint file is required (max 10 MB)."}
+		return nil, &apiError{http.StatusBadRequest, "A PDF, Word, PowerPoint or audio file is required."}
 	}
 	if !isDocumentFile(file.Filename) {
 		return nil, &apiError{http.StatusBadRequest, unsupportedFileMessage}
+	}
+	if apiErr := checkUpload(c, file.Filename, file.Size); apiErr != nil {
+		return nil, apiErr
 	}
 
 	return multipartRequest(c, withStream("/summarize", stream), opts.fields(), "file", []*multipart.FileHeader{file})
@@ -371,13 +421,13 @@ func buildFilesRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 		if !isDocumentFile(f.Filename) {
 			return nil, &apiError{http.StatusBadRequest, unsupportedFileMessage}
 		}
-		if f.Size > MaxPDFBytes {
-			return nil, &apiError{http.StatusRequestEntityTooLarge, f.Filename + " is too large (max 10 MB per file)."}
+		if apiErr := checkUpload(c, f.Filename, f.Size); apiErr != nil {
+			return nil, apiErr
 		}
 		total += f.Size
 	}
-	if total > MaxMultiBytes {
-		return nil, &apiError{http.StatusRequestEntityTooLarge, "The files are too large together (max 25 MB)."}
+	if total > MaxCombinedBytes() {
+		return nil, &apiError{http.StatusRequestEntityTooLarge, fmt.Sprintf("The files are too large together (max %d MB).", MaxCombinedBytes()>>20)}
 	}
 
 	return multipartRequest(c, withStream("/summarize-multiple", stream), opts.fields(), "files", files)

@@ -90,6 +90,9 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 
 	fileBody := middleware.MaxBody(controllers.MaxPDFBytes + 1<<20)
 	multiBody := middleware.MaxBody(controllers.MaxMultiBytes + 1<<20)
+	// Signed-in people may also upload recordings, which are bigger than documents.
+	uploadBody := middleware.MaxBody(controllers.MaxUploadBytes() + 1<<20)
+	combinedBody := middleware.MaxBody(controllers.MaxCombinedBytes() + 1<<20)
 	textBody := middleware.MaxBody(controllers.MaxTextBytes)
 	chatBody := middleware.MaxBody(controllers.MaxTextBytes)
 	smallBody := middleware.MaxBody(16 << 10) // auth and account requests are tiny JSON
@@ -147,13 +150,14 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		authorized.POST("/documents/:id/share", smallBody, controllers.ShareDocument)
 		authorized.DELETE("/documents/:id/share", controllers.UnshareDocument)
 		authorized.GET("/documents/:id/files/:fileId", controllers.DocumentFile)
+		authorized.GET("/documents/:id/text", controllers.DocumentText)
 		authorized.POST("/documents/:id/proof", proofUserLimit, controllers.CheckDocumentSummary)
 
 		// Work that costs an LLM call: signed in (and verified, when required), rate limited, then
 		// charged against the daily quota last so rejected requests don't use up allowance.
 		verified := authorized.Group("/", middleware.RequireVerifiedEmail)
-		verified.POST("/summarize", summarizeUserLimit, fileBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummary)
-		verified.POST("/summarize-multiple", summarizeUserLimit, multiBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryMultiple)
+		verified.POST("/summarize", summarizeUserLimit, uploadBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummary)
+		verified.POST("/summarize-multiple", summarizeUserLimit, combinedBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryMultiple)
 		verified.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryText)
 		verified.POST("/summarize-url", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryURL)
 		verified.POST("/library/overview", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.CollectionOverview)

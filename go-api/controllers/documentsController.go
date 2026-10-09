@@ -73,6 +73,25 @@ func saveDocument(c *gin.Context, title string, result *aiSummary) {
 	indexAfterSave(middleware.RequestIDFrom(c), document)
 }
 
+// DocumentText gives a document's owner the text it was made from: for a recording, the transcript. It is
+// the same text the data export holds; it is never shown to anyone else, and never on a share link.
+func DocumentText(c *gin.Context) {
+	user := middleware.CurrentUser(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid id"})
+		return
+	}
+	var doc models.Document
+	if err := initializers.DB.Select("id", "filename", "content", "has_content").
+		Where("id = ? AND user_id = ?", id, user.ID).First(&doc).Error; err != nil || !doc.HasContent {
+		c.JSON(http.StatusNotFound, gin.H{"error": "This document has no stored text."})
+		return
+	}
+	c.Header("Cache-Control", "private, no-store")
+	c.JSON(http.StatusOK, gin.H{"title": doc.Filename, "text": doc.Content})
+}
+
 const (
 	defaultPageSize = 20
 	maxPageSize     = 100
