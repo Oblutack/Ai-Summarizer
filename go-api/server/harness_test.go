@@ -307,6 +307,9 @@ func newAppWithRates(t *testing.T, rates Rates) *app {
 	for _, k := range []string{"TURNSTILE_SECRET", "REQUIRE_EMAIL_VERIFICATION", "QUOTA_SUMMARIES_PER_DAY", "QUOTA_CHAT_PER_DAY"} {
 		t.Setenv(k, "")
 	}
+	// The spending guard is off unless a test turns it on (guard_test.go).
+	t.Setenv("ANON_SUMMARIES_PER_DAY", "0")
+	t.Setenv("AI_REQUESTS_PER_DAY", "0")
 
 	controllers.ResetEmbeddingBackoff()
 	ai := &fakeAI{}

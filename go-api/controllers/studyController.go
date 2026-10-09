@@ -81,27 +81,33 @@ func materialFor(document models.Document) gin.H {
 
 // SuggestQuestions returns questions worth asking about a document, writing them first if needed.
 // Making them is a small model call that happens once per summary, so it is rate limited but does not
-// use up the daily allowance.
+// use up the daily allowance. It does count against the site's daily budget, and only when the model is really asked:
+// stored questions and failures give the count back.
 func SuggestQuestions(c *gin.Context) {
 	id, ok := documentIDParam(c)
 	if !ok {
+		middleware.RefundQuota(c)
 		return
 	}
 	document, ok := ownedDocument(c, id, true)
 	if !ok {
+		middleware.RefundQuota(c)
 		return
 	}
 	if stored := storedSuggestions(document.ID); len(stored) > 0 {
+		middleware.RefundQuota(c)
 		c.JSON(http.StatusOK, gin.H{"questions": stored})
 		return
 	}
 	if strings.TrimSpace(document.Summary) == "" {
+		middleware.RefundQuota(c)
 		c.JSON(http.StatusConflict, gin.H{"error": "This document has no summary to suggest questions from."})
 		return
 	}
 
 	body, apiErr := postToAI(c, "/suggest", materialFor(document))
 	if apiErr != nil {
+		middleware.RefundQuota(c)
 		apiErr.send(c)
 		return
 	}
@@ -109,11 +115,13 @@ func SuggestQuestions(c *gin.Context) {
 		Questions []string `json:"questions"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
+		middleware.RefundQuota(c)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "The AI service returned unreadable questions."})
 		return
 	}
 	questions := cleanSuggestions(out.Questions)
 	if len(questions) < minSuggestions {
+		middleware.RefundQuota(c)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "The AI service returned no usable questions."})
 		return
 	}

@@ -106,9 +106,10 @@ func Quota(kind string) gin.HandlerFunc {
 	}
 }
 
-// RefundQuota gives back the use claimed by Quota for this request. It is safe to call when no
-// quota was claimed, and refunds at most once per request.
+// RefundQuota gives back the use claimed by Quota for this request, and what the spending guard claimed (guard.go). It
+// is safe to call when nothing was claimed, and refunds at most once per request.
 func RefundQuota(c *gin.Context) {
+	refundGuards(c)
 	v, _ := c.Get(quotaKey)
 	claim, ok := v.(quotaClaim)
 	if !ok {

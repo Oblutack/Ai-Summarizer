@@ -55,14 +55,14 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r := gin.New()
 	r.Use(middleware.RequestID(), middleware.AccessLog(logger), metrics.HTTP(), middleware.Recover(logger), middleware.SecurityHeaders())
 
-	// Client IPs drive the rate limits. Behind a proxy such as Render, list its addresses in
-	// TRUSTED_PROXIES (comma separated CIDRs) so X-Forwarded-For is only believed from it.
+	// Client IPs drive the rate limits and the anonymous daily allowance. Behind a proxy such as Render, list its
+	// addresses in TRUSTED_PROXIES (comma separated CIDRs) so X-Forwarded-For is only believed from it.
 	if proxies := os.Getenv("TRUSTED_PROXIES"); proxies != "" {
 		if err := r.SetTrustedProxies(strings.Split(proxies, ",")); err != nil {
 			return nil, err
 		}
 	} else {
-		logger.Warn("TRUSTED_PROXIES is not set: X-Forwarded-For is trusted from anyone, so client IPs (and IP rate limits) can be spoofed")
+		logger.Warn("TRUSTED_PROXIES is not set: X-Forwarded-For is trusted from anyone, so a client can pretend to be any address and get past the per-address limits (rate limits and the anonymous daily allowance). Set it when deployed behind a proxy")
 	}
 
 	origins := middleware.AllowedOrigins()
@@ -83,6 +83,8 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	chatUserLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ChatPerMinute, rates.ChatBurst))
 	// Checking a summary against its document costs no model call, but it is real work: its own bucket.
 	proofUserLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ChatPerMinute, rates.ChatBurst))
+	anonymousDaily := middleware.AnonymousDaily()
+	dailyBudget := middleware.DailyBudget()
 	exportLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ExportPerMinute, rates.ExportBurst))
 	// Mailing a summary to yourself sends a real email, so it gets the same small allowance as an export.
 	emailLimit := middleware.RateLimitUser(middleware.NewRateLimiter(rates.ExportPerMinute, rates.ExportBurst))
@@ -122,10 +124,12 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r.GET("/shared/:token", authLimit, controllers.SharedDocument)
 
 	// Public: anonymous summaries (nothing is saved).
-	r.POST("/public/summarize", summarizeIPLimit, fileBody, turnstile, controllers.PublicSummarize)
-	r.POST("/public/summarize-multiple", summarizeIPLimit, multiBody, turnstile, controllers.PublicSummarizeMultiple)
-	r.POST("/public/summarize-text", summarizeIPLimit, textBody, turnstile, controllers.PublicSummarizeText)
-	r.POST("/public/summarize-url", summarizeIPLimit, smallBody, turnstile, controllers.PublicSummarizeURL)
+	// After the rate limit and the human check, so refused requests cost nothing: the visitor's daily allowance, then the
+	// site's daily budget (the spending guard).
+	r.POST("/public/summarize", summarizeIPLimit, fileBody, turnstile, anonymousDaily, dailyBudget, controllers.PublicSummarize)
+	r.POST("/public/summarize-multiple", summarizeIPLimit, multiBody, turnstile, anonymousDaily, dailyBudget, controllers.PublicSummarizeMultiple)
+	r.POST("/public/summarize-text", summarizeIPLimit, textBody, turnstile, anonymousDaily, dailyBudget, controllers.PublicSummarizeText)
+	r.POST("/public/summarize-url", summarizeIPLimit, smallBody, turnstile, anonymousDaily, dailyBudget, controllers.PublicSummarizeURL)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireAuth)
@@ -154,20 +158,20 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		authorized.POST("/documents/:id/proof", proofUserLimit, controllers.CheckDocumentSummary)
 
 		// Work that costs an LLM call: signed in (and verified, when required), rate limited, then
-		// charged against the daily quota last so rejected requests don't use up allowance.
+		// charged against the daily quota and then the site's daily budget, last, so rejected requests don't use them up.
 		verified := authorized.Group("/", middleware.RequireVerifiedEmail)
-		verified.POST("/summarize", summarizeUserLimit, uploadBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummary)
-		verified.POST("/summarize-multiple", summarizeUserLimit, combinedBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryMultiple)
-		verified.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryText)
-		verified.POST("/summarize-url", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.CreateSummaryURL)
-		verified.POST("/library/overview", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.CollectionOverview)
-		verified.POST("/documents/:id/chat", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.ChatWithDocument)
-		verified.POST("/documents/:id/podcast", chatUserLimit, smallBody, controllers.ReplayStoredPodcast, middleware.Quota(middleware.QuotaChats), controllers.PodcastDocument)
-		verified.POST("/documents/:id/rewrite", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), controllers.RewriteDocument)
-		verified.POST("/documents/:id/suggestions", chatUserLimit, controllers.SuggestQuestions)
-		verified.POST("/documents/:id/study", chatUserLimit, smallBody, controllers.ReplayStoredStudy, middleware.Quota(middleware.QuotaChats), controllers.StudyDocument)
+		verified.POST("/summarize", summarizeUserLimit, uploadBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.CreateSummary)
+		verified.POST("/summarize-multiple", summarizeUserLimit, combinedBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.CreateSummaryMultiple)
+		verified.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.CreateSummaryText)
+		verified.POST("/summarize-url", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.CreateSummaryURL)
+		verified.POST("/library/overview", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.CollectionOverview)
+		verified.POST("/documents/:id/chat", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), dailyBudget, controllers.ChatWithDocument)
+		verified.POST("/documents/:id/podcast", chatUserLimit, smallBody, controllers.ReplayStoredPodcast, middleware.Quota(middleware.QuotaChats), dailyBudget, controllers.PodcastDocument)
+		verified.POST("/documents/:id/rewrite", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.RewriteDocument)
+		verified.POST("/documents/:id/suggestions", chatUserLimit, dailyBudget, controllers.SuggestQuestions)
+		verified.POST("/documents/:id/study", chatUserLimit, smallBody, controllers.ReplayStoredStudy, middleware.Quota(middleware.QuotaChats), dailyBudget, controllers.StudyDocument)
 		verified.POST("/documents/:id/email", emailLimit, controllers.EmailDocument)
-		verified.POST("/library/ask", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), controllers.AskLibrary)
+		verified.POST("/library/ask", chatUserLimit, chatBody, middleware.Quota(middleware.QuotaChats), dailyBudget, controllers.AskLibrary)
 	}
 
 	return r, nil
