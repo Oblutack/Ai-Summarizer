@@ -20,6 +20,7 @@ from pypdf import PdfReader
 
 import embeddings
 import ocr
+import photos
 from attribution import check_summary
 from cache import from_env as cache_from_env
 from cache import summary_key
@@ -430,15 +431,54 @@ async def transcribe_upload(file: UploadFile) -> str:
         raise HTTPException(exc.status, exc.message, headers=headers) from exc
 
 
+async def read_photo_uploads(items: list[UploadFile], allow_ocr: bool) -> str:
+    """The text of photos of pages, one page per photo in the order given."""
+    if not allow_ocr:
+        raise HTTPException(422, "Sign in to have the text in photos read.")
+    pictures = []
+    for file in items:
+        content = await file.read(MAX_PDF_BYTES + 1)
+        if len(content) > MAX_PDF_BYTES:
+            raise HTTPException(413, f"{file.filename} is too large (max 10 MB)")
+        pictures.append((file.filename or "photo", content))
+    try:
+        pages = await asyncio.to_thread(photos.read_photos, pictures)
+    except ocr.OcrError as exc:
+        raise HTTPException(exc.status, exc.message) from exc
+    return PAGE_BREAK.join(pages)
+
+
 async def read_pdf_upload(file: UploadFile, allow_ocr: bool = False) -> str:
-    """Reads an uploaded document (PDF, Word, PowerPoint or a recording) and returns its text, raising client-safe
-    HTTP errors."""
+    """Reads an uploaded document (PDF, Word, PowerPoint, a photo or a recording) and returns its text, raising
+    client-safe HTTP errors."""
     if is_audio(file.filename or ""):
         return await transcribe_upload(file)
+    if photos.is_image(file.filename or ""):
+        return await read_photo_uploads([file], allow_ocr)
     content = await file.read(MAX_PDF_BYTES + 1)
     if len(content) > MAX_PDF_BYTES:
         raise HTTPException(413, f"{file.filename} is too large (max 10 MB)")
     return await asyncio.to_thread(extract_upload_text, file.filename or "document.pdf", content, allow_ocr)
+
+
+async def read_uploads(files: list[UploadFile], allow_ocr: bool) -> list[tuple[str, str]]:
+    """(name, text) for each document. Photos are pages of one document, wherever they come among the files."""
+    docs: list[tuple[str, str]] = []
+    pictures: list[UploadFile] = []
+    slot = 0
+    for file in files:
+        if photos.is_image(file.filename or ""):
+            if not pictures:
+                slot = len(docs)
+                docs.append(("", ""))
+            pictures.append(file)
+        else:
+            docs.append((file.filename or "document.pdf", await read_pdf_upload(file, allow_ocr)))
+    if pictures:
+        first = pictures[0].filename or "photo"
+        name = first if len(pictures) == 1 else f"{first} (+{len(pictures) - 1} more photos)"
+        docs[slot] = (name, await read_photo_uploads(pictures, allow_ocr))
+    return docs
 
 
 async def read_web_page(raw_url: str, allow_ocr: bool = False) -> tuple[str, str]:
@@ -554,6 +594,33 @@ def sse_response(stream: AsyncIterator[str]) -> StreamingResponse:
 # ---- Endpoints ----------------------------------------------------------------------------
 
 
+async def summarize_one(
+    filename: Optional[str],
+    text: str,
+    word_count: int,
+    page_limit: int,
+    style: str,
+    language: str,
+    instructions: str,
+    stream: bool,
+):
+    """Summarizes the text of one document (streamed or not)."""
+    check_text(text)
+
+    if stream:
+
+        def prepare(progress):
+            return prepare_summary_prompt(
+                text, word_count, page_limit, style, language, progress, instructions=instructions
+            )
+
+        key = text_cache_key(text, word_count, page_limit, style, language, instructions)
+        return sse_response(summary_event_stream(prepare, {"filename": filename, "text": text}, key))
+
+    summary = await summarize_or_fail(text, word_count, page_limit, style, language, instructions)
+    return {"filename": filename, "summary": summary, "text": text}
+
+
 @app.post("/summarize")
 async def summarize_file(
     file: UploadFile = File(...),
@@ -567,20 +634,7 @@ async def summarize_file(
 ):
     validate_options(word_count, page_limit, style, language, instructions)
     text = await read_pdf_upload(file, ocr_pages)
-    check_text(text)
-
-    if stream:
-
-        def prepare(progress):
-            return prepare_summary_prompt(
-                text, word_count, page_limit, style, language, progress, instructions=instructions
-            )
-
-        key = text_cache_key(text, word_count, page_limit, style, language, instructions)
-        return sse_response(summary_event_stream(prepare, {"filename": file.filename, "text": text}, key))
-
-    summary = await summarize_or_fail(text, word_count, page_limit, style, language, instructions)
-    return {"filename": file.filename, "summary": summary, "text": text}
+    return await summarize_one(file.filename, text, word_count, page_limit, style, language, instructions, stream)
 
 
 @app.post("/summarize-text")
@@ -743,8 +797,12 @@ async def summarize_multiple(
     if not 1 <= len(files) <= MAX_FILES:
         raise HTTPException(422, f"Upload between 1 and {MAX_FILES} files")
 
-    docs = [(file.filename or "document.pdf", await read_pdf_upload(file, ocr_pages)) for file in files]
+    docs = await read_uploads(files, ocr_pages)
     check_documents(docs)
+    if len(docs) == 1:
+        # Several photos are the pages of one document: it is summarized as one, not as a set of documents.
+        name, text = docs[0]
+        return await summarize_one(name, text, word_count, page_limit, style, language, instructions, stream)
     extra = {"filename": label_for(docs), "text": combine_documents(docs)}
 
     key = multi_cache_key(docs, word_count, page_limit, style, language, instructions)

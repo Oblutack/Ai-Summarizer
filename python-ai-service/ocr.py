@@ -85,11 +85,13 @@ def render_page(pdf: bytes, index: int) -> bytes:
     return buffer.getvalue()
 
 
-def read_picture(png: bytes, languages: str = LANGUAGES, timeout: float = PAGE_TIMEOUT_SECONDS) -> str:
-    """The text Tesseract finds in a picture."""
+def run_tesseract(
+    png: bytes, languages: str, timeout: float, *options: str, must_succeed: bool = True
+) -> "subprocess.CompletedProcess[bytes]":
+    """Runs the tesseract program on a picture and returns what it finished with (its output is in `.stdout`)."""
     try:
         done = subprocess.run(
-            ["tesseract", "stdin", "stdout", "-l", languages, "--psm", "3"],
+            ["tesseract", "stdin", "stdout", "-l", languages, *options],
             input=png,
             capture_output=True,
             timeout=timeout,
@@ -101,10 +103,15 @@ def read_picture(png: bytes, languages: str = LANGUAGES, timeout: float = PAGE_T
         raise OcrError(503, "Reading scanned pages is not available on this server.") from exc
     except subprocess.TimeoutExpired as exc:
         raise OcrError(504, "Reading a scanned page took too long.") from exc
-    if done.returncode != 0:
+    if must_succeed and done.returncode != 0:
         logger.error("tesseract failed (exit %s): %s", done.returncode, done.stderr[:300].decode("utf-8", "replace"))
         raise OcrError(422, "A scanned page could not be read. The file may be damaged.")
-    return done.stdout.decode("utf-8", "replace").strip()
+    return done
+
+
+def read_picture(png: bytes, languages: str = LANGUAGES, timeout: float = PAGE_TIMEOUT_SECONDS) -> str:
+    """The text Tesseract finds in a picture."""
+    return run_tesseract(png, languages, timeout, "--psm", "3").stdout.decode("utf-8", "replace").strip()
 
 
 def read_pages(pdf: bytes, indexes: list[int], languages: Optional[str] = None) -> dict[int, str]:
