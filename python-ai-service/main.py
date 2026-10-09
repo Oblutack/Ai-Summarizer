@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from pypdf import PdfReader
 
 import embeddings
+import ocr
 from attribution import check_summary
 from cache import from_env as cache_from_env
 from cache import summary_key
@@ -80,6 +81,8 @@ logger = logging.getLogger("ai-summarizer")
 MAX_PDF_BYTES = 10 * 1024 * 1024
 # A web page with less text than this is a login wall, an app shell or an error page, not an article.
 MIN_PAGE_CHARS = 200
+# A PDF with fewer letters and digits than this in all is a scan (it has no text layer), not a short document.
+SCAN_MAX_CHARACTERS = 3
 MAX_TEXT_CHARS = 200_000
 MAX_FILES = 5
 # A collection overview is written from the stored summaries of the documents in it.
@@ -358,7 +361,35 @@ def extract_pdf_text(path: str) -> str:
     return PAGE_BREAK.join(page.extract_text() or "" for page in PdfReader(path).pages)
 
 
-def extract_pdf_bytes(content: bytes, filename: str = "document.pdf") -> str:
+def add_scanned_pages(content: bytes, text: str, filename: str, allow_ocr: bool) -> str:
+    """Fills in the pages of a PDF that have no text of their own (pictures of text) by reading them with OCR.
+
+    Reading scanned pages is real work, so it is only done when the caller allows it (the gateway does, for signed-in
+    people). Without it a PDF that is nothing but pictures says why it cannot be read; one that mixes real and scanned
+    pages is used as it is, as before."""
+    pages = text.split(PAGE_BREAK)
+    blank = [i for i, page in enumerate(pages) if ocr.needs_ocr(page)]
+    if not blank or not ocr.available():
+        return text
+    if not allow_ocr:
+        # Nothing at all (not even a page number) is what a scan looks like; a short document is only short.
+        if len(blank) == len(pages) and ocr.characters(text) < SCAN_MAX_CHARACTERS:
+            raise HTTPException(
+                422, f"{filename} has no text of its own (it looks like a scan). Sign in to have its pages read."
+            )
+        return text
+    try:
+        read = ocr.read_pages(content, blank)
+    except ocr.OcrError as exc:
+        raise HTTPException(exc.status, exc.message) from exc
+    for index, page_text in read.items():
+        # A page that had a little text of its own keeps it unless reading the picture found more.
+        if ocr.characters(page_text) > ocr.characters(pages[index]):
+            pages[index] = page_text
+    return PAGE_BREAK.join(pages)
+
+
+def extract_pdf_bytes(content: bytes, filename: str = "document.pdf", allow_ocr: bool = False) -> str:
     """The text of PDF bytes, raising client-safe HTTP errors."""
     temp_pdf_path = None
     try:
@@ -366,16 +397,17 @@ def extract_pdf_bytes(content: bytes, filename: str = "document.pdf") -> str:
             temp_pdf.write(content)
             temp_pdf_path = temp_pdf.name
         try:
-            return extract_pdf_text(temp_pdf_path)
+            text = extract_pdf_text(temp_pdf_path)
         except Exception as exc:
             logger.exception("Failed to parse PDF")
             raise HTTPException(422, f"Could not read {filename}. It may be corrupted or password-protected.") from exc
+        return add_scanned_pages(content, text, filename, allow_ocr)
     finally:
         if temp_pdf_path and os.path.exists(temp_pdf_path):
             os.unlink(temp_pdf_path)
 
 
-def extract_upload_text(filename: str, content: bytes) -> str:
+def extract_upload_text(filename: str, content: bytes, allow_ocr: bool = False) -> str:
     """The text of an uploaded document: a PDF, or a Word or PowerPoint file."""
     try:
         office = office_text(filename, content)
@@ -384,7 +416,7 @@ def extract_upload_text(filename: str, content: bytes) -> str:
         raise HTTPException(422, f"Could not read {filename}. It may be corrupted or not a real Office file.") from exc
     if office is not None:
         return office
-    return extract_pdf_bytes(content, filename)
+    return extract_pdf_bytes(content, filename, allow_ocr)
 
 
 async def transcribe_upload(file: UploadFile) -> str:
@@ -398,7 +430,7 @@ async def transcribe_upload(file: UploadFile) -> str:
         raise HTTPException(exc.status, exc.message, headers=headers) from exc
 
 
-async def read_pdf_upload(file: UploadFile) -> str:
+async def read_pdf_upload(file: UploadFile, allow_ocr: bool = False) -> str:
     """Reads an uploaded document (PDF, Word, PowerPoint or a recording) and returns its text, raising client-safe
     HTTP errors."""
     if is_audio(file.filename or ""):
@@ -406,10 +438,10 @@ async def read_pdf_upload(file: UploadFile) -> str:
     content = await file.read(MAX_PDF_BYTES + 1)
     if len(content) > MAX_PDF_BYTES:
         raise HTTPException(413, f"{file.filename} is too large (max 10 MB)")
-    return await asyncio.to_thread(extract_upload_text, file.filename or "document.pdf", content)
+    return await asyncio.to_thread(extract_upload_text, file.filename or "document.pdf", content, allow_ocr)
 
 
-async def read_web_page(raw_url: str) -> tuple[str, str]:
+async def read_web_page(raw_url: str, allow_ocr: bool = False) -> tuple[str, str]:
     """Fetches a web address and returns (title, text), raising client-safe HTTP errors."""
     try:
         page = await fetch_page(raw_url)
@@ -417,25 +449,27 @@ async def read_web_page(raw_url: str) -> tuple[str, str]:
         raise HTTPException(exc.status, exc.message) from exc
 
     if page.kind == "pdf":
-        text = await asyncio.to_thread(extract_pdf_bytes, page.body, "that PDF")
+        text = await asyncio.to_thread(extract_pdf_bytes, page.body, "that PDF", allow_ocr)
         title = urlsplit(page.final_url).path.rsplit("/", 1)[-1] or title_from_url(page.final_url)
     elif page.kind == "text":
         text, title = decode_body(page.body, page.charset), title_from_url(page.final_url)
     else:
         title, text = await asyncio.to_thread(html_to_text, decode_body(page.body, page.charset))
-    if len(text.strip()) < MIN_PAGE_CHARS:
-        raise HTTPException(
-            422,
-            "Inkling could not find readable text on that page. Pages that need JavaScript or a login "
-            "are not supported: copy the text and paste it instead.",
-        )
+        # A web page with almost no text is a login wall or an app that needs JavaScript. A short PDF or text file
+        # is just short, and says so itself if it has nothing.
+        if len(text.strip()) < MIN_PAGE_CHARS:
+            raise HTTPException(
+                422,
+                "Inkling could not find readable text on that page. Pages that need JavaScript or a login "
+                "are not supported: copy the text and paste it instead.",
+            )
     return (title or title_from_url(page.final_url))[:200], text
 
 
 def check_text(text: str) -> None:
     """Rejects input that can't be summarized, before any LLM work or streaming starts."""
     if not text.strip():
-        raise HTTPException(422, "No text found to summarize. Scanned PDFs (images) are not supported.")
+        raise HTTPException(422, "No readable text was found to summarize.")
     if len(text) > MAX_TEXT_CHARS:
         raise HTTPException(413, f"Text is too long (max {MAX_TEXT_CHARS} characters)")
 
@@ -443,7 +477,7 @@ def check_text(text: str) -> None:
 def check_documents(docs: list[tuple[str, str]]) -> None:
     for name, text in docs:
         if not text.strip():
-            raise HTTPException(422, f"No text found in {name}. Scanned PDFs (images) are not supported.")
+            raise HTTPException(422, f"No readable text was found in {name}.")
     if sum(len(text) for _, text in docs) > MAX_MULTI_TEXT_CHARS:
         raise HTTPException(413, f"The documents are too long together (max {MAX_MULTI_TEXT_CHARS} characters)")
 
@@ -528,10 +562,11 @@ async def summarize_file(
     style: str = Form(DEFAULT_STYLE),
     language: str = Form(DEFAULT_LANGUAGE),
     instructions: str = Form(""),
+    ocr_pages: bool = Form(False, alias="ocr"),
     stream: bool = Query(False),
 ):
     validate_options(word_count, page_limit, style, language, instructions)
-    text = await read_pdf_upload(file)
+    text = await read_pdf_upload(file, ocr_pages)
     check_text(text)
 
     if stream:
@@ -587,12 +622,13 @@ async def summarize_url(
     style: str = Query(DEFAULT_STYLE),
     language: str = Query(DEFAULT_LANGUAGE),
     instructions: str = Query(""),
+    ocr_pages: bool = Query(False, alias="ocr"),
     stream: bool = Query(False),
 ):
     """Summarizes the page at a web address. The page is read first (so a bad address is a plain error, not
     a failed stream), then summarized like any other text."""
     validate_options(word_count, page_limit, style, language, instructions)
-    title, text = await read_web_page(payload.url)
+    title, text = await read_web_page(payload.url, ocr_pages)
     check_text(text)
 
     if stream:
@@ -700,13 +736,14 @@ async def summarize_multiple(
     style: str = Form(DEFAULT_STYLE),
     language: str = Form(DEFAULT_LANGUAGE),
     instructions: str = Form(""),
+    ocr_pages: bool = Form(False, alias="ocr"),
     stream: bool = Query(False),
 ):
     validate_options(word_count, page_limit, style, language, instructions)
     if not 1 <= len(files) <= MAX_FILES:
         raise HTTPException(422, f"Upload between 1 and {MAX_FILES} files")
 
-    docs = [(file.filename or "document.pdf", await read_pdf_upload(file)) for file in files]
+    docs = [(file.filename or "document.pdf", await read_pdf_upload(file, ocr_pages)) for file in files]
     check_documents(docs)
     extra = {"filename": label_for(docs), "text": combine_documents(docs)}
 

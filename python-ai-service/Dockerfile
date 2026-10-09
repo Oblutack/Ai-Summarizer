@@ -6,6 +6,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Tesseract reads scanned pages (see ocr.py), with the Latin-script languages OCR_LANGUAGES names. Each language is a few megabytes.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-fra \
+       tesseract-ocr-spa tesseract-ocr-ita tesseract-ocr-por tesseract-ocr-hrv \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
