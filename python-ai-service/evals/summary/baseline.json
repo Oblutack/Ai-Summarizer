@@ -1,60 +1,38 @@
 {
- "label": "current-defaults",
- "time": "2026-10-09 01:48:53",
+ "label": "rules-v3 (3 samples; traps corrected after reading the results)",
+ "time": "2026-10-09 02:56:05",
  "settings": {
   "model": "openai/gpt-oss-20b",
   "reasoningEffort": "low",
   "temperature": "0.3",
   "promptVersion": "2"
  },
- "samples": 6,
+ "samples": 3,
  "summary": {
   "overall": {
-   "runs": 126,
-   "clean": 0.952,
-   "recall": 0.96,
-   "trapRate": 0.016,
-   "inventedNumberRate": 0.016,
+   "runs": 63,
+   "clean": 1.0,
+   "recall": 0.979,
+   "trapRate": 0.0,
+   "inventedNumberRate": 0.0,
    "formatProblemRate": 0.0,
    "languageOk": 1.0,
-   "lengthOk": 0.913,
-   "lengthRatio": 0.84
+   "lengthOk": 0.937,
+   "lengthRatio": 0.85
   },
   "cases": {
    "lease": {
-    "runs": 18,
-    "clean": 0.889,
-    "recall": 0.944,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.111,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 1.07
-   },
-   "northwind_q2": {
-    "runs": 12,
-    "clean": 0.917,
-    "recall": 1.0,
-    "trapRate": 0.083,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 0.83
-   },
-   "deck": {
-    "runs": 12,
+    "runs": 9,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
-    "lengthOk": 0.083,
-    "lengthRatio": 0.43
+    "lengthOk": 1.0,
+    "lengthRatio": 1.08
    },
-   "news": {
+   "northwind_q2": {
     "runs": 6,
     "clean": 1.0,
     "recall": 1.0,
@@ -63,21 +41,21 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.79
+    "lengthRatio": 0.86
    },
-   "cpp": {
-    "runs": 12,
+   "deck": {
+    "runs": 6,
     "clean": 1.0,
-    "recall": 0.95,
+    "recall": 1.0,
     "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 0.87
+    "lengthOk": 0.333,
+    "lengthRatio": 0.48
    },
-   "meeting": {
-    "runs": 12,
+   "news": {
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -85,12 +63,34 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.84
+    "lengthRatio": 0.8
+   },
+   "cpp": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.9
+   },
+   "meeting": {
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.97
    },
    "warranty": {
-    "runs": 12,
+    "runs": 6,
     "clean": 1.0,
-    "recall": 0.875,
+    "recall": 0.861,
     "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
@@ -99,7 +99,7 @@
     "lengthRatio": 0.72
    },
    "finance": {
-    "runs": 12,
+    "runs": 6,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -107,21 +107,21 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.54
+    "lengthRatio": 0.64
    },
    "spanish_source": {
-    "runs": 12,
-    "clean": 0.833,
-    "recall": 0.833,
+    "runs": 6,
+    "clean": 1.0,
+    "recall": 0.917,
     "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.71
+    "lengthRatio": 0.65
    },
    "long_report": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -129,10 +129,10 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 1.17
+    "lengthRatio": 1.01
    },
    "multi": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -143,20 +143,7 @@
     "lengthRatio": 1.2
    },
    "overview": {
-    "runs": 6,
-    "clean": 0.833,
-    "recall": 1.0,
-    "trapRate": 0.167,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 1.44
-   }
-  },
-  "variants": {
-   "lease default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -164,12 +151,25 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.96
+    "lengthRatio": 1.21
+   }
+  },
+  "variants": {
+   "lease default/English/150w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.95
    },
    "lease bullets/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
-    "recall": 0.833,
+    "recall": 1.0,
     "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
@@ -178,18 +178,7 @@
     "lengthRatio": 1.01
    },
    "lease default/Spanish/150w": {
-    "runs": 6,
-    "clean": 0.667,
-    "recall": 1.0,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.333,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 1.23
-   },
-   "northwind_q2 default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -197,21 +186,32 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.65
+    "lengthRatio": 1.27
    },
-   "northwind_q2 brief/English/150w": {
-    "runs": 6,
-    "clean": 0.833,
+   "northwind_q2 default/English/150w": {
+    "runs": 3,
+    "clean": 1.0,
     "recall": 1.0,
-    "trapRate": 0.167,
+    "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 1.01
+    "lengthRatio": 0.64
+   },
+   "northwind_q2 brief/English/150w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.08
    },
    "deck default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -219,21 +219,21 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 0.0,
-    "lengthRatio": 0.43
-   },
-   "deck simple/English/150w": {
-    "runs": 6,
-    "clean": 1.0,
-    "recall": 1.0,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 0.167,
     "lengthRatio": 0.44
    },
+   "deck simple/English/150w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 0.667,
+    "lengthRatio": 0.51
+   },
    "news default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -241,21 +241,21 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.79
+    "lengthRatio": 0.8
    },
    "cpp default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
-    "recall": 0.9,
+    "recall": 1.0,
     "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.85
+    "lengthRatio": 0.92
    },
    "cpp bullets/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -263,10 +263,10 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.89
+    "lengthRatio": 0.88
    },
    "meeting takeaways/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -274,10 +274,10 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 1.02
+    "lengthRatio": 1.28
    },
    "meeting default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -285,10 +285,10 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.67
+    "lengthRatio": 0.66
    },
    "warranty default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 0.833,
     "trapRate": 0.0,
@@ -296,54 +296,10 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.59
+    "lengthRatio": 0.67
    },
    "warranty simple/English/150w": {
-    "runs": 6,
-    "clean": 1.0,
-    "recall": 0.917,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 0.84
-   },
-   "finance default/English/150w": {
-    "runs": 6,
-    "clean": 1.0,
-    "recall": 1.0,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 0.56
-   },
-   "finance bullets/English/150w": {
-    "runs": 6,
-    "clean": 1.0,
-    "recall": 1.0,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 0.53
-   },
-   "spanish_source default/English/150w": {
-    "runs": 6,
-    "clean": 0.667,
-    "recall": 0.778,
-    "trapRate": 0.0,
-    "inventedNumberRate": 0.0,
-    "formatProblemRate": 0.0,
-    "languageOk": 1.0,
-    "lengthOk": 1.0,
-    "lengthRatio": 0.7
-   },
-   "spanish_source default/Spanish/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 0.889,
     "trapRate": 0.0,
@@ -351,10 +307,10 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 0.71
+    "lengthRatio": 0.78
    },
-   "long_report default/English/300w": {
-    "runs": 6,
+   "finance default/English/150w": {
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -362,10 +318,54 @@
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 1.17
+    "lengthRatio": 0.64
+   },
+   "finance bullets/English/150w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.64
+   },
+   "spanish_source default/English/150w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 0.889,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.64
+   },
+   "spanish_source default/Spanish/150w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 0.944,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 0.66
+   },
+   "long_report default/English/300w": {
+    "runs": 3,
+    "clean": 1.0,
+    "recall": 1.0,
+    "trapRate": 0.0,
+    "inventedNumberRate": 0.0,
+    "formatProblemRate": 0.0,
+    "languageOk": 1.0,
+    "lengthOk": 1.0,
+    "lengthRatio": 1.01
    },
    "multi default/English/150w": {
-    "runs": 6,
+    "runs": 3,
     "clean": 1.0,
     "recall": 1.0,
     "trapRate": 0.0,
@@ -376,15 +376,15 @@
     "lengthRatio": 1.2
    },
    "overview default/English/150w": {
-    "runs": 6,
-    "clean": 0.833,
+    "runs": 3,
+    "clean": 1.0,
     "recall": 1.0,
-    "trapRate": 0.167,
+    "trapRate": 0.0,
     "inventedNumberRate": 0.0,
     "formatProblemRate": 0.0,
     "languageOk": 1.0,
     "lengthOk": 1.0,
-    "lengthRatio": 1.44
+    "lengthRatio": 1.21
    }
   },
   "errors": 0
