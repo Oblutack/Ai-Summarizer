@@ -69,6 +69,7 @@ Inkling turns PDFs, Word and PowerPoint files, photos of pages, web pages, recor
 
 ### Built for production
 - Per-user daily quotas (with refunds when work fails), per-IP and per-user rate limits, a per-account login throttle, and optional **Cloudflare Turnstile** bot protection.
+- **A spending guard** keeps the model bill bounded: visitors without an account get a few summaries a day (counted by a keyed hash of their address, never the address), and the whole site has a daily budget of AI work that pauses it until midnight UTC when used up, on top of each person's daily quota. Work that fails is given back. See *Spending limits* in `docs/DEPLOYMENT.md`.
 - A circuit breaker and automatic model fallback so a provider outage or a retired model degrades gracefully instead of hanging.
 - Structured JSON logs with a request ID that follows each request from the browser through the Go API into the AI service.
 - Health and readiness endpoints, Docker health checks, non-root images, SQL migrations, and CI that runs every test suite against a real Postgres.
@@ -278,6 +279,8 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `MAIL_FROM`, `BREVO_API_KEY`, `RESEND_API_KEY` | - | Sender and provider credentials. |
 | `REQUIRE_EMAIL_VERIFICATION` | `false` | Require a confirmed email before summarizing. |
 | `QUOTA_SUMMARIES_PER_DAY`, `QUOTA_CHAT_PER_DAY` | `50`, `200` | Daily limits per signed-in user (UTC day, `0` = unlimited). |
+| `ANON_SUMMARIES_PER_DAY`, `AI_REQUESTS_PER_DAY` | `10`, `5000` | The spending guard: summaries one visitor without an account may make a day, and all the AI work the whole site may start a day (`0` = unlimited). When the site's budget is used up, AI work pauses until midnight UTC while everything else keeps working. |
+| `IP_HASH_KEY` | the AI service token | Secret that keys the hash of a visitor's address. Addresses are never stored, only this hash, and only for a few days. |
 | `TURNSTILE_SECRET` | empty (off) | Enables the Cloudflare Turnstile check. Pair with `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in the frontend. |
 | `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN` | `false` (compose), `lax` | Session cookie attributes. See [Deployment](#deployment). |
 | `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL` | `http://localhost:3000` | Allowed browser origins and the base URL of emailed links. |

@@ -78,6 +78,16 @@ The robust fix is one domain for both: for example `app.example.com` (Vercel) an
 
 Rate limits are per client address. Behind Render's proxy the API only sees the proxy's address unless it is told whom to trust. Set `TRUSTED_PROXIES` on **inkling-api** to the comma-separated address ranges of Render's proxy (see Render's documentation for current ranges). Until you do, the API logs a warning and trusts the forwarding header from anyone, which means a determined user could dodge the per-address limits (the per-user limits and daily quotas still apply).
 
+## Spending limits
+
+The language model is paid for by use, so three layers keep the bill bounded. Set them up before inviting anyone:
+
+1. **A hard cap at Groq.** In the [Groq console](https://console.groq.com) set a monthly spend limit and a usage alert. This is the real backstop: it works even if everything below is bypassed or buggy.
+2. **The human check.** Create a Cloudflare Turnstile widget and set `TURNSTILE_SECRET` (API) and `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend). Without it, bots can sign up and use the anonymous routes freely. Also set `REQUIRE_EMAIL_VERIFICATION=true`.
+3. **The limits in the API** (all counted per UTC day, `0` = unlimited): `ANON_SUMMARIES_PER_DAY` (default 10) for a visitor without an account, `QUOTA_SUMMARIES_PER_DAY` (50) and `QUOTA_CHAT_PER_DAY` (200) per signed-in user, and `AI_REQUESTS_PER_DAY` (default 5000) for the whole site: when that is used up, AI work pauses until midnight UTC and the logs say so (`daily AI budget used up`). At about a twentieth of a cent per ordinary summary, 5000 is a few dollars at most; lower it while you are starting out.
+
+A visitor is told apart by network address, so **`TRUSTED_PROXIES` (section 4) matters for these limits too**: if it is unset, anyone can send an `X-Forwarded-For` header to look like a new visitor on every request. The site-wide budget still holds, but set `TRUSTED_PROXIES` first.
+
 ## 5. Email
 
 Verification and password-reset emails need a provider. Out of the box (`MAIL_PROVIDER=log`) they are only written to the logs. Create a [Brevo](https://www.brevo.com) or [Resend](https://resend.com) account, then set `MAIL_PROVIDER`, `MAIL_FROM` and the matching API key on **inkling-api**. Set `REQUIRE_EMAIL_VERIFICATION=true` once mail works if you want confirmed addresses only.
