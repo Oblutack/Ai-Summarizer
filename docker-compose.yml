@@ -75,6 +75,9 @@ services:
       - TURNSTILE_SECRET=${TURNSTILE_SECRET:-}
       - QUOTA_SUMMARIES_PER_DAY=${QUOTA_SUMMARIES_PER_DAY:-50}
       - QUOTA_CHAT_PER_DAY=${QUOTA_CHAT_PER_DAY:-200}
+      # Spending guard: a visitor's summaries a day without an account, and the AI work the whole site starts a day.
+      - ANON_SUMMARIES_PER_DAY=${ANON_SUMMARIES_PER_DAY:-10}
+      - AI_REQUESTS_PER_DAY=${AI_REQUESTS_PER_DAY:-5000}
       # Multiplies every request rate limit (default 1).
       - RATE_LIMIT_MULTIPLIER=${RATE_LIMIT_MULTIPLIER:-1}
       # How much original PDF data each user may keep for the document viewer (0 = keep none).

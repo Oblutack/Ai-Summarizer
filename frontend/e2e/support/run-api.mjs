@@ -50,6 +50,9 @@ const child = spawn(bin, [], {
     TURNSTILE_SECRET: "",
     QUOTA_SUMMARIES_PER_DAY: "50",
     QUOTA_CHAT_PER_DAY: "200",
+    // The spending guard is on, with room for the whole suite (every test visits from the same address).
+    ANON_SUMMARIES_PER_DAY: "1000",
+    AI_REQUESTS_PER_DAY: "100000",
     // Every test signs up and logs in from the same address; lift the per-IP limits for the suite.
     RATE_LIMIT_MULTIPLIER: "100",
     LOG_FORMAT: "json",
