@@ -4,7 +4,7 @@
 //   POST /summarize-text[?stream=true]   JSON {text}
 //   POST /overview[?stream=true]         JSON {name, documents}: a briefing that lists them
 //   POST /summarize-url[?stream=true]    JSON {url}: the page is titled "Page from <host>"
-//   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s)
+//   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s); a recording's text is a transcript
 //   POST /chat                           JSON {text, question, history}
 //   POST /embed                          JSON {texts, kind}: word-bucket vectors, synonyms share a bucket
 // Magic inputs: text containing FAIL_ME makes the "model" fail; SLOW_ME makes it write slowly.
@@ -149,7 +149,15 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/summarize" || url.pathname === "/summarize-multiple") {
     const names = uploadedNames(body);
     const filename = names.join(", ");
-    const text = `(stub) extracted text of ${filename}`;
+    // A recording is transcribed first: its text is a transcript with the time of each paragraph.
+    const recording = names.length === 1 && /\.(mp3|m4a|wav|ogg|flac|webm|mp4|mpeg|mpga)$/i.test(names[0]);
+    const text = recording
+      ? `Transcript of ${filename} (length 1:00).
+
+[0:00] The stub transcript of ${filename}.
+
+[0:30] Priya will send the budget by Friday.`
+      : `(stub) extracted text of ${filename}`;
     const summary = summaryOf(filename, text);
     if (stream) return streamSummary(res, summary, { filename, text }, {});
     return json(res, 200, { filename, summary, text });
