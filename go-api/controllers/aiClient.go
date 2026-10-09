@@ -46,7 +46,7 @@ type URLPayload struct {
 	URL string `json:"url"`
 }
 
-const unsupportedFileMessage = "Only PDF, Word (.docx), PowerPoint (.pptx) and audio files are supported."
+const unsupportedFileMessage = "Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP) are supported."
 
 // documentExtensions are the file types that can be summarized. Only PDFs are kept as originals: the
 // viewer shows PDF pages.
@@ -58,6 +58,15 @@ var audioExtensions = []string{".mp3", ".mpga", ".mpeg", ".m4a", ".mp4", ".wav",
 
 func isAudio(name string) bool {
 	return contains(audioExtensions, strings.ToLower(filepath.Ext(name)))
+}
+
+// imageExtensions are photos of pages. Their text is read with OCR, which is real work on the server, so photos are
+// for signed-in people. Several photos in one upload become the pages of one document. They are not kept: the text
+// is, and shows what was read.
+var imageExtensions = []string{".jpg", ".jpeg", ".png", ".webp"}
+
+func isImage(name string) bool {
+	return contains(imageExtensions, strings.ToLower(filepath.Ext(name)))
 }
 
 // contentTypeOf is what a stored file is sent as: the browser must be told what it is, since it is never allowed to guess.
@@ -84,7 +93,7 @@ func contentTypeOf(name string) string {
 }
 
 func isDocumentFile(name string) bool {
-	return contains(documentExtensions, strings.ToLower(filepath.Ext(name))) || isAudio(name)
+	return contains(documentExtensions, strings.ToLower(filepath.Ext(name))) || isAudio(name) || isImage(name)
 }
 
 // MaxAudioBytes is the largest recording accepted: MAX_AUDIO_MB megabytes, 25 unless set (what the speech-to-text
@@ -109,7 +118,7 @@ func signedIn(c *gin.Context) bool {
 	return ok
 }
 
-// checkUpload rejects a file that is too big for its kind, or a recording from someone who is not signed in.
+// checkUpload rejects a file that is too big for its kind, or a recording or photo from someone who is not signed in.
 // readFields are the options for the AI service, plus permission to read scanned pages (OCR) when the person is
 // signed in: it is real work on the server, so the public routes do not get it.
 func readFields(c *gin.Context, opts summaryOptions) map[string]string {
@@ -129,6 +138,9 @@ func checkUpload(c *gin.Context, name string, size int64) *apiError {
 			return &apiError{http.StatusRequestEntityTooLarge, fmt.Sprintf("%s is too large (max %d MB for a recording).", name, MaxAudioBytes()>>20)}
 		}
 		return nil
+	}
+	if isImage(name) && !signedIn(c) {
+		return &apiError{http.StatusUnauthorized, "Sign in to summarize a photo."}
 	}
 	if size > MaxPDFBytes {
 		return &apiError{http.StatusRequestEntityTooLarge, name + " is too large (max 10 MB per file)."}
@@ -423,7 +435,7 @@ func buildFileRequest(c *gin.Context, stream bool) (*aiRequest, *apiError) {
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		return nil, &apiError{http.StatusBadRequest, "A PDF, Word, PowerPoint or audio file is required."}
+		return nil, &apiError{http.StatusBadRequest, "A PDF, Word, PowerPoint, audio or photo file is required."}
 	}
 	if !isDocumentFile(file.Filename) {
 		return nil, &apiError{http.StatusBadRequest, unsupportedFileMessage}
