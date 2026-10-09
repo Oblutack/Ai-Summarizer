@@ -4,7 +4,7 @@
 
 **Read your documents with a second pair of eyes: summaries, answers that cite the exact page, and a check on whether to trust them.**
 
-Inkling turns PDFs, Word and PowerPoint files, web pages and text into streaming summaries, answers questions about one document or your whole library with page-exact citations, checks its own summaries against the original, and can even turn a document into a podcast. A full-stack, three-service application with an e-ink inspired interface: a Next.js frontend, a Go API gateway, and a Python AI service, backed by PostgreSQL.
+Inkling turns PDFs, Word and PowerPoint files, web pages, recordings and text into streaming summaries, answers questions about one document or your whole library with page-exact citations, checks its own summaries against the original, and can even turn a document into a podcast. A full-stack, three-service application with an e-ink inspired interface: a Next.js frontend, a Go API gateway, and a Python AI service, backed by PostgreSQL.
 
 [![CI](https://github.com/Oblutack/Inkling/actions/workflows/ci.yml/badge.svg)](https://github.com/Oblutack/Inkling/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -30,6 +30,7 @@ Inkling turns PDFs, Word and PowerPoint files, web pages and text into streaming
 
 ### Summarization
 - **PDFs, Word, PowerPoint, web links or pasted text.** Drop in up to **5 files** (PDF, `.docx` or `.pptx`, 10 MB each, mixed freely) and get one combined summary that calls out overlaps and differences between them, or paste a web address and Inkling reads the page (articles, documentation, even a link straight to a PDF). Slides count as pages, so answers can cite a slide.
+- **Recordings and meetings.** Signed-in people can drop in a recording (`.mp3`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.webm` or a `.mp4` video, up to 25 MB): it is transcribed with Whisper on Groq (about four cents per hour of audio), then summarized, chatted with, checked against the original, turned into flashcards or a podcast, like any document. The *Takeaways + Actions* style gives the decisions and who does what by when. The transcript, with the time of each paragraph and a page for every five minutes, can be read and copied from the saved summary (*More*, *Show the transcript*). Whisper does not tell voices apart, so the transcript has no speaker names, and the summary is told not to invent any. Anonymous visitors cannot use it (it costs money).
 - **Live streaming.** Words appear as the model writes them, with real progress ("Summarized 3 of 8 sections") for long documents, and a Cancel button that actually stops the work.
 - **Five styles and 15 languages.** Standard, bullet points, executive brief, explain-it-simply, or takeaways with action items, in any of 15 output languages regardless of the source language.
 - **Length control.** A word-count slider for short summaries, or a page limit for long documents.
@@ -200,7 +201,7 @@ All endpoints are served by the Go gateway on port `8080`. Authenticated routes 
 | `POST` | `/public/summarize-multiple` | none | Summarize up to 5 PDFs (multipart `files`). |
 | `POST` | `/public/summarize-text` | none | Summarize pasted text (`{"text": "..."}`). |
 | `POST` | `/public/summarize-url` | none | Summarize the web page (or PDF) at an address (`{"url": "https://..."}`). |
-| `POST` | `/summarize`, `/summarize-multiple`, `/summarize-text`, `/summarize-url` | session | Same, but the result is saved to the user's history. Counts against the daily quota. |
+| `POST` | `/summarize`, `/summarize-multiple`, `/summarize-text`, `/summarize-url` | session | Same (and `/summarize` and `/summarize-multiple` also take recordings, which the public routes refuse), but the result is saved to the user's history. Counts against the daily quota. |
 | `POST` | `/documents/:id/chat` | session | Ask a question about a saved document (`{"question", "history"}`). Replies with `{"answer", "sources"}`: the answer has `[1]`-style markers, and `sources` lists the cited passages (`id`, `text`, `page`, `pageEnd`, `document`). |
 | `GET` | `/documents?limit=20&before=<id>` | session | List saved documents, newest first. The next cursor is in the `X-Next-Cursor` header. |
 | `DELETE` | `/documents/:id` | session | Delete a saved document (and its stored original PDFs). |
@@ -216,6 +217,7 @@ All endpoints are served by the Go gateway on port `8080`. Authenticated routes 
 | `POST` | `/library/overview` | session | One briefing on the documents with a tag (`{"tag"}`, at least two documents), written from their saved summaries; takes `wordCount`, `style`, `language` and `?stream=true` like a summary, is not saved, and counts as a summary. |
 | `POST` | `/library/ask` | session | Ask a question across all of your saved documents, or only those with one tag (`{"question", "history", "tag"?}`). Replies with `{"answer", "sources"}`; each source names its document (`documentId`, `documentTitle`, `savedAt`), page, and the stored original (`fileId`) when there is one. Counts as a chat question. |
 | `POST` | `/documents/:id/proof` | session | Check each sentence of a saved summary against its document. Replies with the sentences, a verdict (`strong`, `weak`, `none`) for each, the matching passages with their pages, and counts. Uses no model call, so it does not count against the daily quota. |
+| `GET` | `/documents/:id/text` | session | The text a document was made from (a recording's transcript), to its owner only; never on a share link. |
 | `GET` | `/documents/:id/files/:fileId` | session | Download one stored original PDF of your own document. Document list entries carry a `files` array (`id`, `name`, `size`). |
 
 Common parameters: `wordCount` (50-1000), `pageLimit` (0-20), `style` (`default`, `bullets`, `brief`, `simple`, `takeaways`), `language`. Add **`?stream=true`** to any summarize route to receive server-sent events:
@@ -279,6 +281,7 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL` | `http://localhost:3000` | Allowed browser origins and the base URL of emailed links. |
 | `TRUSTED_PROXIES` | unset | CIDRs of your reverse proxy, so client IPs (and rate limits) cannot be spoofed. |
 | `RATE_LIMIT_MULTIPLIER` | `1` | Multiplies every request rate limit, for deployments with many users behind one address. |
+| `MAX_AUDIO_MB`, `STT_MODEL` | `25`, `whisper-large-v3-turbo` | The biggest recording accepted (25 MB is what Groq takes on its free tier, 100 MB on the paid one) and the speech-to-text model (`whisper-large-v3` is a little more accurate at about 11 cents an hour). |
 | `STORED_FILES_MB_PER_USER` | `100` | Original PDF data kept per user for the document viewer. `0` keeps none; summaries and chat still work. |
 | `EMBEDDINGS`, `EMBEDDING_MODEL`, `EMBEDDING_MIN_SCORE` | `on`, `BAAI/bge-small-en-v1.5`, per model | Search by meaning (AI service). `EMBEDDINGS=off` switches it off and search is by keyword only, which saves about 200 MB of memory. A larger model such as `thenlper/gte-base` (a 440 MB download) finds more but needs correspondingly more memory. The score is the lowest similarity that still counts as related; the default is deliberately low. Changing the model re-embeds your passages gradually as questions are asked. |
 | `AI_SERVICE_TOKEN` | empty | Shared secret between the Go API and the AI service (same value on both). Required when the AI service is reachable from the internet. |
@@ -390,7 +393,7 @@ What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactl
 | Abuse | Per-IP and per-user rate limits, atomic daily quotas, optional Turnstile, request and upload size caps. |
 | Fetching web pages | The AI service only opens public addresses: every address, and every redirect, must resolve to the public internet (no loopback, private ranges, cloud metadata or Docker-internal names), the address the connection really reached is checked before any of the reply is read (so DNS tricks fail), and downloads are capped in size and time, with no proxies, cookies or credentials. |
 | Uploaded Office files | `.docx` and `.pptx` are unpacked with size limits against zip bombs, and XML with entity declarations is refused. |
-| Privacy | Source text never returned to clients; logs contain route patterns and IDs, not content; one-click export and hard deletion. |
+| Privacy | Source text is only returned to its owner when they ask for it (*Show the original text*, the data export), never on a share link; recordings are not kept, only their transcripts; logs contain route patterns and IDs, not content; one-click export and hard deletion. |
 | Service to service | The AI service can require a shared secret (`AI_SERVICE_TOKEN`) so it is safe on a public URL; `/metrics` needs its own bearer token and is off by default; compose binds the database and AI service to localhost only. |
 | Containers | Non-root users; the Go API ships as a static binary in a `scratch` image with nothing else in it; health checks on every service. |
 | Dependencies | Versions pinned in `go.sum`, `pnpm-lock.yaml` and `requirements.txt`. CI fails on known vulnerabilities (`govulncheck`, `pip-audit`, `pnpm audit`), and Dependabot opens weekly update PRs. |
