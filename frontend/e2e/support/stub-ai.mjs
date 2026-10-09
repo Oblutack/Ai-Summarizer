@@ -4,7 +4,8 @@
 //   POST /summarize-text[?stream=true]   JSON {text}
 //   POST /overview[?stream=true]         JSON {name, documents}: a briefing that lists them
 //   POST /summarize-url[?stream=true]    JSON {url}: the page is titled "Page from <host>"
-//   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s); a recording's text is a transcript
+//   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s); a recording's text is a transcript,
+//                                                          photos are pages (text names the file, type and size)
 //   POST /chat                           JSON {text, question, history}
 //   POST /embed                          JSON {texts, kind}: word-bucket vectors, synonyms share a bucket
 // Magic inputs: text containing FAIL_ME makes the "model" fail; SLOW_ME makes it write slowly.
@@ -26,6 +27,21 @@ function readBody(req) {
 function uploadedNames(body) {
   return [...body.toString("latin1").matchAll(/filename="([^"]+)"/g)].map((m) => m[1]);
 }
+
+// The uploaded parts with their type and size, so a test can see what the browser really sent (a photo made smaller, say).
+function uploadedParts(body) {
+  const text = body.toString("latin1");
+  const parts = [];
+  for (const m of text.matchAll(/filename="([^"]+)"\r\nContent-Type: ([^\r]+)\r\n\r\n/g)) {
+    const from = m.index + m[0].length;
+    const to = text.indexOf("\r\n--", from);
+    parts.push({ name: m[1], type: m[2], size: (to < 0 ? text.length : to) - from });
+  }
+  return parts;
+}
+const isPhoto = (name) => /\.(jpe?g|png|webp)$/i.test(name);
+// The field the gateway adds for signed-in people: it allows pictures of text to be read.
+const mayRead = (body) => /name="ocr"\r\n\r\ntrue/.test(body.toString("latin1"));
 
 const words = (text) => text.split(/\s+/).filter(Boolean);
 // `options` (the query string of a text summary) lets tests see which style, length and standing instructions arrived.
@@ -148,7 +164,24 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/summarize" || url.pathname === "/summarize-multiple") {
     const names = uploadedNames(body);
-    const filename = names.join(", ");
+    const pictures = uploadedParts(body).filter((p) => isPhoto(p.name));
+    if (pictures.length > 0 && !mayRead(body)) {
+      return json(res, 422, { detail: "Sign in to have the text in photos read." });
+    }
+    // Photos are the pages of one document, wherever they come among the files (as in the real service).
+    const filename = [
+      ...names.filter((n) => !isPhoto(n)),
+      ...(pictures.length > 0
+        ? [pictures.length === 1 ? pictures[0].name : `${pictures[0].name} (+${pictures.length - 1} more photos)`]
+        : []),
+    ].join(", ");
+    if (pictures.length > 0 && pictures.length === names.length) {
+      const pages = pictures.map((p) => `Text read from the photo ${p.name} (${p.size} bytes).`);
+      const photoText = pages.join("\f");
+      const summary = summaryOf(filename, photoText);
+      if (stream) return streamSummary(res, summary, { filename, text: photoText }, {});
+      return json(res, 200, { filename, summary, text: photoText });
+    }
     // A recording is transcribed first: its text is a transcript with the time of each paragraph.
     const recording = names.length === 1 && /\.(mp3|m4a|wav|ogg|flac|webm|mp4|mpeg|mpga)$/i.test(names[0]);
     const text = recording
