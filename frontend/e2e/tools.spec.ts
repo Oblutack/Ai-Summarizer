@@ -290,10 +290,16 @@ test.describe("sharing, email and exports", () => {
 
     await page.getByRole("button", { name: "More" }).click();
     await page.getByRole("button", { name: "Read aloud" }).click();
-    await expect(page.getByRole("button", { name: "Stop reading" })).toBeVisible();
+    const reader = page.getByTestId("read-aloud");
+    await expect(reader).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken.join(" "))).toContain("Stub summary");
 
-    await page.getByRole("button", { name: "Stop reading" }).click();
+    await reader.getByRole("button", { name: "Stop" }).click();
+    await expect(reader.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+
+    // Closing the reader puts the button back.
+    await page.getByRole("button", { name: "Close the reader" }).first().click();
+    await expect(page.getByTestId("read-aloud")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Read aloud" })).toBeVisible();
   });
 });

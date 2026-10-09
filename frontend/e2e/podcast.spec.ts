@@ -1,71 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { installFakeSpeech, spoken } from "./support/speech";
 import { newSignedInUser, summarizeText } from "./support/helpers";
-
-// Headless Chrome has no speech voices, so tests install a stand-in engine that records what would be
-// spoken, and with which voice, and finishes each piece after a short, adjustable delay.
-async function installFakeSpeech(page: Page, options: { voices?: boolean; delay?: number } = {}) {
-  await page.addInitScript(
-    ({ withVoices, delay }) => {
-      const w = window as unknown as Record<string, unknown>;
-      const spoken: { text: string; voice: string | null; rate: number; pitch: number }[] = [];
-      const timers = new Set<number>();
-      let paused = 0;
-      let resumed = 0;
-      w.__spoken = spoken;
-      w.__speech = { delay, get paused() { return paused; }, get resumed() { return resumed; } };
-
-      class FakeUtterance {
-        text: string;
-        voice: { voiceURI: string } | null = null;
-        rate = 1;
-        pitch = 1;
-        onend: (() => void) | null = null;
-        onerror: (() => void) | null = null;
-        constructor(text: string) {
-          this.text = text;
-        }
-      }
-      w.SpeechSynthesisUtterance = FakeUtterance;
-
-      const voices = withVoices
-        ? [
-            { voiceURI: "fake-alex", name: "Fake Alex", lang: "en-US", default: true },
-            { voiceURI: "fake-sam", name: "Fake Sam", lang: "en-GB", default: false },
-          ]
-        : [];
-      Object.defineProperty(window, "speechSynthesis", {
-        configurable: true,
-        value: {
-          getVoices: () => voices,
-          addEventListener() {},
-          removeEventListener() {},
-          speak(u: FakeUtterance) {
-            spoken.push({ text: u.text, voice: u.voice?.voiceURI ?? null, rate: u.rate, pitch: u.pitch });
-            const timer = window.setTimeout(() => {
-              timers.delete(timer);
-              u.onend?.();
-            }, (w.__speech as { delay: number }).delay);
-            timers.add(timer);
-          },
-          cancel() {
-            timers.forEach((t) => window.clearTimeout(t));
-            timers.clear();
-          },
-          pause() {
-            paused++;
-          },
-          resume() {
-            resumed++;
-          },
-        },
-      });
-    },
-    { withVoices: options.voices ?? true, delay: options.delay ?? 30 }
-  );
-}
-
-const spoken = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __spoken: { text: string; voice: string | null }[] }).__spoken);
 
 async function openPodcast(page: Page) {
   await newSignedInUser(page);
@@ -129,13 +64,13 @@ test.describe("podcast mode", () => {
     await installFakeSpeech(page, { delay: 300 });
     await openPodcast(page);
 
-    await page.getByTestId("podcast").getByLabel("Speed").selectOption("1.3");
+    await page.getByTestId("podcast").getByLabel("Speed").selectOption("1.25");
     await page.getByTestId("podcast-turn-3").getByRole("button").click();
     await expect(page.getByTestId("podcast-turn-3")).toHaveAttribute("data-active", "true");
     const first = (await spoken(page))[0];
     expect(first.text).toBe("That the player reads every line in order.");
     await page.getByRole("button", { name: "Stop" }).click();
-    expect(await page.evaluate(() => (window as unknown as { __spoken: { rate: number }[] }).__spoken[0].rate)).toBe(1.3);
+    expect(await page.evaluate(() => (window as unknown as { __spoken: { rate: number }[] }).__spoken[0].rate)).toBe(1.25);
   });
 
   test("the script is kept: opening it again does not write a new one", async ({ page }) => {
