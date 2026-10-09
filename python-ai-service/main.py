@@ -69,6 +69,7 @@ from study import (
     quiz_prompt,
     suggestions_prompt,
 )
+from transcribe import MAX_AUDIO_BYTES, TranscriptionError, is_audio, transcribe
 
 load_dotenv()
 configure_logging()
@@ -386,8 +387,22 @@ def extract_upload_text(filename: str, content: bytes) -> str:
     return extract_pdf_bytes(content, filename)
 
 
+async def transcribe_upload(file: UploadFile) -> str:
+    """The transcript of an uploaded recording, raising client-safe HTTP errors."""
+    name = file.filename or "recording"
+    content = await file.read(MAX_AUDIO_BYTES + 1)
+    try:
+        return (await transcribe(name, content)).text
+    except TranscriptionError as exc:
+        headers = {"Retry-After": "30"} if exc.status == 503 else None
+        raise HTTPException(exc.status, exc.message, headers=headers) from exc
+
+
 async def read_pdf_upload(file: UploadFile) -> str:
-    """Reads an uploaded document (PDF, Word or PowerPoint) and returns its text, raising client-safe HTTP errors."""
+    """Reads an uploaded document (PDF, Word, PowerPoint or a recording) and returns its text, raising client-safe
+    HTTP errors."""
+    if is_audio(file.filename or ""):
+        return await transcribe_upload(file)
     content = await file.read(MAX_PDF_BYTES + 1)
     if len(content) > MAX_PDF_BYTES:
         raise HTTPException(413, f"{file.filename} is too large (max 10 MB)")
