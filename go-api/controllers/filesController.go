@@ -19,7 +19,7 @@ type storedFile struct {
 	Data []byte
 }
 
-// defaultStoredFilesMB is how much original PDF data one user may keep. The summaries and chat
+// defaultStoredFilesMB is how much original data (PDFs and recordings) one user may keep. The summaries and chat
 // keep working past it; new documents simply are not given a viewable original.
 const defaultStoredFilesMB = 100
 
@@ -114,9 +114,10 @@ func DocumentFile(c *gin.Context) {
 		return
 	}
 
-	// The bytes are shown by the app's own viewer, so there is nothing for a browser to execute:
-	// served as a PDF, never sniffed (SecurityHeaders sets nosniff), and not cached by proxies.
+	// The bytes are shown by the app's own viewer or player, so there is nothing for a browser to execute:
+	// served as what they are (a PDF or a recording), never sniffed (SecurityHeaders sets nosniff), and not
+	// cached by proxies.
 	c.Header("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": file.Filename}))
 	c.Header("Cache-Control", "private, max-age=300")
-	c.Data(http.StatusOK, "application/pdf", file.Content)
+	c.Data(http.StatusOK, contentTypeOf(file.Filename), file.Content)
 }

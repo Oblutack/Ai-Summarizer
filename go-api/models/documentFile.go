@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// DocumentFile is an original PDF kept with a saved summary. Content is never part of a JSON
+// DocumentFile is an original (a PDF, or a recording) kept with a saved summary. Content is never part of a JSON
 // response; clients get the list (FileInfo) and download bytes through a dedicated endpoint.
 type DocumentFile struct {
 	ID         uint `gorm:"primaryKey"`

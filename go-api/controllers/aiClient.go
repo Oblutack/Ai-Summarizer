@@ -60,6 +60,29 @@ func isAudio(name string) bool {
 	return contains(audioExtensions, strings.ToLower(filepath.Ext(name)))
 }
 
+// contentTypeOf is what a stored file is sent as: the browser must be told what it is, since it is never allowed to guess.
+func contentTypeOf(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".pdf":
+		return "application/pdf"
+	case ".mp3", ".mpga", ".mpeg":
+		return "audio/mpeg"
+	case ".m4a":
+		return "audio/mp4"
+	case ".mp4":
+		return "video/mp4"
+	case ".wav":
+		return "audio/wav"
+	case ".ogg":
+		return "audio/ogg"
+	case ".flac":
+		return "audio/flac"
+	case ".webm":
+		return "audio/webm"
+	}
+	return "application/octet-stream"
+}
+
 func isDocumentFile(name string) bool {
 	return contains(documentExtensions, strings.ToLower(filepath.Ext(name))) || isAudio(name)
 }
@@ -324,8 +347,9 @@ func multipartRequest(c *gin.Context, path string, fields map[string]string, fil
 		if err != nil {
 			return nil, prepErr
 		}
-		if isPDF(fh.Filename) {
-			kept = append(kept, storedFile{Name: fh.Filename, Data: data}) // saved with the summary, if it is saved
+		// PDFs (for the viewer) and recordings (to play back) are kept with the summary, if it is saved.
+		if isPDF(fh.Filename) || isAudio(fh.Filename) {
+			kept = append(kept, storedFile{Name: fh.Filename, Data: data})
 		}
 	}
 	if err := w.Close(); err != nil {

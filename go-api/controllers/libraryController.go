@@ -524,7 +524,8 @@ func librarySources(cited []chatSource, hits []libraryHit) []librarySource {
 	return out
 }
 
-// originalFilesOf loads the stored original PDFs (never their bytes) of the documents involved.
+// originalFilesOf loads the stored original PDFs (never their bytes) of the documents involved. Recordings are
+// not among them: a page of a PDF can be opened, and a recording has no pages to open.
 func originalFilesOf(hits []libraryHit) map[uint][]models.DocumentFile {
 	ids := make([]uint, 0, len(hits))
 	seen := map[uint]bool{}
@@ -537,7 +538,7 @@ func originalFilesOf(hits []libraryHit) map[uint][]models.DocumentFile {
 	result := map[uint][]models.DocumentFile{}
 	var files []models.DocumentFile
 	if err := initializers.DB.Select("id", "document_id", "filename", "size_bytes").
-		Where("document_id IN ?", ids).Order("id").Find(&files).Error; err != nil {
+		Where("document_id IN ? AND LOWER(filename) LIKE '%.pdf'", ids).Order("id").Find(&files).Error; err != nil {
 		slog.Error("loading original files failed", "error", err)
 		return result
 	}
