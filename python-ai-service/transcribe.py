@@ -16,6 +16,7 @@ probably not speech are dropped, and a segment repeated over and over is kept on
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -71,6 +72,12 @@ class Transcript:
     seconds: float
     language: Optional[str] = None
     segments: list[dict] = field(default_factory=list)
+
+
+def base_name(filename: str) -> str:
+    """The file's own name, whichever kind of path it came with. Some clients send a whole Windows path, and this
+    service runs where a backslash is not a separator, so os.path.basename alone would keep the folders."""
+    return re.split(r"[\\/]", filename)[-1]
 
 
 def is_audio(filename: str) -> bool:
@@ -183,7 +190,7 @@ async def transcribe(filename: str, content: bytes, client: Optional[httpx.Async
             },
             files={
                 "file": (
-                    os.path.basename(filename) or "recording",
+                    base_name(filename) or "recording",
                     content,
                     AUDIO_TYPES.get(extension, "application/octet-stream"),
                 )
@@ -207,11 +214,11 @@ async def transcribe(filename: str, content: bytes, client: Optional[httpx.Async
 
     segments = body.get("segments") or []
     seconds = float(body.get("duration") or (segments[-1].get("end", 0.0) if segments else 0.0))
-    text = format_transcript(segments, os.path.basename(filename), seconds) if segments else ""
+    text = format_transcript(segments, base_name(filename), seconds) if segments else ""
     if not segments and str(body.get("text") or "").strip():
         # No timing came back at all: keep the words, without times or pages. (When segments came back and every
         # one was judged to be silence, the plain text is the same made-up words, so it is not used.)
-        text = f"Transcript of {os.path.basename(filename)}.\n\n{str(body['text']).strip()}"
+        text = f"Transcript of {base_name(filename)}.\n\n{str(body['text']).strip()}"
     if not text:
         raise TranscriptionError(422, "No speech was found in that recording.")
     return Transcript(text=text, seconds=seconds, language=body.get("language"), segments=segments)

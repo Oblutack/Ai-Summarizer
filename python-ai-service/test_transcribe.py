@@ -322,3 +322,12 @@ def test_documents_are_not_sent_to_the_speech_service(client, meeting, monkeypat
     monkeypatch.setattr(main, "extract_pdf_text", lambda path: "plain pdf words")
     r = client.post("/summarize", files={"file": ("report.pdf", b"%PDF", "application/pdf")})
     assert r.status_code == 200 and meeting[1].calls == []
+
+
+@pytest.mark.parametrize(
+    "path, name",
+    [("C:\\Users\\me\\private\\call.wav", "call.wav"), ("/home/me/call.wav", "call.wav"), ("call.wav", "call.wav"),
+     ("folder/sub\\mixed.mp3", "mixed.mp3"), ("", "")],
+)  # fmt: skip
+def test_only_the_file_name_is_used_whatever_the_path_looks_like(path, name):
+    assert transcribe.base_name(path) == name
