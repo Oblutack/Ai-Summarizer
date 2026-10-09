@@ -264,9 +264,10 @@ const server = http.createServer(async (req, res) => {
     const invented = question.includes("INVENTED") ? " and [9]" : "";
     return json(res, 200, {
       answer: `${answer} [1]${invented}.`,
-      sources: [
-        { id: 1, text: "Stub passage that the answer cites.", page: 2, pageEnd: 2, document: null },
-      ],
+      // A recording's passages begin with the time they were said, and have no page.
+      sources: text.startsWith("Transcript of")
+        ? [{ id: 1, text: "[0:30] Priya will send the budget by Friday.", page: null, pageEnd: null, document: null }]
+        : [{ id: 1, text: "Stub passage that the answer cites.", page: 2, pageEnd: 2, document: null }],
     });
   }
 

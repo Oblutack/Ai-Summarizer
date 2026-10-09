@@ -32,17 +32,18 @@ test.describe("recordings", () => {
     await expect(saved).toBeVisible();
 
     await saved.getByRole("button", { name: "More" }).click();
-    await saved.getByRole("button", { name: "Show the transcript" }).click();
+    await saved.getByRole("button", { name: "Play the recording" }).click();
     const text = saved.getByTestId("original-text-body");
     await expect(saved.getByRole("heading", { name: "Transcript" })).toBeVisible();
-    await expect(text).toContainText("[0:00] The stub transcript of weekly sync.mp3.");
-    await expect(text).toContainText("[0:30] Priya will send the budget by Friday.");
+    await expect(saved.getByTestId("recording-panel")).toBeVisible();
+    await expect(text).toContainText("0:00 The stub transcript of weekly sync.mp3.");
+    await expect(text).toContainText("0:30 Priya will send the budget by Friday.");
 
     await saved.getByTestId("original-text").getByRole("button", { name: /Copy/ }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("[0:30] Priya will send the budget by Friday.");
 
-    await saved.getByRole("button", { name: "Hide the transcript" }).click();
-    await expect(saved.getByTestId("original-text")).toHaveCount(0);
+    await saved.getByRole("button", { name: "Hide the recording" }).click();
+    await expect(saved.getByTestId("recording-panel")).toHaveCount(0);
   });
 
   test("a recording can be chatted with, since its transcript is its text", async ({ page }) => {
@@ -104,7 +105,7 @@ test.describe("recordings", () => {
     await summarize(page);
     const saved = card(page, "weekly sync.mp3");
     await saved.getByRole("button", { name: "More" }).click();
-    await saved.getByRole("button", { name: "Show the transcript" }).click();
+    await saved.getByRole("button", { name: "Play the recording" }).click();
     await expect(saved.getByTestId("original-text-body")).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.help} -> ${v.nodes.map((n) => n.target.join(" ") + " " + (n.any[0]?.message ?? "")).join(" | ")}`)).toEqual([]);

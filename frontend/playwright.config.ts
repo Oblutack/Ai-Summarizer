@@ -22,6 +22,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
     // CI installs Playwright's own Chromium; locally the installed Chrome is used.
     channel: process.env.CI ? undefined : "chrome",
+    // A fake microphone that plays a test tone, already allowed, so recording from the browser can be tried for real.
+    permissions: ["microphone"],
+    launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
   },
   webServer: [
     {
