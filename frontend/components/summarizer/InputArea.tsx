@@ -1,7 +1,10 @@
 "use client";
+import { useEffect, useState } from "react";
 import { SAMPLE_TEXT } from "../../lib/sampleText";
-import { DOCUMENT_EXTENSIONS } from "../../lib/links";
+import { DOCUMENT_EXTENSIONS, isAudioFile } from "../../lib/links";
 import { MAX_FILES } from "../../lib/summaryOptions";
+import AudioPlayer from "../AudioPlayer";
+import Recorder from "../Recorder";
 import { useT } from "../I18nProvider";
 
 interface InputAreaProps {
@@ -11,9 +14,23 @@ interface InputAreaProps {
   link?: string | null;
   // Set when a recording is attached.
   hasAudio?: boolean;
+  // Whether the microphone can be offered: recordings are for signed-in people.
+  canRecord?: boolean;
   onTextChange: (value: string) => void;
   onFilesPicked: (files: File[]) => void;
   onRemoveFile: (index: number) => void;
+}
+
+// A recording that was picked or made can be played before it is summarized, to check it is the right one and that it
+// can be heard. The player's address is made from the file in this browser and let go of afterwards: nothing is sent.
+function AudioPreview({ file }: { file: File }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const made = URL.createObjectURL(file);
+    setUrl(made);
+    return () => URL.revokeObjectURL(made);
+  }, [file]);
+  return url ? <AudioPlayer src={url} label={file.name} /> : null;
 }
 
 function PaperclipIcon() {
@@ -26,7 +43,7 @@ function PaperclipIcon() {
 
 // The place to put the words: a text box that also takes PDFs. Once PDFs are attached they replace the
 // text box with a list, since a summary comes from one or the other.
-export default function InputArea({ files, text, link, hasAudio, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
+export default function InputArea({ files, text, link, hasAudio, canRecord, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
   const t = useT();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,8 +59,9 @@ export default function InputArea({ files, text, link, hasAudio, onTextChange, o
           {files.map((f, i) => (
             <li
               key={`${f.name}-${f.size}`}
-              className="flex items-center justify-between gap-3 rounded-lg border border-ink/20 bg-canvas/60 px-3 py-2"
+              className="rounded-lg border border-ink/20 bg-canvas/60 px-3 py-2"
             >
+              <div className="flex items-center justify-between gap-3">
               <span className="truncate text-base font-medium" title={f.name}>
                 {f.name}
               </span>
@@ -56,6 +74,12 @@ export default function InputArea({ files, text, link, hasAudio, onTextChange, o
               >
                 &times;
               </button>
+              </div>
+              {isAudioFile(f.name) && (
+                <div className="mt-2">
+                  <AudioPreview file={f} />
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -79,6 +103,7 @@ export default function InputArea({ files, text, link, hasAudio, onTextChange, o
             {files.length === 0 ? t("form.attach") : t("form.addMore")}
           </label>
         )}
+        {canRecord && files.length < MAX_FILES && <Recorder onRecorded={(file) => onFilesPicked([file])} />}
         {files.length === 0 && !text && (
           <button type="button" onClick={() => onTextChange(SAMPLE_TEXT)} className="btn btn-quiet underline">
             {t("form.trySample")}

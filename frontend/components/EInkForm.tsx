@@ -64,6 +64,7 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
           text={s.inputText}
           link={s.link}
           hasAudio={s.hasAudio}
+          canRecord={Boolean(user)}
           onTextChange={s.changeText}
           onFilesPicked={s.addFiles}
           onRemoveFile={s.removeFile}

@@ -392,6 +392,13 @@ export const en = {
   "doc.originalText": "Original text",
   "doc.textLoading": "Loading the text...",
   "doc.textFailed": "The text could not be loaded.",
+  "record.start": "Record",
+  "record.stop": "Stop and use the recording",
+  "record.discard": "Discard",
+  "record.recording": "Recording from the microphone",
+  "record.blocked": "The microphone is blocked. Allow it in your browser's address bar, then try again.",
+  "record.failed": "Recording does not work in this browser. Attach a recording as a file instead.",
+  "record.limit": "The recording reached its limit of {minutes} minutes and was stopped.",
   "playback.previous": "Previous",
   "playback.next": "Next",
   "playback.position": "Position",
@@ -402,6 +409,11 @@ export const en = {
   "readAloud.close": "Close the reader",
   "readAloud.nowReading": "Now reading",
   "readAloud.voice": "Voice",
+  "playback.back10": "Back 10 seconds",
+  "playback.forward10": "Forward 10 seconds",
+  "playback.recordingPosition": "Position in the recording",
+  "playback.positionTime": "{now} of {total}",
+  "playback.audioFailed": "This recording could not be played in your browser.",
 } as const;
 
 export type MessageKey = keyof typeof en;
