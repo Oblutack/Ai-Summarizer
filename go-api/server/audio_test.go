@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 
 var mp3Bytes = []byte("ID3 pretend this is a recording")
 
-func TestASignedInUserCanSummarizeARecordingAndItIsNotKeptAsAnOriginal(t *testing.T) {
+func TestASignedInUserCanSummarizeARecordingAndItIsKeptToPlayBack(t *testing.T) {
 	a := newApp(t)
 	cl, _ := a.newUser()
 
@@ -26,8 +27,8 @@ func TestASignedInUserCanSummarizeARecordingAndItIsNotKeptAsAnOriginal(t *testin
 	if n := count(t, a.db, "SELECT count(*) FROM documents"); n != 7 {
 		t.Errorf("documents = %d, want 7", n)
 	}
-	if n := count(t, a.db, "SELECT count(*) FROM document_files"); n != 0 {
-		t.Errorf("a recording is not kept (only PDFs are), found %d files", n)
+	if n := count(t, a.db, "SELECT count(*) FROM document_files"); n != 7 {
+		t.Errorf("each recording is kept to be played back, found %d files", n)
 	}
 }
 
@@ -60,8 +61,8 @@ func TestRecordingsAndDocumentsCanBeCombined(t *testing.T) {
 		t.Fatalf("combined: %d %s", r.Status, r.Body)
 	}
 	files := filesOf(listedDocuments(t, cl)[0])
-	if len(files) != 1 || files[0]["name"] != "agenda.pdf" {
-		t.Errorf("only the PDF is kept as an original: %v", files)
+	if len(files) != 2 {
+		t.Errorf("the PDF and the recording are both kept: %v", files)
 	}
 }
 
@@ -173,5 +174,90 @@ func TestAShareLinkNeverCarriesTheTranscript(t *testing.T) {
 	r := a.newClient().get("/shared/" + token)
 	if r.Status != http.StatusOK || strings.Contains(string(r.Body), "the source text") {
 		t.Errorf("a shared summary must not include the source text: %d %s", r.Status, r.Body)
+	}
+}
+
+func fileURL(docID int, file map[string]any) string {
+	return docPath(docID, "/files/"+strconv.Itoa(int(file["id"].(float64))))
+}
+
+func TestAKeptRecordingIsServedToItsOwnerAsWhatItIs(t *testing.T) {
+	a := newApp(t)
+	alice, _ := a.newUser()
+	bob, _ := a.newUser()
+	if r := alice.upload("/summarize-multiple", "files", map[string][]byte{"agenda.pdf": pdfBytes, "weekly sync.mp3": mp3Bytes}); r.Status != http.StatusOK {
+		t.Fatalf("upload: %d %s", r.Status, r.Body)
+	}
+	doc := listedDocuments(t, alice)[0]
+	id := int(doc["ID"].(float64))
+	types := map[string]string{"agenda.pdf": "application/pdf", "weekly sync.mp3": "audio/mpeg"}
+	for _, file := range filesOf(doc) {
+		name := file["name"].(string)
+		r := alice.get(fileURL(id, file))
+		if r.Status != http.StatusOK || r.Header.Get("Content-Type") != types[name] {
+			t.Errorf("%s: %d as %q, want %q", name, r.Status, r.Header.Get("Content-Type"), types[name])
+		}
+		if r.Header.Get("X-Content-Type-Options") != "nosniff" || !strings.Contains(r.Header.Get("Content-Disposition"), "inline") {
+			t.Errorf("%s must never be sniffed: %v", name, r.Header)
+		}
+		if name == "weekly sync.mp3" && !bytes.Equal(r.Body, mp3Bytes) {
+			t.Errorf("the recording must come back byte for byte")
+		}
+		if r := bob.get(fileURL(id, file)); r.Status != http.StatusNotFound {
+			t.Errorf("%s must not be served to someone else: %d", name, r.Status)
+		}
+		if r := a.newClient().get(fileURL(id, file)); r.Status != http.StatusUnauthorized {
+			t.Errorf("%s must not be served when signed out: %d", name, r.Status)
+		}
+	}
+}
+
+func TestADeletedDocumentTakesItsRecordingWithIt(t *testing.T) {
+	a := newApp(t)
+	cl, _ := a.newUser()
+	cl.upload("/summarize", "file", map[string][]byte{"sync.mp3": mp3Bytes})
+	id := int(listedDocuments(t, cl)[0]["ID"].(float64))
+	if r := cl.delete(docPath(id, ""), nil); r.Status != http.StatusOK && r.Status != http.StatusNoContent {
+		t.Fatalf("delete: %d", r.Status)
+	}
+	if n := count(t, a.db, "SELECT count(*) FROM document_files"); n != 0 {
+		t.Errorf("the recording must be deleted with its document, found %d", n)
+	}
+}
+
+func TestARecordingOverTheStorageCapIsNotKeptButIsStillSummarized(t *testing.T) {
+	t.Setenv("STORED_FILES_MB_PER_USER", "1")
+	a := newApp(t)
+	cl, _ := a.newUser()
+	big := bytes.Repeat([]byte("x"), 2<<20)
+	if r := cl.upload("/summarize", "file", map[string][]byte{"long.mp3": big}); r.Status != http.StatusOK {
+		t.Fatalf("summarize: %d %s", r.Status, r.Body)
+	}
+	if n := count(t, a.db, "SELECT count(*) FROM documents"); n != 1 {
+		t.Errorf("the summary is saved anyway: %d", n)
+	}
+	if n := count(t, a.db, "SELECT count(*) FROM document_files"); n != 0 {
+		t.Errorf("a recording past the cap is not kept, found %d", n)
+	}
+}
+
+func TestACitedPassageOfARecordingIsNeverOfferedToThePDFViewer(t *testing.T) {
+	a := newApp(t)
+	cl, _ := a.newUser()
+	if r := cl.upload("/summarize?stream=true", "file", map[string][]byte{"sync.mp3": mp3Bytes}); r.Status != http.StatusOK {
+		t.Fatalf("summarize: %d", r.Status)
+	}
+	r := askLibrary(cl, "What does the source text say?")
+	if r.Status != http.StatusOK {
+		t.Fatalf("ask: %d %s", r.Status, r.Body)
+	}
+	sources := r.JSON()["sources"].([]any)
+	if len(sources) == 0 {
+		t.Fatalf("the transcript should be found: %s", r.Body)
+	}
+	for _, s := range sources {
+		if s.(map[string]any)["fileId"] != nil {
+			t.Errorf("a recording has no page to open in a PDF viewer: %v", s)
+		}
 	}
 }
