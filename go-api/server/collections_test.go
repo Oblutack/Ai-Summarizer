@@ -73,7 +73,7 @@ func TestACollectionNameIsTreatedLikeATag(t *testing.T) {
 
 func TestAnEmptyOrUnknownCollectionIsAnsweredWithoutAModelCall(t *testing.T) {
 	a := newApp(t)
-	t.Setenv("QUOTA_CHATS_PER_DAY", "2")
+	t.Setenv("QUOTA_CHAT_PER_DAY", "2")
 	cl, _ := a.newUser()
 	saveText(t, cl, "Turbines convert wind into electricity for the whole valley.")
 	before := a.ai.calls.Load() // the summary made above
