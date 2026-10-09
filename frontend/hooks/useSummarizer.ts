@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { TURNSTILE_HEADER } from "../lib/api";
 import { readSummaryEvents, type SummaryEvent } from "../lib/sse";
-import { isDocumentFile, webLinkIn } from "../lib/links";
+import { isAudioFile, isDocumentFile, MAX_AUDIO_MB, webLinkIn } from "../lib/links";
 import { loadPreferences, savePreferences } from "../lib/preferences";
 import { MAX_FILES } from "../lib/summaryOptions";
 import { useT } from "../components/I18nProvider";
@@ -24,7 +24,7 @@ interface UseSummarizerOptions {
 }
 
 export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSummarizerOptions) {
-  const { refresh } = useAuth();
+  const { user, refresh } = useAuth();
   const t = useT();
 
   const [wordCount, setWordCount] = useState(150);
@@ -87,6 +87,8 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       ? t("stage.sections", { done: chunks.done, total: chunks.total })
       : stage === "writing"
       ? t("stage.writing")
+      : files.some((f) => isAudioFile(f.name))
+      ? t("stage.transcribing")
       : t("stage.reading");
 
   const changeText = useCallback((value: string) => {
@@ -100,7 +102,18 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     (picked: File[]) => {
       if (picked.length === 0) return;
 
-      const documents = picked.filter((f) => isDocumentFile(f.name));
+      let documents = picked.filter((f) => isDocumentFile(f.name));
+      // Recordings cost money to transcribe: signed-in people only, and not bigger than the server takes.
+      let refused = "";
+      if (!user && documents.some((f) => isAudioFile(f.name))) {
+        documents = documents.filter((f) => !isAudioFile(f.name));
+        refused = t("form.errAudioSignIn");
+      }
+      const tooBig = documents.filter((f) => isAudioFile(f.name) && f.size > MAX_AUDIO_MB * 1024 * 1024);
+      if (tooBig.length > 0) {
+        documents = documents.filter((f) => !tooBig.includes(f));
+        refused = refused || t("form.errAudioSize", { name: tooBig[0].name, max: MAX_AUDIO_MB });
+      }
       const merged = [...files];
       for (const f of documents) {
         if (!merged.some((m) => m.name === f.name && m.size === f.size)) {
@@ -108,7 +121,9 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
         }
       }
 
-      if (documents.length < picked.length) {
+      if (refused) {
+        setError(refused);
+      } else if (documents.length < picked.length) {
         setError(t("form.errFileType"));
       } else if (merged.length > MAX_FILES) {
         setError(t("form.errMaxFiles", { max: MAX_FILES }));
@@ -118,7 +133,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
       setFiles(merged.slice(0, MAX_FILES));
       setInputText("");
     },
-    [files, t]
+    [files, t, user]
   );
 
   const removeFile = useCallback((index: number) => {
@@ -248,7 +263,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     // options
     wordCount, setWordCount, pageLimit, setPageLimit, style, setStyle, language, setLanguage,
     // input
-    files, inputText, link, changeText, addFiles, removeFile,
+    files, inputText, link, changeText, addFiles, removeFile, hasAudio: files.some((f) => isAudioFile(f.name)),
     // result
     summary, error, isLoading, progress, stageLabel, showPageLimit, exportBaseName,
     // actions

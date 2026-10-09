@@ -50,3 +50,16 @@ describe("isDocumentFile", () => {
     }
   });
 });
+
+describe("recordings", () => {
+  it("are told apart from documents by their extension, in any letter case", async () => {
+    const { isAudioFile } = await import("./links");
+    for (const name of ["sync.mp3", "Call.M4A", "voice.wav", "talk.ogg", "memo.flac", "clip.webm", "screen.mp4", "a.mpeg", "b.mpga"]) {
+      expect(isAudioFile(name), name).toBe(true);
+      expect(isDocumentFile(name), name).toBe(true);
+    }
+    for (const name of ["report.pdf", "notes.docx", "deck.pptx", "mp3", "song.mp3.exe", "voice.aac", ""]) {
+      expect(isAudioFile(name), name).toBe(false);
+    }
+  });
+});

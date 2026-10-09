@@ -7,12 +7,14 @@ import dynamic from "next/dynamic";
 import type { Document, FileInfo, ProofPassage, ProofResult } from "../types";
 import { API_URL, apiError } from "../lib/api";
 import { downloadMarkdown, downloadWord } from "../lib/exportDoc";
+import { isAudioFile } from "../lib/links";
 import { createMarkdownOptions } from "../lib/markdown";
 import { tidyMarkdown } from "../lib/markdownText";
 import { saveElementAsPdf } from "../lib/pdfExport";
 import CopyButton from "./CopyButton";
 import DocumentChat from "./DocumentChat";
 import EmailSummaryButton from "./EmailSummaryButton";
+import OriginalText from "./OriginalText";
 import PodcastPlayer from "./PodcastPlayer";
 import ProofView from "./ProofView";
 import ReadAloudButton from "./ReadAloudButton";
@@ -49,12 +51,15 @@ interface Selected {
 
 export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardProps) {
   const t = useT();
+  // A recording's text is what was said.
+  const transcript = isAudioFile(doc.Filename);
   const [chatOpen, setChatOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
   // The quieter actions (export, email, share, rewrite) stay tucked away, unless there is a link to show.
   const [moreOpen, setMoreOpen] = useState(Boolean(doc.shareToken));
+  const [textOpen, setTextOpen] = useState(false);
   // The proof check: each sentence of the summary compared with the original document.
   const [proof, setProof] = useState<ProofResult | null>(null);
   const [proofOpen, setProofOpen] = useState(false);
@@ -332,11 +337,19 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
                 {rewriteOpen ? t("doc.closeRewrite") : t("doc.rewrite")}
               </button>
             )}
+            {doc.hasContent && (
+              <button type="button" onClick={() => setTextOpen((open) => !open)} className={textButton} aria-expanded={textOpen}>
+                {textOpen
+                  ? transcript ? t("doc.hideTranscript") : t("doc.hideText")
+                  : transcript ? t("doc.showTranscript") : t("doc.showText")}
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {rewriteOpen && <RewritePanel documentId={doc.ID} onDone={summaryChanged} />}
+      {textOpen && doc.hasContent && <OriginalText documentId={doc.ID} transcript={transcript} />}
       {podcastOpen && <PodcastPlayer documentId={doc.ID} />}
       {chatOpen && <DocumentChat documentId={doc.ID} files={doc.files} prefill={prefill} />}
       {studyOpen && <StudyPanel documentId={doc.ID} />}
