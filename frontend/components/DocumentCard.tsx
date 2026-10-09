@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import type { Document, FileInfo, ProofPassage, ProofResult } from "../types";
 import { API_URL, apiError } from "../lib/api";
 import { downloadMarkdown, downloadWord } from "../lib/exportDoc";
-import { isAudioFile } from "../lib/links";
+import { isAudioFile, isPdfFile } from "../lib/links";
 import { createMarkdownOptions } from "../lib/markdown";
 import { tidyMarkdown } from "../lib/markdownText";
 import { saveElementAsPdf } from "../lib/pdfExport";
@@ -15,6 +15,7 @@ import CopyButton from "./CopyButton";
 import DocumentChat from "./DocumentChat";
 import EmailSummaryButton from "./EmailSummaryButton";
 import OriginalText from "./OriginalText";
+import RecordingPanel from "./RecordingPanel";
 import PodcastPlayer from "./PodcastPlayer";
 import ProofView from "./ProofView";
 import ReadAloudPlayer, { ReadAloudToggle } from "./ReadAloudPlayer";
@@ -53,6 +54,13 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
   const t = useT();
   // A recording's text is what was said.
   const transcript = isAudioFile(doc.Filename);
+  // Only PDFs have pages to open; a kept recording is played.
+  const pdfFiles = (doc.files ?? []).filter((f) => isPdfFile(f.name));
+  const recordingFile = (doc.files ?? []).find((f) => isAudioFile(f.name));
+  const playFrom = (seconds: number) => {
+    setRecordingOpen(true);
+    setPlayAt({ seconds, nonce: Date.now() });
+  };
   const [chatOpen, setChatOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
@@ -61,6 +69,8 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
   const [moreOpen, setMoreOpen] = useState(Boolean(doc.shareToken));
   const [textOpen, setTextOpen] = useState(false);
   const [readOpen, setReadOpen] = useState(false);
+  const [recordingOpen, setRecordingOpen] = useState(false);
+  const [playAt, setPlayAt] = useState<{ seconds: number; nonce: number } | null>(null);
   // The proof check: each sentence of the summary compared with the original document.
   const [proof, setProof] = useState<ProofResult | null>(null);
   const [proofOpen, setProofOpen] = useState(false);
@@ -260,7 +270,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
           {proofOpen && proof ? (
             <ProofView
               result={proof}
-              files={doc.files}
+              files={pdfFiles}
               onOpenDocument={(file: FileInfo, p: ProofPassage) =>
                 setViewing({ file, page: p.page ?? 1, passage: p.text })
               }
@@ -338,7 +348,12 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
                 {rewriteOpen ? t("doc.closeRewrite") : t("doc.rewrite")}
               </button>
             )}
-            {doc.hasContent && (
+            {recordingFile && (
+              <button type="button" onClick={() => setRecordingOpen((open) => !open)} className={textButton} aria-expanded={recordingOpen}>
+                {recordingOpen ? t("doc.hideRecording") : t("doc.playRecording")}
+              </button>
+            )}
+            {doc.hasContent && !recordingFile && (
               <button type="button" onClick={() => setTextOpen((open) => !open)} className={textButton} aria-expanded={textOpen}>
                 {textOpen
                   ? transcript ? t("doc.hideTranscript") : t("doc.hideText")
@@ -351,9 +366,10 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
 
       {readOpen && <ReadAloudPlayer markdown={doc.Summary} onClose={() => setReadOpen(false)} />}
       {rewriteOpen && <RewritePanel documentId={doc.ID} onDone={summaryChanged} />}
-      {textOpen && doc.hasContent && <OriginalText documentId={doc.ID} transcript={transcript} />}
+      {textOpen && doc.hasContent && !recordingFile && <OriginalText documentId={doc.ID} transcript={transcript} />}
+      {recordingOpen && recordingFile && <RecordingPanel documentId={doc.ID} file={recordingFile} seek={playAt} />}
       {podcastOpen && <PodcastPlayer documentId={doc.ID} />}
-      {chatOpen && <DocumentChat documentId={doc.ID} files={doc.files} prefill={prefill} />}
+      {chatOpen && <DocumentChat documentId={doc.ID} files={pdfFiles} prefill={prefill} onPlayAt={recordingFile ? playFrom : undefined} />}
       {studyOpen && <StudyPanel documentId={doc.ID} />}
 
       {viewing && (

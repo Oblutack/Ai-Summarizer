@@ -416,4 +416,10 @@ export const fr: Record<MessageKey, string> = {
   "playback.recordingPosition": "Position dans l'enregistrement",
   "playback.positionTime": "{now} sur {total}",
   "playback.audioFailed": "Cet enregistrement n'a pas pu être lu dans votre navigateur.",
+  "doc.playRecording": "Lire l'enregistrement",
+  "doc.hideRecording": "Masquer l'enregistrement",
+  "doc.recording": "Enregistrement",
+  "doc.recordingLoading": "Chargement de l'enregistrement...",
+  "doc.recordingFailed": "L'enregistrement n'a pas pu être chargé.",
+  "sources.playFrom": "Lire à partir de {time}",
 };

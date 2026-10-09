@@ -416,4 +416,10 @@ export const bs: Record<MessageKey, string> = {
   "playback.recordingPosition": "Položaj u snimku",
   "playback.positionTime": "{now} od {total}",
   "playback.audioFailed": "Ovaj snimak se nije mogao reproducirati u vašem pregledniku.",
+  "doc.playRecording": "Reproduciraj snimak",
+  "doc.hideRecording": "Sakrij snimak",
+  "doc.recording": "Snimak",
+  "doc.recordingLoading": "Učitavanje snimka...",
+  "doc.recordingFailed": "Snimak se nije mogao učitati.",
+  "sources.playFrom": "Reproduciraj od {time}",
 };

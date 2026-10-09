@@ -45,6 +45,8 @@ interface ChatPanelProps {
   prefill?: { text: string };
   // Extra fields sent with every question (for example which collection of documents to search).
   extraBody?: Record<string, unknown>;
+  // For a recording: plays it from the time a cited passage was said.
+  onPlayAt?: (seconds: number) => void;
 }
 
 // A question-and-answer conversation whose answers cite their sources. Used for one document and
@@ -60,6 +62,7 @@ export default function ChatPanel({
   suggestionsPath,
   prefill,
   extraBody,
+  onPlayAt,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
@@ -192,6 +195,7 @@ export default function ChatPanel({
                   openId={openSource?.message === i ? openSource.id : null}
                   onToggle={(id, open) => setOpenSource(open ? { message: i, id } : null)}
                   canOpenDocument={(source) => viewerFor(source) !== undefined}
+                  onPlayAt={onPlayAt}
                   onOpenDocument={(source) => {
                     const target = viewerFor(source);
                     if (target) setViewing(target);

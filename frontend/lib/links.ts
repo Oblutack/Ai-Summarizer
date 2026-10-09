@@ -31,6 +31,10 @@ function endsWithAny(name: string, extensions: readonly string[]): boolean {
   return extensions.some((extension) => lower.endsWith(extension));
 }
 
+export function isPdfFile(name: string): boolean {
+  return endsWithAny(name, [".pdf"]);
+}
+
 export function isAudioFile(name: string): boolean {
   return endsWithAny(name, AUDIO_EXTENSIONS);
 }

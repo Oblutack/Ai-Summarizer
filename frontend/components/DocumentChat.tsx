@@ -10,10 +10,12 @@ interface DocumentChatProps {
   files?: FileInfo[];
   // A question to put in the box, for example from selected text. A new object each time.
   prefill?: { text: string };
+  // For a recording that can be played: starts it at the time a cited passage was said.
+  onPlayAt?: (seconds: number) => void;
 }
 
 // Chat about one saved document.
-export default function DocumentChat({ documentId, files, prefill }: DocumentChatProps) {
+export default function DocumentChat({ documentId, files, prefill, onPlayAt }: DocumentChatProps) {
   const t = useT();
   const viewerFor = (source: ChatSource) => {
     const file = fileForPassage(files, source);
@@ -29,6 +31,7 @@ export default function DocumentChat({ documentId, files, prefill }: DocumentCha
       testId="document-chat"
       suggestionsPath={`/documents/${documentId}/suggestions`}
       prefill={prefill}
+      onPlayAt={onPlayAt}
     />
   );
 }

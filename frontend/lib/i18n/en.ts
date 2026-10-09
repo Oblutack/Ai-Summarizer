@@ -414,6 +414,12 @@ export const en = {
   "playback.recordingPosition": "Position in the recording",
   "playback.positionTime": "{now} of {total}",
   "playback.audioFailed": "This recording could not be played in your browser.",
+  "doc.playRecording": "Play the recording",
+  "doc.hideRecording": "Hide the recording",
+  "doc.recording": "Recording",
+  "doc.recordingLoading": "Loading the recording...",
+  "doc.recordingFailed": "The recording could not be loaded.",
+  "sources.playFrom": "Play from {time}",
 } as const;
 
 export type MessageKey = keyof typeof en;
