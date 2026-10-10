@@ -56,13 +56,19 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r.Use(middleware.RequestID(), middleware.AccessLog(logger), metrics.HTTP(), middleware.Recover(logger), middleware.SecurityHeaders())
 
 	// Client IPs drive the rate limits and the anonymous daily allowance. Behind a proxy such as Render, list its
-	// addresses in TRUSTED_PROXIES (comma separated CIDRs) so X-Forwarded-For is only believed from it.
+	// addresses in TRUSTED_PROXIES (comma separated CIDRs) so X-Forwarded-For is only believed from it. Without it no
+	// proxy is trusted: a client cannot choose its own address by sending the header. Behind a proxy that makes every
+	// visitor look like the proxy (they then share the per-address limits), which is the visible way to get this
+	// wrong, where believing the header from anyone would be a silent hole.
 	if proxies := os.Getenv("TRUSTED_PROXIES"); proxies != "" {
 		if err := r.SetTrustedProxies(strings.Split(proxies, ",")); err != nil {
 			return nil, err
 		}
 	} else {
-		logger.Warn("TRUSTED_PROXIES is not set: X-Forwarded-For is trusted from anyone, so a client can pretend to be any address and get past the per-address limits (rate limits and the anonymous daily allowance). Set it when deployed behind a proxy")
+		if err := r.SetTrustedProxies(nil); err != nil {
+			return nil, err
+		}
+		logger.Warn("TRUSTED_PROXIES is not set: forwarded addresses are ignored. That is safe, but behind a proxy all visitors look like the proxy and share the per-address limits (rate limits and the anonymous daily allowance). Set TRUSTED_PROXIES to the proxy's addresses when deployed")
 	}
 
 	origins := middleware.AllowedOrigins()
