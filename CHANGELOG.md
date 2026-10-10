@@ -9,6 +9,25 @@ new features, changes and fixes. Tests, documentation, CI and dependency updates
 
 ### Added
 
+- **frontend:** Mention photos, comparing and tables on the landing page
+- **frontend:** Accept HEIC photos and put attached files in order
+- **go-api:** Accept HEIC photos
+- **ai:** Read HEIC pictures from iPhones
+- **frontend:** Choose a key's expiry and limit and see its use
+- **go-api:** Save, compare and extract through the API
+- **go-api:** Give API keys an expiry, a daily limit and usage counters
+- **frontend:** Extract data from documents into a table
+- **frontend:** Warn about compared text that reads like an instruction
+- **go-api:** Extract fields from a saved document
+- **go-api:** Pass on the warning about instructions in compared text
+- **ai-service:** Extract named fields with checked quotes
+- **ai-service:** Flag compared text that reads like an instruction to an AI
+- **frontend:** Compare a saved document with another
+- **go-api:** Compare two saved documents
+- **ai-service:** Compare two versions of a document
+- **ai-service:** Limit how many scans are read at the same moment
+- **go-api:** Let the API run as a limited database account
+- **go-api:** Hash passwords harder and keep signup from revealing accounts
 - **frontend:** Make and revoke API keys on the account page
 - **go-api:** Add API keys and the /v1 routes for programs
 - **go-api:** Cap daily AI work per visitor and for the whole site
@@ -101,6 +120,7 @@ new features, changes and fixes. Tests, documentation, CI and dependency updates
 
 ### Fixed
 
+- **frontend:** List the translate function in the hook dependencies
 - **go-api:** Ignore forwarded addresses unless proxies are trusted
 - **frontend:** Allow the microphone and in-browser audio on the site's own pages
 - **ai-service:** Drop folders from a recording's name on any system
