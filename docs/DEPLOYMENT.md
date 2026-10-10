@@ -94,6 +94,10 @@ Verification and password-reset emails need a provider. Out of the box (`MAIL_PR
 
 ## Database
 
+- **Use a limited account for the API.** Run `docs/least-privilege.sql` once as the database owner, then set `DSN` to the new `inkling_app` account and `MIGRATE_DSN` to the owner's connection string (used only to apply migrations at start-up). If the API were ever broken into, it could then read and write rows but not drop tables or change the schema.
+- **Back it up, and try the restore.** The app makes no backups: see [BACKUPS.md](BACKUPS.md).
+- **Encrypt the connection** (`sslmode=require` or `verify-full`) to any database that is not on the same machine.
+
 - **Render free Postgres** is deleted after 30 days. Fine for a trial, not for anything you want to keep.
 - **Neon** has a free tier without that expiry. Create a project, copy its connection string (it contains `sslmode=require`) and set it as `DSN` on **inkling-api**, replacing the one from the Blueprint.
 - Database migrations run automatically when the API starts, so there is nothing to apply by hand.

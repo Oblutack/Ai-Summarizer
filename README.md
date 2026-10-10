@@ -313,6 +313,8 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `TRUSTED_PROXIES` | unset | CIDRs of your reverse proxy. Only it is believed when it says who the visitor is (`X-Forwarded-For`). Unset, no proxy is trusted: nobody can fake their address, but behind a proxy all visitors look alike and share the per-address limits, so set it when deployed. |
 | `RATE_LIMIT_MULTIPLIER` | `1` | Multiplies every request rate limit, for deployments with many users behind one address. |
 | `MAX_AUDIO_MB`, `STT_MODEL` | `25`, `whisper-large-v3-turbo` | The biggest recording accepted (25 MB is what Groq takes on its free tier, 100 MB on the paid one) and the speech-to-text model (`whisper-large-v3` is a little more accurate at about 11 cents an hour). |
+| `MIGRATE_DSN` | unset | Optional connection (the database owner) used only to apply migrations at start-up, so `DSN` can be a limited account. See `docs/least-privilege.sql`. |
+| `OCR_MAX_JOBS`, `OCR_QUEUE_SECONDS` | `2`, `20` | How many scans or sets of photos are read at the same moment, and how long another request waits for a place before being told to try again. |
 | `OCR_LANGUAGES`, `OCR_MAX_PAGES`, `OCR_TOTAL_SECONDS` | `eng+deu+fra+spa+ita+por+hrv`, `40`, `150` | Scanned PDF pages (signed-in people only): the Tesseract languages to try, the most scanned pages read in one document, and the most time spent on them. More languages at once read each a little worse, so list only the ones you need; a language must also be installed in the image (see the Dockerfile). |
 | `STORED_FILES_MB_PER_USER` | `100` | Original data kept per user: PDFs for the viewer and recordings for playback. `0` keeps none; summaries and chat still work. |
 | `EMBEDDINGS`, `EMBEDDING_MODEL`, `EMBEDDING_MIN_SCORE` | `on`, `BAAI/bge-small-en-v1.5`, per model | Search by meaning (AI service). `EMBEDDINGS=off` switches it off and search is by keyword only, which saves about 200 MB of memory. A larger model such as `thenlper/gte-base` (a 440 MB download) finds more but needs correspondingly more memory. The score is the lowest similarity that still counts as related; the default is deliberately low. Changing the model re-embeds your passages gradually as questions are asked. |
@@ -419,7 +421,8 @@ What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactl
 | Area | Measure |
 | --- | --- |
 | Sessions | Random 256-bit tokens in `httpOnly` cookies, only a hash stored; 30-day sliding expiry with a 90-day hard limit; revoked on logout, password change, reset and account deletion. |
-| Passwords | bcrypt, 8-72 characters, common-password blocklist, equal-time comparison for unknown users, per-account login throttle. |
+| Passwords | bcrypt at cost 12 (older hashes are upgraded at the next login), 8-72 characters, a list of about 200 common passwords plus pattern checks (repeats, runs like `87654321` or `asdfghjk`, the email name), equal-time comparison for unknown users, per-account login throttle. |
+| Accounts | Signing up says the same thing whether or not the address already has an account (the owner is told by email, at most once an hour), so signup cannot be used to check lists of emails. |
 | CSRF | `Origin` check on every state-changing request, strict credentialed CORS allowlist, `SameSite` cookies. |
 | Injection and XSS | Parameterized SQL only; nonce-based Content-Security-Policy with `strict-dynamic`; the API serves a `default-src 'none'` CSP. |
 | Abuse | Per-IP and per-user rate limits, atomic daily quotas, optional Turnstile, request and upload size caps. |
@@ -427,6 +430,8 @@ What is covered, beyond the happy paths: concurrency (a quota of 3 admits exactl
 | Uploaded Office files | `.docx` and `.pptx` are unpacked with size limits against zip bombs, and XML with entity declarations is refused. |
 | Privacy | Source text is only returned to its owner when they ask for it (*Show the original text*, the data export), never on a share link; a recording is kept only for its owner (and for as long as the document is kept), never shared, and it is deleted with its document or account; logs contain route patterns and IDs, not content; one-click export and hard deletion. |
 | Service to service | The AI service can require a shared secret (`AI_SERVICE_TOKEN`) so it is safe on a public URL; `/metrics` needs its own bearer token and is off by default; compose binds the database and AI service to localhost only. |
+| Database | Only reachable from the API (compose binds it to `127.0.0.1`); an optional **limited account** for the running API that can only read and write rows, never change the schema (`docs/least-privilege.sql`, `MIGRATE_DSN`, tested against real Postgres); a warning at start-up for an unencrypted connection to a remote database; backups and restoring are in `docs/BACKUPS.md` (the app does not make them). Content is stored in the clear in the database, so rely on your host's disk encryption and encrypt dumps. |
+| Heavy work | Reading scans and photos is capped: pages per document, time per document, and at most `OCR_MAX_JOBS` (2) documents at the same moment; the next request waits briefly, then is told to come back. |
 | Containers | Non-root users; the Go API ships as a static binary in a `scratch` image with nothing else in it; health checks on every service. |
 | Dependencies | Versions pinned in `go.sum`, `pnpm-lock.yaml` and `requirements.txt`. CI fails on known vulnerabilities (`govulncheck`, `pip-audit`, `pnpm audit`), and Dependabot opens weekly update PRs. |
 
