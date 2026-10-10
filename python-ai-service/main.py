@@ -362,6 +362,12 @@ def extract_pdf_text(path: str) -> str:
     return PAGE_BREAK.join(page.extract_text() or "" for page in PdfReader(path).pages)
 
 
+def ocr_http_error(exc: "ocr.OcrError") -> HTTPException:
+    """A client-safe error for a scan that could not be read; "busy" says when to come back."""
+    headers = {"Retry-After": "30"} if exc.status == 503 else None
+    return HTTPException(exc.status, exc.message, headers=headers)
+
+
 def add_scanned_pages(content: bytes, text: str, filename: str, allow_ocr: bool) -> str:
     """Fills in the pages of a PDF that have no text of their own (pictures of text) by reading them with OCR.
 
@@ -382,7 +388,7 @@ def add_scanned_pages(content: bytes, text: str, filename: str, allow_ocr: bool)
     try:
         read = ocr.read_pages(content, blank)
     except ocr.OcrError as exc:
-        raise HTTPException(exc.status, exc.message) from exc
+        raise ocr_http_error(exc) from exc
     for index, page_text in read.items():
         # A page that had a little text of its own keeps it unless reading the picture found more.
         if ocr.characters(page_text) > ocr.characters(pages[index]):
@@ -444,7 +450,7 @@ async def read_photo_uploads(items: list[UploadFile], allow_ocr: bool) -> str:
     try:
         pages = await asyncio.to_thread(photos.read_photos, pictures)
     except ocr.OcrError as exc:
-        raise HTTPException(exc.status, exc.message) from exc
+        raise ocr_http_error(exc) from exc
     return PAGE_BREAK.join(pages)
 
 

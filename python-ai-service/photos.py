@@ -166,6 +166,11 @@ def read_photos(items: list[tuple[str, bytes]], languages: str | None = None) ->
     """The text of each (file name, picture), read side by side, in a limited time."""
     if len(items) > ocr.MAX_PAGES:
         raise ocr.OcrError(413, f"At most {ocr.MAX_PAGES} photos can be read at once.")
+    with ocr.reading_place():
+        return _read_all(items, languages)
+
+
+def _read_all(items: list[tuple[str, bytes]], languages: str | None) -> list[str]:
     deadline = time.monotonic() + ocr.TOTAL_SECONDS
     chosen = languages or ocr.LANGUAGES
 

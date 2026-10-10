@@ -307,3 +307,88 @@ def test_without_permission_a_real_scan_is_not_read():
     with pytest.raises(main.HTTPException) as caught:
         main.extract_pdf_bytes(content, "scan.pdf", allow_ocr=False)
     assert caught.value.status_code == 422
+
+
+# --- how many scans are read at the same moment ---
+
+
+@pytest.fixture
+def one_place(monkeypatch):
+    import threading
+
+    monkeypatch.setattr(ocr, "_places", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(ocr, "QUEUE_SECONDS", 0.2)
+
+
+def test_only_a_limited_number_of_documents_are_read_at_once(one_place, monkeypatch):
+    import threading
+
+    started, release = threading.Event(), threading.Event()
+
+    def slow(pdf, index):
+        started.set()
+        release.wait(5)
+        return b"x"
+
+    monkeypatch.setattr(ocr, "render_page", slow)
+    monkeypatch.setattr(ocr, "read_picture", lambda *a, **k: "text")
+
+    first = {}
+    worker = threading.Thread(target=lambda: first.update(ocr.read_pages(b"%PDF", [0])))
+    worker.start()
+    assert started.wait(5), "the first document is being read"
+
+    # every place is taken: the next one waits a moment, then is told to come back
+    with pytest.raises(ocr.OcrError) as caught:
+        ocr.read_pages(b"%PDF", [0])
+    assert caught.value.status == 503 and "busy" in caught.value.message
+
+    release.set()
+    worker.join(5)
+    assert first == {0: "text"}, "the one being read was not harmed"
+    # and the place is free again
+    assert ocr.read_pages(b"%PDF", [0]) == {0: "text"}
+
+
+def test_a_place_is_given_back_when_reading_fails(one_place, monkeypatch):
+    def broken(pdf, index):
+        raise RuntimeError("pdfium internals")
+
+    monkeypatch.setattr(ocr, "render_page", broken)
+    with pytest.raises(ocr.OcrError):
+        ocr.read_pages(b"%PDF", [0])
+    monkeypatch.setattr(ocr, "render_page", lambda pdf, index: b"x")
+    monkeypatch.setattr(ocr, "read_picture", lambda *a, **k: "text")
+    assert ocr.read_pages(b"%PDF", [0]) == {0: "text"}, "the failed job must not keep its place"
+
+
+def test_photos_share_the_same_places(one_place, monkeypatch):
+    import threading
+
+    import photos
+
+    started, release = threading.Event(), threading.Event()
+
+    def slow(content, name, languages, timeout):
+        started.set()
+        release.wait(5)
+        return "text"
+
+    monkeypatch.setattr(photos, "read_photo", slow)
+    worker = threading.Thread(target=lambda: photos.read_photos([("a.jpg", b"x")]))
+    worker.start()
+    assert started.wait(5)
+    with pytest.raises(ocr.OcrError) as caught:
+        photos.read_photos([("b.jpg", b"x")])
+    assert caught.value.status == 503
+    release.set()
+    worker.join(5)
+
+
+def test_a_busy_server_says_when_to_come_back(client, monkeypatch):
+    def busy(pdf, indexes):
+        raise ocr.OcrError(503, "Inkling is busy reading other scans right now. Please try again in a minute.")
+
+    monkeypatch.setattr(ocr, "read_pages", busy)
+    r = client.post("/summarize", files={"file": ("lease.pdf", b"%PDF", "application/pdf")}, data={"ocr": "true"})
+    assert r.status_code == 503 and r.headers.get("retry-after") == "30" and "busy" in r.json()["detail"]

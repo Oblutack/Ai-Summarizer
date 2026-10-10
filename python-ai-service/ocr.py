@@ -17,8 +17,11 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from typing import Optional
 
 logger = logging.getLogger("ai-summarizer")
@@ -31,6 +34,12 @@ MAX_PAGES = int(os.getenv("OCR_MAX_PAGES", "40"))
 TOTAL_SECONDS = float(os.getenv("OCR_TOTAL_SECONDS", "150"))
 PAGE_TIMEOUT_SECONDS = 60.0
 WORKERS = int(os.getenv("OCR_WORKERS", str(min(4, os.cpu_count() or 1))))
+# How many documents (or sets of photos) are read at the same moment, whoever asks. Reading is real work on the
+# server's processor: without a cap a few people (or a flood of requests) could keep it busy for everyone else.
+# A request that arrives when every place is taken waits its turn for up to QUEUE_SECONDS, then is told to come back.
+MAX_JOBS = int(os.getenv("OCR_MAX_JOBS", "2"))
+QUEUE_SECONDS = float(os.getenv("OCR_QUEUE_SECONDS", "20"))
+_places = threading.BoundedSemaphore(max(1, MAX_JOBS))
 
 # About 200 dots per inch reads well and keeps a page small; PDF pages are 72 points to the inch.
 DPI = 200
@@ -47,6 +56,17 @@ class OcrError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+@contextmanager
+def reading_place(wait: Optional[float] = None) -> Iterator[None]:
+    """One of the MAX_JOBS places for reading scans or photos; waits for one, up to `wait` seconds (QUEUE_SECONDS)."""
+    if not _places.acquire(timeout=QUEUE_SECONDS if wait is None else wait):
+        raise OcrError(503, "Inkling is busy reading other scans right now. Please try again in a minute.")
+    try:
+        yield
+    finally:
+        _places.release()
 
 
 def available() -> bool:
@@ -118,6 +138,11 @@ def read_pages(pdf: bytes, indexes: list[int], languages: Optional[str] = None) 
     """The text of the given pages (counting from 0), read side by side, in a limited time."""
     if len(indexes) > MAX_PAGES:
         raise OcrError(413, f"This PDF has {len(indexes)} scanned pages; at most {MAX_PAGES} can be read at once.")
+    with reading_place():
+        return _read_pages(pdf, indexes, languages)
+
+
+def _read_pages(pdf: bytes, indexes: list[int], languages: Optional[str]) -> dict[int, str]:
     deadline = time.monotonic() + TOTAL_SECONDS
     chosen = languages or LANGUAGES
 
