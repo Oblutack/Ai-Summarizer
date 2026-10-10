@@ -12,6 +12,8 @@ pypdf==6.19.0
 # image (see the Dockerfile), reads it. See ocr.py.
 pypdfium2==5.14.0
 pillow==12.3.0
+# HEIC photos (what an iPhone saves, and a Mac exports): Pillow opens them once this is loaded. See photos.py.
+pillow-heif==1.8.0
 
 # used directly by llm.py (also a dependency of openai)
 httpx==0.28.1

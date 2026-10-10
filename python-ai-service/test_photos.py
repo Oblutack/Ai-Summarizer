@@ -57,9 +57,9 @@ def encoded(image, fmt="JPEG", **options):
 
 
 def test_photos_are_known_by_their_extension():
-    for name in ("page.jpg", "PAGE.JPEG", "scan.Png", "web.webp", "my photo.final.jpg"):
+    for name in ("page.jpg", "PAGE.JPEG", "scan.Png", "web.webp", "my photo.final.jpg", "IMG_0042.HEIC", "shot.heif"):
         assert photos.is_image(name), name
-    for name in ("page.pdf", "notes.docx", "a.gif", "a.heic", "jpg", "photo.jpg.pdf", "meeting.mp3"):
+    for name in ("page.pdf", "notes.docx", "a.gif", "a.bmp", "jpg", "photo.jpg.pdf", "meeting.mp3"):
         assert not photos.is_image(name), name
 
 
@@ -72,6 +72,23 @@ def test_a_picture_is_turned_the_way_the_file_says():
     exif[0x0112] = 6  # rotate 90 clockwise to display
     out = photos.prepare(encoded(sideways, exif=exif), "p.jpg")
     assert out.height > out.width
+
+
+def test_an_iphone_picture_in_heic_is_opened_like_any_other():
+    page = photographed(page_of(LEASE))
+    heic = encoded(page.convert("RGB"), "HEIF", quality=85)
+    assert heic[4:8] == b"ftyp"  # really a HEIF container, not a renamed JPEG
+    prepared = photos.prepare(heic, "IMG_0042.HEIC")
+    assert prepared.width > 0 and prepared.height > 0
+    # the name does not matter, what the file is does
+    assert photos.prepare(heic, "renamed.jpg").size == prepared.size
+
+
+def test_a_heic_picture_that_is_cut_short_is_a_plain_error():
+    heic = encoded(Image.new("RGB", (300, 300), "white"), "HEIF")
+    with pytest.raises(ocr.OcrError) as caught:
+        photos.prepare(heic[: len(heic) // 2], "IMG_0042.HEIC")
+    assert caught.value.status == 422 and "IMG_0042.HEIC" in caught.value.message
 
 
 def test_a_see_through_png_is_read_on_white_paper():
@@ -101,7 +118,7 @@ def test_what_the_file_really_is_decides_not_its_name():
     for fmt in ("GIF", "BMP", "TIFF"):
         with pytest.raises(ocr.OcrError) as caught:
             photos.prepare(encoded(Image.new("L", (50, 50), 255), fmt), "pretend.jpg")
-        assert caught.value.status == 422 and "JPG, PNG or WebP" in caught.value.message, fmt
+        assert caught.value.status == 422 and "JPG, PNG, WebP or HEIC" in caught.value.message, fmt
 
 
 def test_a_broken_picture_is_a_plain_error_that_tells_nothing_of_the_server():

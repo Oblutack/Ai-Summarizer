@@ -21,15 +21,19 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+import pillow_heif
 from PIL import Image, ImageFilter, ImageOps
 
 import ocr
 
 logger = logging.getLogger("ai-summarizer")
 
-IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 # Judged by what the file really is, not by its name.
-IMAGE_FORMATS = ("JPEG", "PNG", "WEBP")
+IMAGE_FORMATS = ("JPEG", "PNG", "WEBP", "HEIF")
+
+# After this, Image.open understands HEIC and HEIF files (the format of an iPhone photo).
+pillow_heif.register_heif_opener()
 
 # A picture bigger than this many pixels is refused before it is opened up (a 48-megapixel phone is 48 million).
 MAX_PIXELS = 150_000_000
@@ -53,7 +57,7 @@ def prepare(content: bytes, name: str) -> Image.Image:
             warnings.simplefilter("ignore", Image.DecompressionBombWarning)
             picture: Image.Image = Image.open(io.BytesIO(content))
             if picture.format not in IMAGE_FORMATS:
-                raise ocr.OcrError(422, f"{name} is not a JPG, PNG or WebP picture.")
+                raise ocr.OcrError(422, f"{name} is not a JPG, PNG, WebP or HEIC picture.")
             if picture.width * picture.height > MAX_PIXELS:
                 raise ocr.OcrError(413, f"{name} is too large a picture to read ({picture.width}x{picture.height}).")
             if picture.format == "JPEG":
