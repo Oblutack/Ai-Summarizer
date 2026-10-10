@@ -21,6 +21,7 @@ interface InputAreaProps {
   onTextChange: (value: string) => void;
   onFilesPicked: (files: File[]) => void;
   onRemoveFile: (index: number) => void;
+  onMoveFile: (index: number, by: -1 | 1) => void;
 }
 
 // A recording that was picked or made can be played before it is summarized, to check it is the right one and that it
@@ -39,14 +40,25 @@ function AudioPreview({ file }: { file: File }) {
 // its address is made from the file in this browser and let go of afterwards: nothing is sent.
 function PhotoThumbnail({ file }: { file: File }) {
   const [url, setUrl] = useState("");
+  const [unreadable, setUnreadable] = useState(false);
   useEffect(() => {
     const made = URL.createObjectURL(file);
     setUrl(made);
+    setUnreadable(false);
     return () => URL.revokeObjectURL(made);
   }, [file]);
-  // The file name beside it says what it is.
+  // A picture this browser cannot draw (an iPhone's HEIC, outside Safari) is still sent and read by the server; it just
+  // has a plain tile instead of a thumbnail, and the file name beside it says what it is.
+  if (!url) return null;
+  if (unreadable) {
+    return (
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md border border-ink/20 bg-ink/5 text-ink/50" data-testid="photo-thumbnail" aria-hidden="true">
+        <CameraIcon />
+      </span>
+    );
+  }
   // eslint-disable-next-line @next/next/no-img-element
-  return url ? <img src={url} alt="" className="h-12 w-12 flex-shrink-0 rounded-md border border-ink/20 object-cover" data-testid="photo-thumbnail" /> : null;
+  return <img src={url} alt="" onError={() => setUnreadable(true)} className="h-12 w-12 flex-shrink-0 rounded-md border border-ink/20 object-cover" data-testid="photo-thumbnail" />;
 }
 
 function CameraIcon() {
@@ -68,7 +80,7 @@ function PaperclipIcon() {
 
 // The place to put the words: a text box that also takes PDFs. Once PDFs are attached they replace the
 // text box with a list, since a summary comes from one or the other.
-export default function InputArea({ files, text, link, hasAudio, hasPhotos, canRecord, onTextChange, onFilesPicked, onRemoveFile }: InputAreaProps) {
+export default function InputArea({ files, text, link, hasAudio, hasPhotos, canRecord, onTextChange, onFilesPicked, onRemoveFile, onMoveFile }: InputAreaProps) {
   const t = useT();
   // Whether the main pointer is a finger (a phone or tablet) is only known in the browser. There the camera can be
   // offered; on a computer the Attach button already offers the picture files.
@@ -96,6 +108,30 @@ export default function InputArea({ files, text, link, hasAudio, hasPhotos, canR
               <span className="min-w-0 flex-1 truncate text-base font-medium" title={f.name}>
                 {f.name}
               </span>
+              {files.length > 1 && (
+                <span className="flex flex-shrink-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={() => onMoveFile(i, -1)}
+                    disabled={i === 0}
+                    className="flex h-5 w-9 items-center justify-center rounded-md text-xs leading-none text-ink/70 hover:bg-ink/10 disabled:opacity-30"
+                    aria-label={t("form.moveUpNamed", { name: f.name })}
+                    title={t("form.moveUpNamed", { name: f.name })}
+                  >
+                    &#9650;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onMoveFile(i, 1)}
+                    disabled={i === files.length - 1}
+                    className="flex h-5 w-9 items-center justify-center rounded-md text-xs leading-none text-ink/70 hover:bg-ink/10 disabled:opacity-30"
+                    aria-label={t("form.moveDownNamed", { name: f.name })}
+                    title={t("form.moveDownNamed", { name: f.name })}
+                  >
+                    &#9660;
+                  </button>
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => onRemoveFile(i)}

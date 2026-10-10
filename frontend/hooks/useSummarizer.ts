@@ -148,6 +148,17 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  // The order of the files is the order of the pages, so a photo taken out of turn can be moved.
+  const moveFile = useCallback((index: number, by: -1 | 1) => {
+    setFiles((prev) => {
+      const target = index + by;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
+
   const incrementPageLimit = () => setPageLimit(String(Number(pageLimit || 0) + 1));
   const decrementPageLimit = () => {
     const current = Number(pageLimit || 0);
@@ -273,7 +284,7 @@ export function useSummarizer({ endpoint, onSummaryCreated, humanCheck }: UseSum
     // options
     wordCount, setWordCount, pageLimit, setPageLimit, style, setStyle, language, setLanguage,
     // input
-    files, inputText, link, changeText, addFiles, removeFile, hasAudio: files.some((f) => isAudioFile(f.name)),
+    files, inputText, link, changeText, addFiles, removeFile, moveFile, hasAudio: files.some((f) => isAudioFile(f.name)),
     hasPhotos: files.some((f) => isImageFile(f.name)),
     // result
     summary, error, isLoading, progress, stageLabel, showPageLimit, exportBaseName,

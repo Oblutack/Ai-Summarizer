@@ -67,12 +67,12 @@ describe("recordings", () => {
 describe("photos of pages", () => {
   it("are told apart from documents and recordings by their extension, in any letter case", async () => {
     const { isImageFile, isAudioFile } = await import("./links");
-    for (const name of ["page.jpg", "PAGE.JPEG", "scan.Png", "web.webp", "IMG 0042.jpg"]) {
+    for (const name of ["page.jpg", "PAGE.JPEG", "scan.Png", "web.webp", "IMG 0042.jpg", "IMG_0042.HEIC", "shot.heif"]) {
       expect(isImageFile(name), name).toBe(true);
       expect(isDocumentFile(name), name).toBe(true);
       expect(isAudioFile(name), name).toBe(false);
     }
-    for (const name of ["page.gif", "page.heic", "page.bmp", "jpg", "photo.jpg.pdf", "report.pdf", ""]) {
+    for (const name of ["page.gif", "page.bmp", "jpg", "photo.jpg.pdf", "report.pdf", ""]) {
       expect(isImageFile(name), name).toBe(false);
     }
   });

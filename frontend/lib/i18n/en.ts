@@ -144,7 +144,7 @@ export const en = {
   "form.summarize": "Summarize",
   "form.savePdf": "Save as PDF",
   "form.lengthLine": "Summary: {length}",
-  "form.errFileType": "Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP) are supported.",
+  "form.errFileType": "Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP, HEIC) are supported.",
   "form.errMaxFiles": "You can attach up to {max} files at once.",
   "form.errGeneric": "An error occurred.",
   "form.errNeedInput": "Please attach a file, paste a web link or paste some text.",
@@ -327,7 +327,7 @@ export const en = {
   "footer.tagline": "Read, question and verify your documents.",
   "footer.source": "Open source on GitHub",
   "hero.title": "Understand any document. Check every answer.",
-  "hero.subtitle": "Inkling summarizes your PDFs, Word and PowerPoint files, web pages, recordings and text, answers questions with the exact page cited, and shows whether each sentence of a summary really appears in the original.",
+  "hero.subtitle": "Inkling summarizes your PDFs, Word and PowerPoint files, photos of pages, web pages, recordings and text, answers questions with the exact page cited, compares versions, turns documents into tables, and shows whether each sentence of a summary really appears in the original.",
   "hero.tryNow": "Try it now",
   "hero.createAccount": "Create an account",
   "hero.toDashboard": "Go to your dashboard",
@@ -564,6 +564,14 @@ export const en = {
   "apiKeys.usageTodayOf": "Today: {n} of {limit}",
   "apiKeys.usageTotal": "In all: {n}",
   "apiKeys.saveTip": "Add ?save=true to a summarize call to keep the result in your library.",
+  "features.inputs.title": "From any source",
+  "features.inputs.text": "PDFs, Word and PowerPoint files, scanned pages, photos taken with your phone, web links and recordings of meetings.",
+  "features.compare.title": "What changed between versions",
+  "features.compare.text": "Pick two versions of a contract or report and see every change in the exact words, the numbers that moved and how much each could matter.",
+  "features.extract.title": "Data out of documents",
+  "features.extract.text": "Pull invoice numbers, totals, dates or notice periods into a table, each with the quote it came from and a check that it is really there, then download it as a CSV.",
+  "form.moveUpNamed": "Move {name} up",
+  "form.moveDownNamed": "Move {name} down",
 } as const;
 
 export type MessageKey = keyof typeof en;

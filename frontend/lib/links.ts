@@ -24,7 +24,7 @@ export const AUDIO_EXTENSIONS = [".mp3", ".mpga", ".mpeg", ".m4a", ".mp4", ".wav
 export const MAX_AUDIO_MB = 25;
 
 // Photos of pages. Their text is read on the server (OCR), which is real work, so they are for signed-in people.
-export const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"] as const;
+export const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"] as const;
 
 // The file types that can be summarized, as the extensions the file picker offers.
 export const DOCUMENT_EXTENSIONS = [".pdf", ".docx", ".pptx", ...AUDIO_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;

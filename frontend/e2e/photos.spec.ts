@@ -112,13 +112,42 @@ test.describe("photos of pages", () => {
   test("the file picker offers photos", async ({ page }) => {
     await newSignedInUser(page);
     const accept = await page.locator("#pdf-upload").getAttribute("accept");
-    for (const extension of [".pdf", ".jpg", ".jpeg", ".png", ".webp"]) expect(accept).toContain(extension);
+    for (const extension of [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"]) expect(accept).toContain(extension);
   });
 
   test("a picture format that cannot be read is not accepted", async ({ page }) => {
     await newSignedInUser(page);
-    await page.locator("#pdf-upload").setInputFiles({ name: "photo.heic", mimeType: "image/heic", buffer: Buffer.alloc(100, 1) });
-    await expect(alertOf(page)).toHaveText(/photos \(JPG, PNG, WebP\) are supported/);
+    await page.locator("#pdf-upload").setInputFiles({ name: "photo.gif", mimeType: "image/gif", buffer: Buffer.alloc(100, 1) });
+    await expect(alertOf(page)).toHaveText(/photos \(JPG, PNG, WebP, HEIC\) are supported/);
+  });
+
+  test("an iPhone picture (HEIC) is accepted and sent as it is, even though this browser cannot draw it", async ({ page }) => {
+    await newSignedInUser(page);
+    await page.locator("#pdf-upload").setInputFiles({ name: "IMG_0042.HEIC", mimeType: "image/heic", buffer: Buffer.alloc(100, 1) });
+    await expect(page.getByText("IMG_0042.HEIC")).toBeVisible();
+    await expect(alertOf(page)).toHaveCount(0);
+    await summarize(page);
+    await expect(page.getByText("Subject: IMG_0042.HEIC")).toBeVisible();
+  });
+
+  test("photos taken out of turn can be put in order before they are sent", async ({ page }) => {
+    await newSignedInUser(page);
+    await page.locator("#pdf-upload").setInputFiles([jpegFile("page 2.jpg"), jpegFile("page 1.jpg"), jpegFile("page 3.jpg")]);
+    const names = () => page.locator("li span[title]").allInnerTexts();
+    expect(await names()).toEqual(["page 2.jpg", "page 1.jpg", "page 3.jpg"]);
+    await expect(page.getByRole("button", { name: "Move page 2.jpg up" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Move page 3.jpg down" })).toBeDisabled();
+    await page.getByRole("button", { name: "Move page 1.jpg up" }).click();
+    expect(await names()).toEqual(["page 1.jpg", "page 2.jpg", "page 3.jpg"]);
+    await summarize(page);
+    const text = await showOriginalText(card(page, "page 1.jpg (+2 more photos)"));
+    await expect(text).toContainText(/photo page 1\.jpg[\s\S]*page 2\.jpg[\s\S]*page 3\.jpg/);
+  });
+
+  test("a single file has no move buttons", async ({ page }) => {
+    await newSignedInUser(page);
+    await page.locator("#pdf-upload").setInputFiles(jpegFile("only.jpg"));
+    await expect(page.getByRole("button", { name: /Move only\.jpg/ })).toHaveCount(0);
   });
 
   test("the form with a photo attached has no accessibility violations", async ({ page }) => {

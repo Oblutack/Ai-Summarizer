@@ -69,6 +69,7 @@ export default function EInkForm({ endpoint, onSummaryCreated }: EInkFormProps) 
           onTextChange={s.changeText}
           onFilesPicked={s.addFiles}
           onRemoveFile={s.removeFile}
+          onMoveFile={s.moveFile}
         />
 
         <SummaryOptions
