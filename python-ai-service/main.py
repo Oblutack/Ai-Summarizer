@@ -20,6 +20,7 @@ from pypdf import PdfReader
 
 import compare
 import embeddings
+import extraction
 import ocr
 import photos
 from attribution import check_summary
@@ -1023,6 +1024,49 @@ async def study_material(payload: StudyPayload):
         questions = await generate_until_usable(prompt, parse_quiz, "The language model failed to write a quiz.")
         return {"kind": "quiz", "questions": questions}
     raise HTTPException(422, "kind must be 'flashcards' or 'quiz'")
+
+
+class FieldIn(BaseModel):
+    name: str
+    description: str = ""
+    type: str = "text"
+
+
+class ExtractPayload(BaseModel):
+    name: str = ""
+    text: str
+    fields: list[FieldIn]
+    language: Optional[str] = None
+
+
+@app.post("/extract")
+async def extract_fields(payload: ExtractPayload):
+    """The named fields of a document, each with the exact quote it comes from and whether that checks out (see
+    extraction.py)."""
+    if payload.language and not is_valid_language(payload.language):
+        raise HTTPException(422, "Unsupported language")
+    if not payload.text.strip():
+        raise HTTPException(422, "This document has no text to extract from")
+    if len(payload.text) > MAX_MULTI_TEXT_CHARS:
+        raise HTTPException(413, "Document is too long")
+    try:
+        fields = extraction.clean_fields(
+            [{"name": f.name, "description": f.description, "type": f.type} for f in payload.fields]
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    question = " ".join(f"{f.name} {f.description}" for f in fields)
+    passages = await asyncio.to_thread(select_passages, payload.text, question, extraction.MAX_PROMPT_CHARS)
+    prompt = extraction.extraction_prompt(passages, fields, payload.language)
+    answers = await generate_until_usable(
+        prompt,
+        lambda reply: extraction.parse_extraction(reply, len(fields)),
+        "The language model failed to extract the fields.",
+    )
+    suspect = await asyncio.to_thread(extraction.injection_sentences, payload.text)
+    results = await asyncio.to_thread(extraction.assemble, fields, answers, payload.text, suspect)
+    return {"name": payload.name.strip()[:200], "fields": results, "suspicious": bool(suspect)}
 
 
 class CompareSide(BaseModel):
