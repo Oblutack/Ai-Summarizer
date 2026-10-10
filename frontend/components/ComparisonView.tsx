@@ -87,6 +87,11 @@ function ChangeItem({ change }: { change: Change }) {
         <span className={`rounded-full border px-2 py-0.5 font-semibold ${IMPORTANCE_LOOK[change.importance]}`}>{t(IMPORTANCE_KEY[change.importance])}</span>
         {page && <span className="muted">{page}</span>}
       </div>
+      {change.suspicious && (
+        <p className="text-sm font-medium text-danger" data-testid="change-suspicious">
+          {t("compare.suspiciousChange")}
+        </p>
+      )}
       {change.summary && <p className="font-semibold">{change.summary}</p>}
       {change.impact && <p className="text-ink/80">{change.impact}</p>}
       {(removed.length > 0 || added.length > 0) && (
@@ -137,6 +142,11 @@ export default function ComparisonView({ result, oldName, newName }: { result: C
           <p className="label mb-1">{t("compare.inShort")}</p>
           <p className="leading-relaxed">{result.bottomLine}</p>
         </div>
+      )}
+      {result.suspicious && (
+        <p className="rounded-lg border border-danger/60 bg-surface p-3 font-medium" role="note" data-testid="compare-suspicious">
+          {t("compare.suspiciousBanner")}
+        </p>
       )}
       {!result.explained && (
         <p className="text-sm text-ink/80" role="note">

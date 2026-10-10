@@ -20,6 +20,8 @@ export interface Change {
   summary: string;
   impact: string;
   explained: boolean;
+  // The text of the change reads like an instruction to an AI: it is always shown as important.
+  suspicious?: boolean;
 }
 
 export interface Comparison {
@@ -29,6 +31,8 @@ export interface Comparison {
   bottomLine: string;
   explained: boolean;
   omitted: number;
+  // Some change reads like an instruction to an AI.
+  suspicious?: boolean;
 }
 
 export const IMPORTANCE_ORDER: Importance[] = ["high", "medium", "low"];
@@ -77,6 +81,7 @@ export function comparisonToMarkdown(result: Comparison, oldName: string, newNam
   lines.push("## Changes", "");
   result.changes.forEach((change, index) => {
     lines.push(`### ${index + 1}. ${KIND_LABEL[change.kind]}${pages(change)}, importance ${change.importance}`, "");
+    if (change.suspicious) lines.push("**Warning:** this text reads like an instruction to an AI, not like part of the document's content.", "");
     if (change.summary) lines.push(`**${change.summary}**`, "");
     if (change.impact) lines.push(change.impact, "");
     if (change.numbers.removed.length || change.numbers.added.length) {

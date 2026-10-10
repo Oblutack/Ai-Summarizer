@@ -76,6 +76,12 @@ describe("comparisonToMarkdown", () => {
     expect(markdown.split("### 2.")[1]).not.toContain("Numbers:");
   });
 
+  it("warns about text that reads like an instruction to an AI", () => {
+    const warned = comparisonToMarkdown({ ...result, changes: [change({ suspicious: true })] }, "a", "b");
+    expect(warned).toContain("**Warning:** this text reads like an instruction to an AI");
+    expect(markdown).not.toContain("Warning");
+  });
+
   it("shows pages as a move when they differ", () => {
     const moved = comparisonToMarkdown({ ...result, changes: [change({ beforePage: 2, afterPage: 5 })] }, "a", "b");
     expect(moved).toContain("(page 2 → page 5)");
