@@ -82,7 +82,7 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
       cancelled = true;
       void loaded?.loadingTask.destroy();
     };
-  }, [documentId, file.id]);
+  }, [documentId, file.id, t]);
 
   // Draw the current page, and mark the passage when it is the cited page.
   useEffect(() => {
@@ -145,7 +145,7 @@ export default function PdfViewer({ documentId, file, page: openOn, passage, onC
       cancelled = true;
       task?.cancel();
     };
-  }, [pdf, pageNumber, openOn, passage]);
+  }, [pdf, pageNumber, openOn, passage, t]);
 
   const total = pdf?.numPages ?? 0;
   const go = (delta: number) => setPageNumber((n) => Math.min(Math.max(1, n + delta), Math.max(total, 1)));

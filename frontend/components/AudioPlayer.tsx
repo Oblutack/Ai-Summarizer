@@ -57,7 +57,6 @@ export default function AudioPlayer({ src, label, seek }: AudioPlayerProps) {
     if (!seek || !element) return;
     if (element.readyState >= 1) goTo(seek.seconds);
     else pending.current = seek.seconds;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seek]);
   const applyPending = () => {
     if (pending.current === null) return;

@@ -150,7 +150,7 @@ export default function AccountPage() {
     } catch (err) {
       setError(apiError(err, t("account.loadFailed")));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!loading && !user && !deleted) router.push("/login");
