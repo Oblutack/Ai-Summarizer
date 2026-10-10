@@ -30,6 +30,8 @@ type compareChange struct {
 	Summary    string `json:"summary"`
 	Impact     string `json:"impact"`
 	Explained  bool   `json:"explained"`
+	// Suspicious: the text of this change reads like an instruction to an AI.
+	Suspicious bool `json:"suspicious"`
 }
 
 type compareResult struct {
@@ -39,6 +41,7 @@ type compareResult struct {
 	BottomLine string          `json:"bottomLine"`
 	Explained  bool            `json:"explained"`
 	Omitted    int             `json:"omitted"`
+	Suspicious bool            `json:"suspicious"`
 }
 
 const (
@@ -82,6 +85,7 @@ func tidyComparison(raw compareResult) compareResult {
 		BottomLine: clip(strings.TrimSpace(raw.BottomLine), 1200),
 		Explained:  raw.Explained,
 		Omitted:    max(raw.Omitted, 0),
+		Suspicious: raw.Suspicious,
 	}
 	for _, kind := range compareKinds {
 		out.Counts[kind] = max(raw.Counts[kind], 0)
