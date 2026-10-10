@@ -30,12 +30,16 @@ func TestSignupValidation(t *testing.T) {
 	}
 }
 
-func TestSignupRejectsDuplicatesCaseInsensitively(t *testing.T) {
+func TestSignupRecognizesDuplicatesCaseInsensitively(t *testing.T) {
 	a := newApp(t)
 	email := uniqueEmail()
 	a.signup(email)
-	if r := a.newClient().post("/signup", map[string]string{"email": strings.ToUpper(email), "password": goodPass}); r.Status != http.StatusConflict {
-		t.Errorf("got %d, want 409", r.Status)
+	// the reply does not say so (see password_test.go), but no second account is made
+	if r := a.newClient().post("/signup", map[string]string{"email": strings.ToUpper(email), "password": goodPass}); r.Status != http.StatusOK {
+		t.Errorf("got %d, want 200", r.Status)
+	}
+	if n := count(t, a.db, "SELECT count(*) FROM users WHERE lower(email) = ?", email); n != 1 {
+		t.Errorf("accounts = %d, want 1", n)
 	}
 }
 

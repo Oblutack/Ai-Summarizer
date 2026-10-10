@@ -41,20 +41,31 @@ test.describe("authentication", () => {
     await expect(page).toHaveURL(/\/dashboard/);
   });
 
-  test("weak and duplicate sign-ups are rejected with a clear message", async ({ page }) => {
+  test("weak sign-ups are rejected with a clear message", async ({ page }) => {
     await page.goto("/signup");
     await page.locator("#email").fill(uniqueEmail());
     await page.locator("#password").fill("password");
     await page.getByRole("button", { name: "Sign Up", exact: true }).click();
     await expect(alertOf(page)).toContainText(/too common|at least 8/i);
 
+    // patterns a list of passwords cannot catch
+    for (const password of ["87654321", "abababab", "Qwerty123"]) {
+      await page.locator("#password").fill(password);
+      await page.getByRole("button", { name: "Sign Up", exact: true }).click();
+      await expect(alertOf(page)).toContainText(/too common/i);
+    }
+  });
+
+  test("signing up with an address that already has an account looks the same as signing up", async ({ page }) => {
+    // the page must not tell anyone which addresses are registered: the owner hears by email
     const email = uniqueEmail();
     await signUp(page, email);
     await page.goto("/signup");
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign Up", exact: true }).click();
-    await expect(alertOf(page)).toBeVisible();
+    await expect(page.getByText("Check your email")).toBeVisible();
+    await expect(alertOf(page)).toHaveCount(0);
   });
 
   test("emails are matched case-insensitively", async ({ page }) => {
