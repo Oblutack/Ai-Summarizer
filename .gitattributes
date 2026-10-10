@@ -1,0 +1,15 @@
+# Line endings. Git decides what is text; these files are always checked out with Unix line endings, even on Windows:
+# Go's formatter (gofmt) and shell scripts (the git hooks) break on Windows ones.
+* text=auto
+*.go text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+.githooks/* text eol=lf
+
+# Never touched or diffed as text.
+*.png binary
+*.gif binary
+*.ico binary
+*.jpg binary
+*.woff2 binary
+*.pdf binary
