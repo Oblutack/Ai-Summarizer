@@ -19,6 +19,7 @@ import RecordingPanel from "./RecordingPanel";
 import PodcastPlayer from "./PodcastPlayer";
 import ProofView from "./ProofView";
 import ReadAloudPlayer, { ReadAloudToggle } from "./ReadAloudPlayer";
+import ComparePanel from "./ComparePanel";
 import RewritePanel from "./RewritePanel";
 import ShareControl from "./ShareControl";
 import StudyPanel from "./StudyPanel";
@@ -65,6 +66,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   // The quieter actions (export, email, share, rewrite) stay tucked away, unless there is a link to show.
   const [moreOpen, setMoreOpen] = useState(Boolean(doc.shareToken));
   const [textOpen, setTextOpen] = useState(false);
@@ -348,6 +350,11 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
                 {rewriteOpen ? t("doc.closeRewrite") : t("doc.rewrite")}
               </button>
             )}
+            {doc.hasContent && (
+              <button type="button" onClick={() => setCompareOpen((open) => !open)} className={textButton} aria-expanded={compareOpen}>
+                {compareOpen ? t("compare.close") : t("compare.open")}
+              </button>
+            )}
             {recordingFile && (
               <button type="button" onClick={() => setRecordingOpen((open) => !open)} className={textButton} aria-expanded={recordingOpen}>
                 {recordingOpen ? t("doc.hideRecording") : t("doc.playRecording")}
@@ -366,6 +373,7 @@ export default function DocumentCard({ doc, onDelete, onChange }: DocumentCardPr
 
       {readOpen && <ReadAloudPlayer markdown={doc.Summary} onClose={() => setReadOpen(false)} />}
       {rewriteOpen && <RewritePanel documentId={doc.ID} onDone={summaryChanged} />}
+      {compareOpen && doc.hasContent && <ComparePanel doc={doc} />}
       {textOpen && doc.hasContent && !recordingFile && <OriginalText documentId={doc.ID} transcript={transcript} />}
       {recordingOpen && recordingFile && <RecordingPanel documentId={doc.ID} file={recordingFile} seek={playAt} />}
       {podcastOpen && <PodcastPlayer documentId={doc.ID} />}
