@@ -16,7 +16,12 @@ info:
 
     **Whose allowance.** Calls count against the key owner's daily limits (the same as the website) and the site's own
     rate limits. Every response carries `X-Quota-Limit` and `X-Quota-Remaining`. Work that fails because of Inkling
-    (a `5xx`) is not counted.
+    (a `5xx`) is not counted. A key can also be given a **daily limit of its own** and an **expiry date** when it is made;
+    a key past its limit gets `429` with `code: api_key_limit`, and one that has expired `401` with
+    `code: api_key_expired`. `GET /v1/usage` shows what the key has done today and in all.
+
+    **Keeping results.** Nothing is saved by default. Add `?save=true` to a summarize call to put the result in the key
+    owner's library; the reply (or the final `done` event of a stream) then carries the saved document's `id`.
 
     **For servers only.** Call the API from your own server, never from a web page: a key in a page is a key anyone
     can read, and browsers from other sites are refused.
@@ -47,6 +52,7 @@ paths:
         - $ref: "#/components/parameters/style"
         - $ref: "#/components/parameters/language"
         - $ref: "#/components/parameters/stream"
+        - $ref: "#/components/parameters/save"
       requestBody:
         required: true
         content:
@@ -89,6 +95,7 @@ paths:
         - $ref: "#/components/parameters/style"
         - $ref: "#/components/parameters/language"
         - $ref: "#/components/parameters/stream"
+        - $ref: "#/components/parameters/save"
       requestBody:
         required: true
         content:
@@ -129,6 +136,7 @@ paths:
         recordings are transcribed first. Documents and photos can be up to 10 MB, recordings up to 25 MB.
       parameters:
         - $ref: "#/components/parameters/stream"
+        - $ref: "#/components/parameters/save"
       requestBody:
         required: true
         content:
@@ -181,6 +189,7 @@ paths:
         document, in the order sent, and are summarized as one document.
       parameters:
         - $ref: "#/components/parameters/stream"
+        - $ref: "#/components/parameters/save"
       requestBody:
         required: true
         content:
@@ -227,14 +236,138 @@ paths:
           $ref: "#/components/responses/AiFailed"
         "503":
           $ref: "#/components/responses/Paused"
+  /v1/compare:
+    post:
+      tags: [Summaries]
+      operationId: compareTexts
+      summary: What changed between two versions of a text
+      description: |
+        The differences are found by a program that matches the two texts sentence by sentence, so every `before` and
+        `after` is the exact text of one of yours; capital letters, spacing and punctuation are not changes, and a
+        passage that only moved is reported as moved. The language model only explains each change in a sentence and
+        rates how much it could matter. An explanation that mentions a number that is in neither version is dropped and
+        replaced by a plain description. A change whose text reads like an instruction to an AI is flagged
+        (`suspicious`) and always rated `high`. Costs one request of the allowance. Each text can be up to 300,000
+        characters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old, new]
+              properties:
+                old:
+                  $ref: "#/components/schemas/NamedText"
+                new:
+                  $ref: "#/components/schemas/NamedText"
+                language:
+                  $ref: "#/components/schemas/Language"
+            example:
+              old:
+                name: Contract v1
+                text: Payment is due within 30 days of the invoice.
+              new:
+                name: Contract v2
+                text: Payment is due within 60 days of the invoice.
+      responses:
+        "200":
+          description: The comparison.
+          headers:
+            X-Quota-Limit:
+              $ref: "#/components/headers/QuotaLimit"
+            X-Quota-Remaining:
+              $ref: "#/components/headers/QuotaRemaining"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comparison"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/OverLimit"
+        "502":
+          $ref: "#/components/responses/AiFailed"
+        "503":
+          $ref: "#/components/responses/Paused"
+  /v1/extract:
+    post:
+      tags: [Summaries]
+      operationId: extractFields
+      summary: Named fields read out of a text, each with its exact quote
+      description: |
+        Up to 20 fields (each text, number, date, amount or list). For every field the reply has the value and the exact
+        quote it was read from, and a program has checked both: the quote must be in the text (its page is found) and the
+        value must be in the quote (numbers are compared as numbers). `verified: false` says the value could not be
+        confirmed, and `reason` why, for example a number the model added up itself. A field the text does not state has
+        `found: false`. If the text contains sentences written for an AI ("ignore your instructions..."), a quote taken
+        from one is never `verified` and `suspicious` is true. Costs one request of the allowance. The text can be up to
+        400,000 characters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, fields]
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                text:
+                  type: string
+                  maxLength: 400000
+                fields:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    $ref: "#/components/schemas/FieldSpec"
+                language:
+                  $ref: "#/components/schemas/Language"
+            example:
+              name: invoice.txt
+              text: "Invoice number: INV-42. Total amount due: 1,020.00 euros."
+              fields:
+                - name: Invoice number
+                - name: Total
+                  type: amount
+      responses:
+        "200":
+          description: One result per field, in the order asked.
+          headers:
+            X-Quota-Limit:
+              $ref: "#/components/headers/QuotaLimit"
+            X-Quota-Remaining:
+              $ref: "#/components/headers/QuotaRemaining"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Extraction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/OverLimit"
+        "502":
+          $ref: "#/components/responses/AiFailed"
+        "503":
+          $ref: "#/components/responses/Paused"
   /v1/usage:
     get:
       tags: [Summaries]
       operationId: usage
-      summary: Today's usage of the key owner's daily allowance
+      summary: Today's usage of the key owner's daily allowance, and of this key
       responses:
         "200":
-          description: Used and allowed today (UTC), and when the day resets.
+          description: Used and allowed today (UTC), what this key has done, and when the day resets.
           content:
             application/json:
               schema:
@@ -244,6 +377,22 @@ paths:
                     $ref: "#/components/schemas/Meter"
                   chats:
                     $ref: "#/components/schemas/Meter"
+                  key:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+                      usedToday:
+                        type: integer
+                      usedTotal:
+                        type: integer
+                      dailyLimit:
+                        type: [integer, "null"]
+                      expiresAt:
+                        type: [string, "null"]
+                        format: date-time
                   resetsAt:
                     type: string
                     format: date-time
@@ -286,6 +435,18 @@ paths:
                   type: string
                   maxLength: 40
                   description: Optional, to tell keys apart. Defaults to "API key".
+                expiresInDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 366
+                  description: The key stops working after this many days. 0 or absent means never.
+                dailyLimit:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+                  description: |
+                    The most requests this key may make in a day (UTC), on top of its owner's allowance. Absent means
+                    only the owner's allowance limits it.
       responses:
         "201":
           description: The new key.
@@ -365,6 +526,13 @@ components:
       in: query
       schema:
         $ref: "#/components/schemas/Language"
+    save:
+      name: save
+      in: query
+      schema:
+        type: boolean
+        default: false
+      description: Keep the result in the key owner's library; the reply then has the saved document's `id`.
     stream:
       name: stream
       in: query
@@ -391,6 +559,9 @@ components:
         filename:
           type: string
           description: The file name, the title of the web page, or the names of several files.
+        id:
+          type: integer
+          description: The saved document's id, only when `save=true` was asked for.
     Meter:
       type: object
       properties:
@@ -419,6 +590,142 @@ components:
         revokedAt:
           type: [string, "null"]
           format: date-time
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+        dailyLimit:
+          type: [integer, "null"]
+        usedToday:
+          type: integer
+        usedTotal:
+          type: integer
+    NamedText:
+      type: object
+      required: [text]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        text:
+          type: string
+          maxLength: 300000
+    FieldSpec:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 200
+        type:
+          type: string
+          enum: [text, number, date, amount, list]
+          default: text
+    Change:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [added, removed, changed, moved]
+        before:
+          type: string
+          description: The exact text of the older version (empty for an addition).
+        after:
+          type: string
+          description: The exact text of the newer version (empty for a removal).
+        beforePage:
+          type: [integer, "null"]
+        afterPage:
+          type: [integer, "null"]
+        segments:
+          type:
+            - array
+            - "null"
+          description: For a changed passage, the words that stayed (`eq`), went (`del`) and came (`ins`), in order.
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: string
+        numbers:
+          type: object
+          properties:
+            removed:
+              type: array
+              items:
+                type: string
+            added:
+              type: array
+              items:
+                type: string
+        importance:
+          type: string
+          enum: [high, medium, low]
+        summary:
+          type: string
+        impact:
+          type: string
+        explained:
+          type: boolean
+        suspicious:
+          type: boolean
+          description: The text reads like an instruction to an AI; the change is always `high`.
+    Comparison:
+      type: object
+      properties:
+        identical:
+          type: boolean
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Change"
+        bottomLine:
+          type: string
+        explained:
+          type: boolean
+        omitted:
+          type: integer
+        suspicious:
+          type: boolean
+    FieldResult:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        value:
+          type: string
+        quote:
+          type: string
+        page:
+          type: [integer, "null"]
+        found:
+          type: boolean
+        verified:
+          type: boolean
+        reason:
+          type: string
+    Extraction:
+      type: object
+      properties:
+        name:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldResult"
+        suspicious:
+          type: boolean
     Error:
       type: object
       properties:
@@ -463,7 +770,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     InvalidKey:
-      description: 'The key is missing, wrong or revoked (`code: invalid_api_key`).'
+      description: 'The key is missing, wrong or revoked (`code: invalid_api_key`), or has expired (`code: api_key_expired`).'
       content:
         application/json:
           schema:
@@ -482,8 +789,8 @@ components:
             $ref: "#/components/schemas/Error"
     OverLimit:
       description: |
-        The owner's daily allowance is used up (`code: quota_exceeded`), or calls are coming too fast. Wait for
-        `Retry-After` seconds.
+        The owner's daily allowance is used up (`code: quota_exceeded`), the key's own daily limit is used up
+        (`code: api_key_limit`), or calls are coming too fast. Wait for `Retry-After` seconds.
       headers:
         Retry-After:
           $ref: "#/components/headers/RetryAfter"

@@ -68,7 +68,7 @@ Inkling turns PDFs, Word and PowerPoint files, photos of pages, web pages, recor
 - **Revocable server-side sessions** in `httpOnly` cookies; a device list with remote sign-out; "sign out everywhere".
 - **Your data is yours:** one-click JSON export and permanent account deletion (hard delete, re-authenticated).
 - Saved history with cursor pagination, PDF export, and daily usage meters.
-- **An API for your own programs.** Make a key on the account page (up to five; shown once, only a hash is kept, revocable at once) and call `/v1` with `Authorization: Bearer ink_...` to summarize text, web pages, documents, photos and recordings. A key can do nothing but summarize, so a leaked one can neither read your library nor touch your account; nothing it summarizes is saved. It draws on your daily allowance and is held by the same rate limits and spending guard as the website. See *The API for programs* below and `docs/openapi.yaml`.
+- **An API for your own programs.** Make a key on the account page (up to five; shown once, only a hash is kept, revocable at once) and call `/v1` with `Authorization: Bearer ink_...` to summarize text, web pages, documents, photos and recordings. A key can do nothing but summarize, so a leaked one can neither read your library nor touch your account; nothing it summarizes is saved. It draws on your daily allowance and is held by the same rate limits and spending guard as the website. A key can be given an **expiry date** and a **daily limit of its own** when it is made, the account page shows what each key has done today and in all, and `?save=true` keeps a result in your library (the reply then has its `id`). Besides summarizing, a program can **compare** two texts and **extract fields** from one. See *The API for programs* below and `docs/openapi.yaml`.
 
 ### Built for production
 - Per-user daily quotas (with refunds when work fails), per-IP and per-user rate limits, a per-account login throttle, and optional **Cloudflare Turnstile** bot protection.
@@ -273,11 +273,13 @@ curl -X POST http://localhost:8080/v1/summarize-text \
 | --- | --- | --- | --- |
 | `POST` | `/v1/summarize-text`, `/v1/summarize-url` | API key | Summarize text (`{"text"}`) or a web page or PDF link (`{"url"}`). |
 | `POST` | `/v1/summarize`, `/v1/summarize-multiple` | API key | Summarize a file (multipart `file`) or up to 5 (`files`): PDF, Word, PowerPoint, photos (OCR) and recordings. Several photos are the pages of one document. |
-| `GET` | `/v1/usage` | API key | Today's use of the owner's daily allowance. |
-| `GET`, `POST` | `/account/api-keys` | session | List your keys (prefix, name, last used; never the key) / make one (the key is in the reply once). |
+| `POST` | `/v1/compare` | API key | What changed between two texts (`{old: {name?, text}, new: {name?, text}, language?}`), as for comparing saved documents: exact quotes, numbers that changed, an importance and explanation for each change, a bottom line. |
+| `POST` | `/v1/extract` | API key | Named fields (`{name?, text, fields: [{name, description?, type?}], language?}`) read out of a text, each with its exact quote and whether it checks out. |
+| `GET` | `/v1/usage` | API key | Today's use of the owner's daily allowance, and what this key has done and may do. |
+| `GET`, `POST` | `/account/api-keys` | session | List your keys (prefix, name, last used, expiry, daily limit, use today and in all; never the key) / make one (`{name?, expiresInDays?, dailyLimit?}`; the key is in the reply once). |
 | `DELETE` | `/account/api-keys/:id` | session | Revoke a key at once. |
 
-Every reply carries `X-Quota-Limit` and `X-Quota-Remaining`. The calls are for servers: a browser from another site is refused, so never put a key in a web page. Failed calls (`5xx`) are not counted against the allowance.
+Every reply carries `X-Quota-Limit` and `X-Quota-Remaining`. Add `?save=true` to a summarize call to keep the result in your library. A key past its own limit gets `429` (`code: api_key_limit`) without costing its owner anything, and an expired key `401` (`code: api_key_expired`). The calls are for servers: a browser from another site is refused, so never put a key in a web page. Failed calls (`5xx`) are not counted against the allowance.
 
 </details>
 
