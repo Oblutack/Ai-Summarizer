@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { DangerButton, ErrorText, Field, SecondaryButton, SuccessText } from "../../components/ui";
 import { API_URL, apiError } from "../../lib/api";
 import type { SessionInfo, Usage } from "../../types";
+import ApiKeys from "../../components/ApiKeys";
 import { useT } from "../../components/I18nProvider";
 import type { MessageKey, Params } from "../../lib/i18n";
 
@@ -325,6 +326,10 @@ export default function AccountPage() {
           ))}
         </ul>
         <SecondaryButton onClick={signOutEverywhere}>{t("account.signOutEverywhere")}</SecondaryButton>
+      </Section>
+
+      <Section title={t("apiKeys.title")}>
+        <ApiKeys />
       </Section>
 
       <Section title={t("account.data")}>
