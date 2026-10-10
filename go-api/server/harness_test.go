@@ -100,6 +100,10 @@ type fakeAI struct {
 	fail       atomic.Bool
 	// lastAsk is the most recent /ask request body, to see which passages were sent.
 	lastAsk atomic.Value
+	// lastCompare is the most recent /compare request body; compareReply, when set, is what /compare answers instead
+	// of a normal comparison (to see how the gateway treats a strange reply).
+	lastCompare  atomic.Value
+	compareReply atomic.Value
 	// streamError makes streamed summaries end with an error event.
 	streamError atomic.Bool
 	// embedOn makes /embed work (off, it answers 503 like a service with embeddings switched off).
@@ -267,6 +271,20 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_, _ = w.Write([]byte(`{"kind":"flashcards","cards":[{"front":"Front one","back":"Back one"},{"front":"Front two","back":"Back two"},{"front":"Front three","back":"Back three"}]}`))
+	case "/compare":
+		raw, _ := io.ReadAll(r.Body)
+		f.lastCompare.Store(raw)
+		if override, _ := f.compareReply.Load().(string); override != "" {
+			_, _ = w.Write([]byte(override))
+			return
+		}
+		_, _ = w.Write([]byte(`{"identical":false,"counts":{"added":1,"removed":0,"changed":1,"moved":0},"changes":[` +
+			`{"id":1,"kind":"changed","before":"Payment is due within 30 days.","after":"Payment is due within 60 days.","beforePage":1,"afterPage":1,` +
+			`"segments":[["eq","Payment is due within "],["del","30"],["ins","60"],["eq"," days."]],"numbers":{"removed":["30"],"added":["60"]},` +
+			`"importance":"high","summary":"The payment window doubles.","impact":"Slower cash for the supplier.","explained":true},` +
+			`{"id":2,"kind":"added","before":"","after":"Records are kept for seven years.","beforePage":null,"afterPage":2,"segments":null,` +
+			`"numbers":{"removed":[],"added":["7"]},"importance":"medium","summary":"A record-keeping duty was added.","impact":"More admin.","explained":true}],` +
+			`"bottomLine":"Payment terms changed and a duty was added.","explained":true,"omitted":0}`))
 	case "/proof":
 		_, _ = w.Write([]byte(`{"sentences":[{"text":"Overview","kind":"heading","support":null,"coverage":0,"missingNumbers":[],"passages":[]},{"text":"A claim that is backed.","kind":"claim","support":"strong","coverage":0.9,"missingNumbers":[],"passages":[{"id":1,"text":"The backing passage.","page":2,"pageEnd":2,"coverage":0.9}]}],"claims":1,"found":1,"partly":0,"notFound":0,"verifiable":true}`))
 	case "/healthz":
