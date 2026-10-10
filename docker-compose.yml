@@ -52,6 +52,9 @@ services:
         condition: service_healthy
     environment:
       - DSN=host=postgres user=${POSTGRES_USER:-user} password=${POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-summarizer_db} port=5432 sslmode=disable
+      # Optional: a separate connection (the database owner) used only to apply migrations at start-up, so DSN above can
+      # be a limited account. See docs/least-privilege.sql.
+      - MIGRATE_DSN=${MIGRATE_DSN:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
       - AI_SERVICE_URL=http://python-ai-service:10000
       - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN:-}

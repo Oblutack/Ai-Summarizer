@@ -3,7 +3,10 @@ package initializers
 import (
 	"log"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -27,8 +30,39 @@ func GormConfig() *gorm.Config {
 	}
 }
 
+// unencryptedRemoteHost returns the host when a connection string asks for no encryption (sslmode=disable) to a
+// database that is not on this machine or on a private network name (a Docker service like "postgres" has no dots):
+// everything the app sends, passwords and documents included, would cross the network in the clear.
+func unencryptedRemoteHost(dsn string) (string, bool) {
+	var host, sslmode string
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		if u, err := url.Parse(dsn); err == nil {
+			host, sslmode = u.Hostname(), u.Query().Get("sslmode")
+		}
+	} else {
+		for _, field := range strings.Fields(dsn) {
+			if value, ok := strings.CutPrefix(field, "host="); ok {
+				host = value
+			}
+			if value, ok := strings.CutPrefix(field, "sslmode="); ok {
+				sslmode = value
+			}
+		}
+	}
+	if sslmode != "disable" || host == "" || strings.HasPrefix(host, "/") || host == "localhost" || !strings.Contains(host, ".") {
+		return "", false
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+		return "", false
+	}
+	return host, true
+}
+
 func ConnectToDB() {
 	var err error
+	if host, bad := unencryptedRemoteHost(os.Getenv("DSN")); bad {
+		slog.Warn("the database connection is not encrypted (sslmode=disable) and the database is not on this machine: use sslmode=require", "host", host)
+	}
 	DB, err = gorm.Open(postgres.Open(os.Getenv("DSN")), GormConfig())
 
 	if err != nil {

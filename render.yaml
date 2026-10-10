@@ -55,6 +55,9 @@ services:
         fromDatabase:
           name: inkling-db
           property: connectionString
+      # Optional, for a limited database account (docs/least-privilege.sql): DSN becomes that account and this the owner.
+      - key: MIGRATE_DSN
+        sync: false
       - key: AI_SERVICE_URL
         sync: false # https://<inkling-ai's address>.onrender.com, shown on its Render page
       - key: AI_SERVICE_TOKEN
