@@ -310,7 +310,7 @@ Backend settings live in the root `.env` (see [`.env.example`](.env.example)); f
 | `TURNSTILE_SECRET` | empty (off) | Enables the Cloudflare Turnstile check. Pair with `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in the frontend. |
 | `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN` | `false` (compose), `lax` | Session cookie attributes. See [Deployment](#deployment). |
 | `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL` | `http://localhost:3000` | Allowed browser origins and the base URL of emailed links. |
-| `TRUSTED_PROXIES` | unset | CIDRs of your reverse proxy, so client IPs (and rate limits) cannot be spoofed. |
+| `TRUSTED_PROXIES` | unset | CIDRs of your reverse proxy. Only it is believed when it says who the visitor is (`X-Forwarded-For`). Unset, no proxy is trusted: nobody can fake their address, but behind a proxy all visitors look alike and share the per-address limits, so set it when deployed. |
 | `RATE_LIMIT_MULTIPLIER` | `1` | Multiplies every request rate limit, for deployments with many users behind one address. |
 | `MAX_AUDIO_MB`, `STT_MODEL` | `25`, `whisper-large-v3-turbo` | The biggest recording accepted (25 MB is what Groq takes on its free tier, 100 MB on the paid one) and the speech-to-text model (`whisper-large-v3` is a little more accurate at about 11 cents an hour). |
 | `OCR_LANGUAGES`, `OCR_MAX_PAGES`, `OCR_TOTAL_SECONDS` | `eng+deu+fra+spa+ita+por+hrv`, `40`, `150` | Scanned PDF pages (signed-in people only): the Tesseract languages to try, the most scanned pages read in one document, and the most time spent on them. More languages at once read each a little worse, so list only the ones you need; a language must also be installed in the image (see the Dockerfile). |

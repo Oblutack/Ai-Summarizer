@@ -80,7 +80,7 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: TRUSTED_PROXIES
-        sync: false # see the guide: needed so IP-based rate limits cannot be spoofed
+        sync: false # see the guide: without it every visitor looks like Render's proxy and shares the IP-based limits
       - key: TURNSTILE_SECRET
         sync: false # optional
       - key: LOG_FORMAT
