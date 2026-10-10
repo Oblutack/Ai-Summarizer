@@ -35,6 +35,16 @@ func VerifyEmail(to, frontendURL, token string) Message {
 	return Message{To: to, Subject: "Confirm your email address", Text: text, HTML: body}
 }
 
+// AccountExists is sent when someone signs up with an address that already has an account. It is the only way the
+// owner hears of it: the signup page says the same thing whether the address is new or not.
+func AccountExists(to, frontendURL string) Message {
+	href := strings.TrimRight(frontendURL, "/") + "/login"
+	text, body := wrap("You already have an account", "Someone, perhaps you, just tried to sign up to "+appName+" with this email address, which already has an account. Log in with your usual password, or reset it if you have forgotten it.",
+		"Log in", href, "If it wasn't you, nothing has changed and you can ignore this email.")
+	text += "\n\nForgotten your password? " + strings.TrimRight(frontendURL, "/") + "/forgot-password"
+	return Message{To: to, Subject: "You already have an Inkling account", Text: text, HTML: body}
+}
+
 // ResetPassword is sent when someone asks to reset a password.
 func ResetPassword(to, frontendURL, token string) Message {
 	href := link(frontendURL, "/reset-password", token)

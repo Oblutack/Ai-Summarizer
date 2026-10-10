@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -61,10 +62,16 @@ var (
 
 // A bcrypt hash of a random string, compared against when the account doesn't exist so that
 // "no such user" takes as long as "wrong password" and can't be told apart by timing.
-var dummyHash = func() []byte {
-	h, _ := bcrypt.GenerateFromPassword([]byte(randomString()), bcrypt.DefaultCost)
-	return h
-}()
+// It is made at the current cost, on first use.
+var (
+	dummyHashOnce  sync.Once
+	dummyHashValue []byte
+)
+
+func dummyHash() []byte {
+	dummyHashOnce.Do(func() { dummyHashValue, _ = auth.HashPassword(randomString()) })
+	return dummyHashValue
+}
 
 func randomString() string {
 	b := make([]byte, 24)
@@ -122,28 +129,70 @@ func Signup(c *gin.Context) {
 		return
 	}
 
-	var existing int64
-	initializers.DB.Model(&models.User{}).Where("lower(email) = ?", email).Count(&existing)
-	if existing > 0 {
-		c.JSON(http.StatusConflict, gin.H{"error": "An account with this email already exists."})
-		return
-	}
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	// The password is hashed first, whether or not the email is taken, so the two cases take the same time.
+	hash, err := auth.HashPassword(body.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
 
+	// The reply must not tell anyone whether an address has an account: it is the same either way, and the news goes
+	// to the address itself. (Otherwise signup is a way to check lists of emails for who uses Inkling.)
+	var existing models.User
+	if err := initializers.DB.Select("id", "email").First(&existing, "lower(email) = ?", email).Error; err == nil {
+		if accountNotices.allow(email) {
+			mailer.SendAsync(Mail, mailer.AccountExists(existing.Email, FrontendURL()))
+		}
+		securityEvent(c, "signup_existing", existing.ID)
+		c.JSON(http.StatusOK, gin.H{"message": signupMessage})
+		return
+	}
+
 	user := models.User{Email: email, Password: string(hash), HasPassword: true}
 	if err := initializers.DB.Create(&user).Error; err != nil {
+		// Two signups for the same address at once: the database lets one in. The other looks like the case above.
+		if initializers.DB.Model(&models.User{}).Where("lower(email) = ?", email).Select("id").Limit(1).Find(&existing).RowsAffected > 0 {
+			c.JSON(http.StatusOK, gin.H{"message": signupMessage})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
 	sendVerification(user)
 	securityEvent(c, "signup", user.ID)
-	c.JSON(http.StatusOK, gin.H{"message": "Account created. Check your email for a confirmation link."})
+	c.JSON(http.StatusOK, gin.H{"message": signupMessage})
+}
+
+// signupMessage is what signup says, for a new address and for one that already has an account.
+const signupMessage = "Account created. Check your email for a confirmation link."
+
+// accountNotices makes sure signing up with an existing address cannot be used to flood its owner with email: one
+// notice an hour per address.
+var accountNotices = &noticeLimiter{every: time.Hour, last: map[string]time.Time{}}
+
+type noticeLimiter struct {
+	mu    sync.Mutex
+	every time.Duration
+	last  map[string]time.Time
+}
+
+func (n *noticeLimiter) allow(key string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	now := time.Now()
+	if len(n.last) > 10_000 { // forget the old ones
+		for k, t := range n.last {
+			if now.Sub(t) > n.every {
+				delete(n.last, k)
+			}
+		}
+	}
+	if t, ok := n.last[key]; ok && now.Sub(t) < n.every {
+		return false
+	}
+	n.last[key] = now
+	return true
 }
 
 func Login(c *gin.Context) {
@@ -161,7 +210,7 @@ func Login(c *gin.Context) {
 
 	var user models.User
 	err := initializers.DB.First(&user, "lower(email) = ?", email).Error
-	hash := dummyHash
+	hash := dummyHash()
 	if err == nil {
 		hash = []byte(user.Password)
 	}
@@ -171,6 +220,13 @@ func Login(c *gin.Context) {
 		slog.Info("security event", "event", "login_failed", "request_id", middleware.RequestIDFrom(c))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
+	}
+
+	// A hash made with less work than is used now is remade, now that the password is known to be right.
+	if auth.NeedsRehash(user.Password) {
+		if err := setPassword(&user, body.Password); err != nil {
+			slog.Error("upgrading a password hash failed", "user_id", user.ID, "error", err)
+		}
 	}
 
 	if err := startSession(c, user.ID); err != nil {
@@ -280,7 +336,7 @@ func FindOrCreateGoogleUser(email string) (*models.User, error) {
 
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		hash, herr := bcrypt.GenerateFromPassword([]byte(randomString()), bcrypt.DefaultCost)
+		hash, herr := auth.HashPassword(randomString())
 		if herr != nil {
 			return nil, herr
 		}
@@ -425,7 +481,7 @@ func ResetPassword(c *gin.Context) {
 }
 
 func setPassword(user *models.User, password string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := auth.HashPassword(password)
 	if err != nil {
 		return err
 	}
