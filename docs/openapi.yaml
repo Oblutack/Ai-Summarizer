@@ -1,0 +1,510 @@
+openapi: 3.1.0
+info:
+  title: Inkling API
+  version: "1.0.0"
+  summary: Summarize text, web pages, documents, photos and recordings from your own programs.
+  description: |
+    The API for programs. Create a key on the **Account** page, then send it with every request:
+
+    ```
+    Authorization: Bearer ink_...
+    ```
+
+    **What a key can do.** Summarize, and read today's usage. Nothing else: it cannot read or change your saved
+    summaries, your account or your other keys, so a leaked key can be revoked without harm to anything else.
+    Nothing a key summarizes is saved to your library or kept.
+
+    **Whose allowance.** Calls count against the key owner's daily limits (the same as the website) and the site's own
+    rate limits. Every response carries `X-Quota-Limit` and `X-Quota-Remaining`. Work that fails because of Inkling
+    (a `5xx`) is not counted.
+
+    **For servers only.** Call the API from your own server, never from a web page: a key in a page is a key anyone
+    can read, and browsers from other sites are refused.
+
+    **Streaming.** Add `?stream=true` to a summarize call to receive server-sent events instead of one reply: lines of
+    `data: {json}` where `type` is `status` (progress), `delta` (a piece of the summary, in `text`), `done` or `error`.
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8080
+    description: A local development stack
+security:
+  - ApiKey: []
+tags:
+  - name: Summaries
+    description: What a key is for.
+  - name: Keys
+    description: Making and ending keys. These need a signed-in browser session, never a key.
+paths:
+  /v1/summarize-text:
+    post:
+      tags: [Summaries]
+      operationId: summarizeText
+      summary: Summarize text
+      parameters:
+        - $ref: "#/components/parameters/wordCount"
+        - $ref: "#/components/parameters/pageLimit"
+        - $ref: "#/components/parameters/style"
+        - $ref: "#/components/parameters/language"
+        - $ref: "#/components/parameters/stream"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  maxLength: 200000
+            example:
+              text: Heat pumps move heat instead of making it. Sales rose in 2024.
+      responses:
+        "200":
+          $ref: "#/components/responses/Summary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/OverLimit"
+        "502":
+          $ref: "#/components/responses/AiFailed"
+        "503":
+          $ref: "#/components/responses/Paused"
+  /v1/summarize-url:
+    post:
+      tags: [Summaries]
+      operationId: summarizeUrl
+      summary: Summarize a web page (or a link straight to a PDF)
+      description: |
+        Inkling fetches the page itself. Only public `http` and `https` addresses work; addresses that lead to a
+        private network are refused. Pages that need JavaScript or a login cannot be read.
+      parameters:
+        - $ref: "#/components/parameters/wordCount"
+        - $ref: "#/components/parameters/pageLimit"
+        - $ref: "#/components/parameters/style"
+        - $ref: "#/components/parameters/language"
+        - $ref: "#/components/parameters/stream"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+            example:
+              url: https://example.com/article
+      responses:
+        "200":
+          $ref: "#/components/responses/Summary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+        "422":
+          $ref: "#/components/responses/Unreadable"
+        "429":
+          $ref: "#/components/responses/OverLimit"
+        "502":
+          $ref: "#/components/responses/AiFailed"
+        "503":
+          $ref: "#/components/responses/Paused"
+  /v1/summarize:
+    post:
+      tags: [Summaries]
+      operationId: summarizeFile
+      summary: Summarize one file
+      description: |
+        A PDF, Word (`.docx`), PowerPoint (`.pptx`), photo of a page (`.jpg`, `.jpeg`, `.png`, `.webp`) or recording
+        (`.mp3`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.webm`, `.mp4`). Scanned PDFs and photos are read with OCR;
+        recordings are transcribed first. Documents and photos can be up to 10 MB, recordings up to 25 MB.
+      parameters:
+        - $ref: "#/components/parameters/stream"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                wordCount:
+                  type: integer
+                  minimum: 50
+                  maximum: 1000
+                  default: 150
+                pageLimit:
+                  type: integer
+                  minimum: 0
+                  maximum: 20
+                  default: 0
+                style:
+                  $ref: "#/components/schemas/Style"
+                language:
+                  $ref: "#/components/schemas/Language"
+      responses:
+        "200":
+          $ref: "#/components/responses/Summary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "422":
+          $ref: "#/components/responses/Unreadable"
+        "429":
+          $ref: "#/components/responses/OverLimit"
+        "502":
+          $ref: "#/components/responses/AiFailed"
+        "503":
+          $ref: "#/components/responses/Paused"
+  /v1/summarize-multiple:
+    post:
+      tags: [Summaries]
+      operationId: summarizeFiles
+      summary: Summarize up to five files together
+      description: |
+        One combined summary that calls out overlaps and differences. Several photos in one call are the pages of one
+        document, in the order sent, and are summarized as one document.
+      parameters:
+        - $ref: "#/components/parameters/stream"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: binary
+                wordCount:
+                  type: integer
+                  minimum: 50
+                  maximum: 1000
+                  default: 150
+                pageLimit:
+                  type: integer
+                  minimum: 0
+                  maximum: 20
+                  default: 0
+                style:
+                  $ref: "#/components/schemas/Style"
+                language:
+                  $ref: "#/components/schemas/Language"
+      responses:
+        "200":
+          $ref: "#/components/responses/Summary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "422":
+          $ref: "#/components/responses/Unreadable"
+        "429":
+          $ref: "#/components/responses/OverLimit"
+        "502":
+          $ref: "#/components/responses/AiFailed"
+        "503":
+          $ref: "#/components/responses/Paused"
+  /v1/usage:
+    get:
+      tags: [Summaries]
+      operationId: usage
+      summary: Today's usage of the key owner's daily allowance
+      responses:
+        "200":
+          description: Used and allowed today (UTC), and when the day resets.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summaries:
+                    $ref: "#/components/schemas/Meter"
+                  chats:
+                    $ref: "#/components/schemas/Meter"
+                  resetsAt:
+                    type: string
+                    format: date-time
+        "401":
+          $ref: "#/components/responses/InvalidKey"
+  /account/api-keys:
+    get:
+      tags: [Keys]
+      operationId: listKeys
+      summary: List your keys (never the keys themselves)
+      security:
+        - Session: []
+      responses:
+        "200":
+          description: Newest first, live and revoked.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeyInfo"
+        "401":
+          description: Not signed in.
+    post:
+      tags: [Keys]
+      operationId: createKey
+      summary: Make a key
+      description: |
+        The key is in this reply and nowhere else. Only a hash is kept, so a lost key cannot be shown again, only
+        revoked and replaced. At most five live keys per person.
+      security:
+        - Session: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 40
+                  description: Optional, to tell keys apart. Defaults to "API key".
+      responses:
+        "201":
+          description: The new key.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/KeyInfo"
+                  - type: object
+                    properties:
+                      key:
+                        type: string
+                        example: ink_AbCd1234...
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Not signed in.
+        "409":
+          description: 'Five live keys already (`code: too_many_api_keys`).'
+  /account/api-keys/{id}:
+    delete:
+      tags: [Keys]
+      operationId: revokeKey
+      summary: End a key at once
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The key no longer works.
+        "401":
+          description: Not signed in.
+        "404":
+          description: No such live key of yours.
+components:
+  securitySchemes:
+    ApiKey:
+      type: http
+      scheme: bearer
+      description: An API key, `ink_...`, made on the Account page.
+    Session:
+      type: apiKey
+      in: cookie
+      name: session
+      description: The browser session of a signed-in person (the website uses this).
+  parameters:
+    wordCount:
+      name: wordCount
+      in: query
+      schema:
+        type: integer
+        minimum: 50
+        maximum: 1000
+        default: 150
+      description: About how many words the summary should have.
+    pageLimit:
+      name: pageLimit
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 20
+        default: 0
+      description: Fit the summary into this many pages (0 for no page limit).
+    style:
+      name: style
+      in: query
+      schema:
+        $ref: "#/components/schemas/Style"
+    language:
+      name: language
+      in: query
+      schema:
+        $ref: "#/components/schemas/Language"
+    stream:
+      name: stream
+      in: query
+      schema:
+        type: boolean
+        default: false
+      description: Receive server-sent events as the summary is written, instead of one reply.
+  schemas:
+    Style:
+      type: string
+      enum: [default, bullets, brief, simple, takeaways]
+      default: default
+    Language:
+      type: string
+      enum: [English, Spanish, French, German, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Serbian, Croatian, Bosnian, Chinese, Japanese]
+      default: English
+    Summary:
+      type: object
+      required: [summary]
+      properties:
+        summary:
+          type: string
+          description: The summary, in Markdown. The source text is never sent back.
+        filename:
+          type: string
+          description: The file name, the title of the web page, or the names of several files.
+    Meter:
+      type: object
+      properties:
+        used:
+          type: integer
+        limit:
+          type: integer
+          description: 0 means unlimited.
+    KeyInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prefix:
+          type: string
+          description: The first characters of the key, to tell keys apart.
+          example: ink_AbCd
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: [string, "null"]
+          format: date-time
+        revokedAt:
+          type: [string, "null"]
+          format: date-time
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: A message that is safe to show to a person.
+        code:
+          type: string
+          description: A stable name for the reason, where there is one.
+  headers:
+    QuotaLimit:
+      description: The key owner's daily limit of summaries.
+      schema:
+        type: integer
+    QuotaRemaining:
+      description: How many are left today (UTC).
+      schema:
+        type: integer
+    RetryAfter:
+      description: Seconds until the limit resets.
+      schema:
+        type: integer
+  responses:
+    Summary:
+      description: The summary. With `stream=true`, a `text/event-stream` instead.
+      headers:
+        X-Quota-Limit:
+          $ref: "#/components/headers/QuotaLimit"
+        X-Quota-Remaining:
+          $ref: "#/components/headers/QuotaRemaining"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Summary"
+        text/event-stream:
+          schema:
+            type: string
+    BadRequest:
+      description: Something in the request is wrong; `error` says what.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InvalidKey:
+      description: 'The key is missing, wrong or revoked (`code: invalid_api_key`).'
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooLarge:
+      description: The text or file is too large.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unreadable:
+      description: Nothing readable was found in the file or page, or it could not be opened.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    OverLimit:
+      description: |
+        The owner's daily allowance is used up (`code: quota_exceeded`), or calls are coming too fast. Wait for
+        `Retry-After` seconds.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    AiFailed:
+      description: The language model failed. Not counted against the allowance; try again.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Paused:
+      description: |
+        Inkling has reached its limit for AI work today (`code: daily_budget`) and is back after midnight UTC, or the AI
+        service is busy. Not counted against the allowance.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

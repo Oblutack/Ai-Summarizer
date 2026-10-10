@@ -66,6 +66,7 @@ Inkling turns PDFs, Word and PowerPoint files, photos of pages, web pages, recor
 - **Revocable server-side sessions** in `httpOnly` cookies; a device list with remote sign-out; "sign out everywhere".
 - **Your data is yours:** one-click JSON export and permanent account deletion (hard delete, re-authenticated).
 - Saved history with cursor pagination, PDF export, and daily usage meters.
+- **An API for your own programs.** Make a key on the account page (up to five; shown once, only a hash is kept, revocable at once) and call `/v1` with `Authorization: Bearer ink_...` to summarize text, web pages, documents, photos and recordings. A key can do nothing but summarize, so a leaked one can neither read your library nor touch your account; nothing it summarizes is saved. It draws on your daily allowance and is held by the same rate limits and spending guard as the website. See *The API for programs* below and `docs/openapi.yaml`.
 
 ### Built for production
 - Per-user daily quotas (with refunds when work fails), per-IP and per-user rate limits, a per-account login throttle, and optional **Cloudflare Turnstile** bot protection.
@@ -248,6 +249,31 @@ data: {"type":"done","filename":"report.pdf"}
 | `GET` | `/usage` | session | Today's usage against the daily quotas. |
 | `GET` | `/account/export` | session | Download all of your data as JSON. |
 | `DELETE` | `/account` | session | Permanently delete the account and its data. |
+
+</details>
+
+<details>
+<summary><b>The API for programs (keys)</b></summary>
+
+Full description, with every parameter and error: [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.1, opens in any viewer such as the Swagger editor).
+
+```bash
+curl -X POST http://localhost:8080/v1/summarize-text \
+  -H "Authorization: Bearer ink_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Heat pumps move heat instead of making it. Sales rose in 2024."}'
+# {"summary": "..."}   (add ?wordCount=200&style=bullets&language=Spanish, or ?stream=true)
+```
+
+| Method | Path | Auth | What it does |
+| --- | --- | --- | --- |
+| `POST` | `/v1/summarize-text`, `/v1/summarize-url` | API key | Summarize text (`{"text"}`) or a web page or PDF link (`{"url"}`). |
+| `POST` | `/v1/summarize`, `/v1/summarize-multiple` | API key | Summarize a file (multipart `file`) or up to 5 (`files`): PDF, Word, PowerPoint, photos (OCR) and recordings. Several photos are the pages of one document. |
+| `GET` | `/v1/usage` | API key | Today's use of the owner's daily allowance. |
+| `GET`, `POST` | `/account/api-keys` | session | List your keys (prefix, name, last used; never the key) / make one (the key is in the reply once). |
+| `DELETE` | `/account/api-keys/:id` | session | Revoke a key at once. |
+
+Every reply carries `X-Quota-Limit` and `X-Quota-Remaining`. The calls are for servers: a browser from another site is refused, so never put a key in a web page. Failed calls (`5xx`) are not counted against the allowance.
 
 </details>
 
