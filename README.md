@@ -18,7 +18,7 @@ Inkling turns PDFs, Word and PowerPoint files, photos of pages, web pages, recor
 
 <br>
 
-<img src="docs/demo.gif" alt="Demo of Inkling: the landing page, a summary streaming in Spanish, sign-up and login, a PDF summary with live progress, the proof check, the cited page opened in the original PDF, chat with suggested questions, a question across all documents, a podcast, the account page, and the dark theme and language switch" width="900">
+<img src="docs/demo.gif" alt="Demo of Inkling: the landing page, a summary streaming in Spanish, sign-up and login, a PDF summary with live progress, the proof check, the cited page opened in the original PDF, chat with suggested questions, a photo of a page (HEIC), a scanned PDF, a web link, a Word file, a recording, a question across all documents, comparing two versions of a contract, extracting data into a table, a collection overview, a podcast, flashcards, an API key with an expiry and a daily limit and a real API call, the account page, and the dark theme and language switch" width="900">
 
 <sub>A tour of Inkling: the landing page, a streamed summary in another language, sign-up, a PDF summary with live progress, the check that marks every sentence against the original, the cited page opened with the passage highlighted, chat with citations, one question across all documents, a podcast, the account page, and the dark theme in another language.</sub>
 
