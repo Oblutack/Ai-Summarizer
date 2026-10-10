@@ -3,6 +3,7 @@
 //   GET  /healthz
 //   POST /summarize-text[?stream=true]   JSON {text}
 //   POST /overview[?stream=true]         JSON {name, documents}: a briefing that lists them
+//   POST /compare                        JSON {old, new, language}: sentence i against sentence i, as a comparison
 //   POST /summarize-url[?stream=true]    JSON {url}: the page is titled "Page from <host>"
 //   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s); a recording's text is a transcript,
 //                                                          photos are pages (text names the file, type and size)
@@ -128,6 +129,48 @@ const server = http.createServer(async (req, res) => {
     if (stream) return streamSummary(res, summary, { text }, flags);
     if (flags.fail) return json(res, 502, { detail: "The language model is unavailable. Please try again." });
     return json(res, 200, { summary, text });
+  }
+
+  if (url.pathname === "/compare") {
+    // A stand-in for the comparison: sentence number i of the old text against sentence number i of the new one.
+    // A document called "boom" makes it fail; the same text twice is "no differences".
+    const { old = {}, new: neu = {}, language = "" } = JSON.parse(body.toString("utf8") || "{}");
+    if (String(old.name ?? "").toLowerCase().includes("boom")) return json(res, 502, { detail: "The language model failed to compare the documents." });
+    const sentences = (text) => String(text ?? "").split(/(?<=[.!?])\s+/).filter(Boolean);
+    const a = sentences(old.text);
+    const b = sentences(neu.text);
+    const numbers = (text) => String(text ?? "").match(/\d+/g) ?? [];
+    const changes = [];
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if (a[i] === b[i]) continue;
+      const kind = a[i] === undefined ? "added" : b[i] === undefined ? "removed" : "changed";
+      const gone = numbers(a[i]).filter((n) => !numbers(b[i]).includes(n));
+      const came = numbers(b[i]).filter((n) => !numbers(a[i]).includes(n));
+      changes.push({
+        id: changes.length + 1,
+        kind,
+        before: a[i] ?? "",
+        after: b[i] ?? "",
+        beforePage: a[i] === undefined ? null : 1,
+        afterPage: b[i] === undefined ? null : 1,
+        segments: kind === "changed" ? [["del", a[i]], ["ins", b[i]]] : null,
+        numbers: { removed: gone, added: came },
+        importance: gone.length || came.length ? "high" : kind === "changed" ? "medium" : "low",
+        summary: `Stub: sentence ${i + 1} was ${kind}.`,
+        impact: "Stub: it could matter.",
+        explained: true,
+      });
+    }
+    const counts = { added: 0, removed: 0, changed: 0, moved: 0 };
+    for (const change of changes) counts[change.kind] += 1;
+    return json(res, 200, {
+      identical: changes.length === 0,
+      counts,
+      changes,
+      bottomLine: changes.length ? `Stub bottom line (${language || "same language"}): ${changes.length} changes.` : "",
+      explained: true,
+      omitted: 0,
+    });
   }
 
   if (url.pathname === "/overview") {
