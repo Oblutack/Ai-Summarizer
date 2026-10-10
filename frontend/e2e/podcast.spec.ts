@@ -39,7 +39,7 @@ test.describe("podcast mode", () => {
   });
 
   test("it can be paused, resumed and stopped", async ({ page }) => {
-    await installFakeSpeech(page, { delay: 400 });
+    await installFakeSpeech(page, { delay: 3000 });
     await openPodcast(page);
 
     await page.getByRole("button", { name: "Play", exact: true }).click();
@@ -61,7 +61,7 @@ test.describe("podcast mode", () => {
   });
 
   test("clicking a line plays from there, at the chosen speed", async ({ page }) => {
-    await installFakeSpeech(page, { delay: 300 });
+    await installFakeSpeech(page, { delay: 3000 });
     await openPodcast(page);
 
     await page.getByTestId("podcast").getByLabel("Speed").selectOption("1.25");

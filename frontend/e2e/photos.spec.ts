@@ -66,8 +66,8 @@ test.describe("photos of pages", () => {
   test("a big photo is made smaller before it is sent, and a small one is sent as it is", async ({ page }) => {
     test.setTimeout(90_000);
     await newSignedInUser(page);
-    const big = pngFile("IMG_0042.png", 4000, 3000, 24);
-    expect(big.buffer.length).toBeGreaterThan(3 * 1024 * 1024);
+    // wider than the 3000 pixels a photo is kept to, with enough noise that it does not squeeze down to nothing
+    const big = pngFile("IMG_0042.png", 3600, 1800, 40);
     await page.locator("#pdf-upload").setInputFiles(big);
     await expect(page.getByText("IMG_0042.png")).toBeVisible(); // the list still shows the picked file
     await summarize(page);

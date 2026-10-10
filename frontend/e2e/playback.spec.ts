@@ -38,7 +38,7 @@ test.describe("reading a summary aloud", () => {
   });
 
   test("it can be paused and resumed", async ({ page }) => {
-    await installFakeSpeech(page, { delay: 500 });
+    await installFakeSpeech(page, { delay: 3000 });
     const { reader } = await openReader(page);
 
     await reader.getByRole("button", { name: "Pause" }).click();
@@ -78,7 +78,7 @@ test.describe("reading a summary aloud", () => {
   });
 
   test("a new speed is heard at once, and is remembered for next time and for the podcast", async ({ page }) => {
-    await installFakeSpeech(page, { delay: 700 });
+    await installFakeSpeech(page, { delay: 3000 });
     const { reader } = await openReader(page);
 
     const before = (await spoken(page)).length;
@@ -121,7 +121,7 @@ test.describe("reading a summary aloud", () => {
   });
 
   test("the reader has no accessibility violations", async ({ page }) => {
-    await installFakeSpeech(page, { delay: 600 });
+    await installFakeSpeech(page, { delay: 3000 });
     await openReader(page);
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);

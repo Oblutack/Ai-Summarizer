@@ -33,6 +33,7 @@ test.describe("playing a recording before it is summarized", () => {
     // the slider goes anywhere
     const slider = player(page).getByTestId("audio-position");
     await slider.focus();
+    await page.keyboard.press("Home"); // from the very start: the sound may have played a little before it was paused
     for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
     await expect.poll(async () => Math.round((await audioState(page)).time)).toBe(5);
     await expect(slider).toHaveAttribute("aria-valuetext", "0:05 of 0:30");
