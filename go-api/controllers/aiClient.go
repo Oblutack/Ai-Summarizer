@@ -46,7 +46,7 @@ type URLPayload struct {
 	URL string `json:"url"`
 }
 
-const unsupportedFileMessage = "Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP) are supported."
+const unsupportedFileMessage = "Only PDF, Word (.docx), PowerPoint (.pptx), audio files and photos (JPG, PNG, WebP, HEIC) are supported."
 
 // documentExtensions are the file types that can be summarized. Only PDFs are kept as originals: the
 // viewer shows PDF pages.
@@ -63,7 +63,7 @@ func isAudio(name string) bool {
 // imageExtensions are photos of pages. Their text is read with OCR, which is real work on the server, so photos are
 // for signed-in people. Several photos in one upload become the pages of one document. They are not kept: the text
 // is, and shows what was read.
-var imageExtensions = []string{".jpg", ".jpeg", ".png", ".webp"}
+var imageExtensions = []string{".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 
 func isImage(name string) bool {
 	return contains(imageExtensions, strings.ToLower(filepath.Ext(name)))

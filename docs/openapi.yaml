@@ -131,7 +131,7 @@ paths:
       operationId: summarizeFile
       summary: Summarize one file
       description: |
-        A PDF, Word (`.docx`), PowerPoint (`.pptx`), photo of a page (`.jpg`, `.jpeg`, `.png`, `.webp`) or recording
+        A PDF, Word (`.docx`), PowerPoint (`.pptx`), photo of a page (`.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, `.heif`) or recording
         (`.mp3`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.webm`, `.mp4`). Scanned PDFs and photos are read with OCR;
         recordings are transcribed first. Documents and photos can be up to 10 MB, recordings up to 25 MB.
       parameters:

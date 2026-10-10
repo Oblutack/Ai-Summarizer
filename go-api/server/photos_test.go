@@ -17,7 +17,7 @@ func TestASignedInUserCanSummarizePhotosOfPages(t *testing.T) {
 	a := newApp(t)
 	cl, _ := a.newUser()
 
-	for _, name := range []string{"page.jpg", "Page.JPEG", "scan.png", "web.webp", "IMG 0042.jpg"} {
+	for _, name := range []string{"page.jpg", "Page.JPEG", "scan.png", "web.webp", "IMG 0042.jpg", "IMG_0042.HEIC", "shot.heif"} {
 		if r := cl.upload("/summarize", "file", map[string][]byte{name: jpegBytes}); r.Status != http.StatusOK {
 			t.Errorf("%s: %d %s", name, r.Status, r.Body)
 		}
@@ -25,8 +25,8 @@ func TestASignedInUserCanSummarizePhotosOfPages(t *testing.T) {
 			t.Errorf("%s was sent without permission to read its text: %s", name, sent)
 		}
 	}
-	if n := count(t, a.db, "SELECT count(*) FROM documents"); n != 5 {
-		t.Errorf("documents = %d, want 5", n)
+	if n := count(t, a.db, "SELECT count(*) FROM documents"); n != 7 {
+		t.Errorf("documents = %d, want 7", n)
 	}
 	if n := count(t, a.db, "SELECT count(*) FROM document_files"); n != 0 {
 		t.Errorf("photos are not kept, found %d stored files", n)
@@ -74,9 +74,9 @@ func TestOnlyPhotoFormatsThatCanBeReadAreAccepted(t *testing.T) {
 	a := newApp(t)
 	cl, _ := a.newUser()
 
-	for _, name := range []string{"page.gif", "page.heic", "page.bmp", "page.tiff", "page.svg", "photo.jpg.exe"} {
+	for _, name := range []string{"page.gif", "page.bmp", "page.tiff", "page.svg", "photo.jpg.exe"} {
 		r := cl.upload("/summarize", "file", map[string][]byte{name: jpegBytes})
-		if r.Status != http.StatusBadRequest || !strings.Contains(r.Str("error"), "photos (JPG, PNG, WebP)") {
+		if r.Status != http.StatusBadRequest || !strings.Contains(r.Str("error"), "photos (JPG, PNG, WebP, HEIC)") {
 			t.Errorf("%s: %d %s", name, r.Status, r.Body)
 		}
 	}
