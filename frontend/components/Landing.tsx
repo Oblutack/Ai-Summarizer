@@ -26,9 +26,31 @@ function Icon({ children }: { children: React.ReactNode }) {
   );
 }
 
-const FEATURES: { key: "cited" | "proof" | "library" | "listen" | "languages" | "share"; icon: React.ReactNode }[] = [
+const FEATURES: {
+  key: "inputs" | "cited" | "proof" | "compare" | "extract" | "library" | "listen" | "languages" | "share";
+  icon: React.ReactNode;
+}[] = [
+  { key: "inputs", icon: <path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /> },
   { key: "cited", icon: <path d="M7 8h3v4H7zm7 0h3v4h-3zM7 12c0 3 1 4 3 4M14 12c0 3 1 4 3 4" /> },
   { key: "proof", icon: <path d="M20 6L9 17l-5-5" /> },
+  {
+    key: "compare",
+    icon: (
+      <>
+        <rect x="3" y="4" width="7" height="16" rx="1" />
+        <rect x="14" y="4" width="7" height="16" rx="1" />
+      </>
+    ),
+  },
+  {
+    key: "extract",
+    icon: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="1" />
+        <path d="M3 10h18M9 4v16" />
+      </>
+    ),
+  },
   { key: "library", icon: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></> },
   { key: "listen", icon: <path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v6H4zm13 0h3v6h-3z" /> },
   { key: "languages", icon: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" /></> },
