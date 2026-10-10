@@ -1,0 +1,40 @@
+#!/bin/sh
+# Checks the commit message: the project's style (short Conventional Commits) and one house rule: nothing in the
+# history may name a co-author or an AI assistant. Install once with:   sh scripts/install-hooks.sh
+
+message_file=$1
+subject=$(head -n 1 "$message_file")
+
+# Merges, reverts and fixups made by git itself are left alone.
+case "$subject" in
+  "Merge "* | "Revert "* | "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+esac
+
+fail() {
+  printf '\nCommit message rejected: %s\n\n' "$1" >&2
+  printf 'The first line looks like:   type(scope): short description\n' >&2
+  printf 'types: feat fix docs test chore ci build refactor perf style revert\n' >&2
+  printf 'for example:   feat(go-api): add API keys\n\n' >&2
+  printf '(git commit --no-verify skips this check)\n' >&2
+  exit 1
+}
+
+if ! printf '%s\n' "$subject" | grep -Eq '^(feat|fix|docs|test|chore|ci|build|refactor|perf|style|revert)(\([a-z0-9._/-]+\))?!?: [^ ].*'; then
+  fail "the first line must be a Conventional Commit: \"$subject\""
+fi
+
+length=$(printf '%s' "$subject" | wc -c | tr -d ' ')
+if [ "$length" -gt 100 ]; then
+  fail "the first line is $length characters; keep it to 100 or fewer"
+fi
+
+# Lines git adds for itself (comments) do not count.
+body=$(grep -v '^#' "$message_file")
+if printf '%s\n' "$body" | grep -Eiq '^[[:space:]]*(co-authored-by|signed-off-by):'; then
+  fail "no Co-authored-by or Signed-off-by lines, please"
+fi
+if printf '%s\n' "$body" | grep -Eiq 'claude|anthropic|generated with|ai-generated|session_[a-z0-9]+'; then
+  fail "no mention of an AI assistant or its sessions, please"
+fi
+
+exit 0

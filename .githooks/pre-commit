@@ -1,0 +1,121 @@
+#!/bin/sh
+# Runs before every commit, on what is about to be committed (the staged version of each file, not the one on disk).
+# It catches the things that are tedious to fix after a push: unformatted code, lint errors, a secret or a huge file
+# added by accident, a migration without its undo. CI runs the same tools, so this is only quicker feedback.
+#
+# Install once with:   sh scripts/install-hooks.sh
+# A check whose tool is not installed here is skipped with a note, never a failure.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+failed=0
+fail() {
+  printf '  FAIL  %s\n' "$1" >&2
+  failed=1
+}
+note() { printf '  skip  %s\n' "$1"; }
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+# Whether any staged file matches an extended regular expression.
+has() { printf '%s\n' "$staged" | grep -Eq "$1"; }
+# The staged files matching one.
+only() { printf '%s\n' "$staged" | grep -E "$1"; }
+
+# ---- files that must never be committed -------------------------------------------------------------------------
+
+forbidden=$(only '(^|/)\.env(\.[^/]*)?$|\.pem$|\.key$|(^|/)id_(rsa|ed25519)$' | grep -Ev '(^|/)\.env\.example$')
+if [ -n "$forbidden" ]; then
+  fail "secret files are staged (keep them out of git, and add them to .gitignore):"
+  printf '          %s\n' $forbidden >&2
+fi
+
+# ---- secrets pasted into a file ---------------------------------------------------------------------------------
+# Only the lines being added are looked at.
+secrets=$(git diff --cached -U0 --no-color | grep -E '^\+' | grep -Ev '^\+\+\+' | grep -E \
+  'gsk_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{32,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ink_[A-Za-z0-9_-]{43}([^A-Za-z0-9_-]|$)|xox[baprs]-[A-Za-z0-9-]{10,}|ghp_[A-Za-z0-9]{30,}')
+if [ -n "$secrets" ]; then
+  fail "something that looks like a real secret (an API key or private key) is being added:"
+  printf '%s\n' "$secrets" | cut -c1-120 | sed 's/^/          /' >&2
+fi
+
+# ---- very large files -------------------------------------------------------------------------------------------
+
+limit=$((5 * 1024 * 1024))
+printf '%s\n' "$staged" | while IFS= read -r file; do
+  size=$(git cat-file -s ":$file" 2>/dev/null || echo 0)
+  if [ "$size" -gt "$limit" ]; then
+    printf '  FAIL  %s is %s MB: too large to commit (the limit is 5 MB)\n' "$file" "$((size / 1024 / 1024))" >&2
+    exit 1
+  fi
+done || failed=1
+
+# ---- migrations come in pairs -----------------------------------------------------------------------------------
+
+for up in $(only '^go-api/migrations/.*\.up\.sql$'); do
+  down="${up%.up.sql}.down.sql"
+  if [ ! -f "$down" ] && ! printf '%s\n' "$staged" | grep -Fxq "$down"; then
+    fail "$up has no matching $down"
+  fi
+done
+
+# ---- Go: formatting ---------------------------------------------------------------------------------------------
+
+go_files=$(only '^go-api/.*\.go$')
+if [ -n "$go_files" ]; then
+  if command -v gofmt >/dev/null 2>&1; then
+    for file in $go_files; do
+      if [ -n "$(git show ":$file" | gofmt -l 2>/dev/null)" ]; then
+        fail "$file is not formatted (run: gofmt -w $file)"
+      fi
+    done
+  else
+    note "Go files: gofmt is not installed"
+  fi
+fi
+
+# ---- Python: formatting and lint --------------------------------------------------------------------------------
+
+py_files=$(only '^python-ai-service/.*\.py$')
+if [ -n "$py_files" ]; then
+  ruff=""
+  for candidate in "$(command -v ruff 2>/dev/null)" python-ai-service/.venv/Scripts/ruff.exe python-ai-service/.venv/bin/ruff; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      ruff=$candidate
+      break
+    fi
+  done
+  if [ -n "$ruff" ]; then
+    for file in $py_files; do
+      if ! git show ":$file" | "$ruff" format --check --quiet --stdin-filename "$file" - >/dev/null 2>&1; then
+        fail "$file is not formatted (run: ruff format $file)"
+      elif ! git show ":$file" | "$ruff" check --quiet --stdin-filename "$file" - >/dev/null 2>&1; then
+        fail "$file has lint errors (run: ruff check $file)"
+      fi
+    done
+  else
+    note "Python files: ruff is not installed"
+  fi
+fi
+
+# ---- Frontend: lint ---------------------------------------------------------------------------------------------
+
+web_files=$(only '^frontend/.*\.(ts|tsx|js|jsx|mjs)$' | sed 's#^frontend/##')
+if [ -n "$web_files" ]; then
+  if [ -d frontend/node_modules ] && command -v pnpm >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    if ! (cd frontend && pnpm exec eslint --no-warn-ignored --max-warnings 0 $web_files >/dev/null 2>&1); then
+      fail "the frontend lint found problems (run: cd frontend && pnpm lint)"
+    fi
+  else
+    note "frontend files: run pnpm install in frontend/ to lint them before committing"
+  fi
+fi
+
+if [ "$failed" -ne 0 ]; then
+  printf '\nThe commit was stopped. Fix the above and commit again (git commit --no-verify skips these checks).\n' >&2
+  exit 1
+fi
+exit 0
