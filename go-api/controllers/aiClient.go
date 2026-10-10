@@ -156,6 +156,8 @@ func isPDF(name string) bool {
 type summaryResponse struct {
 	Filename string `json:"filename,omitempty"`
 	Summary  string `json:"summary"`
+	// ID is the saved document's id, when the summary was saved to the library.
+	ID uint `json:"id,omitempty"`
 }
 
 // aiSummary is the AI service's reply. Text is the extracted source text, kept server-side

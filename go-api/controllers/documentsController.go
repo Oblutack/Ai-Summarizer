@@ -35,14 +35,15 @@ func respond(c *gin.Context, build summaryBuilder, save bool, label string) {
 		apiErr.send(c)
 		return
 	}
+	response := result.response()
 	if save {
 		title := result.Filename
 		if label != "" {
 			title = titleFromText(result.Text, label)
 		}
-		saveDocument(c, title, result)
+		response.ID = saveDocument(c, title, result)
 	}
-	c.JSON(http.StatusOK, result.response())
+	c.JSON(http.StatusOK, response)
 }
 
 func PublicSummarize(c *gin.Context)         { respond(c, buildFileRequest, false, "") }
@@ -56,7 +57,7 @@ func CreateSummaryURL(c *gin.Context)        { respond(c, buildURLRequest, true,
 
 // saveDocument stores the summary for the authenticated user. The summary is still
 // returned to the client if saving fails, so a DB hiccup doesn't waste the LLM call.
-func saveDocument(c *gin.Context, title string, result *aiSummary) {
+func saveDocument(c *gin.Context, title string, result *aiSummary) uint {
 	user := middleware.CurrentUser(c)
 	document := models.Document{
 		Filename:   title,
@@ -67,10 +68,11 @@ func saveDocument(c *gin.Context, title string, result *aiSummary) {
 	}
 	if err := initializers.DB.Create(&document).Error; err != nil {
 		_ = c.Error(err)
-		return
+		return 0
 	}
 	storeFiles(user.ID, document.ID, result.files)
 	indexAfterSave(middleware.RequestIDFrom(c), document)
+	return document.ID
 }
 
 // DocumentText gives a document's owner the text it was made from: for a recording, the transcript. It is

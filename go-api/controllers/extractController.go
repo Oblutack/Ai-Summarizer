@@ -129,13 +129,21 @@ func ExtractFromDocument(c *gin.Context) {
 		return
 	}
 
-	reply, apiErr := postToAI(c, "/extract", gin.H{
-		"name": document.Filename, "text": document.Content, "fields": fields, "language": body.Language,
-	})
+	result, apiErr := postExtraction(c, document.Filename, document.Content, fields, body.Language)
 	if apiErr != nil {
 		middleware.RefundQuota(c)
 		apiErr.send(c)
 		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// postExtraction asks the AI service for the fields of a text and returns the result in the shape that may be sent
+// on, for exactly the fields that were asked for.
+func postExtraction(c *gin.Context, name, text string, fields []extractField, language string) (gin.H, *apiError) {
+	reply, apiErr := postToAI(c, "/extract", gin.H{"name": name, "text": text, "fields": fields, "language": language})
+	if apiErr != nil {
+		return nil, apiErr
 	}
 	var raw struct {
 		Fields []extractResult `json:"fields"`
@@ -143,9 +151,7 @@ func ExtractFromDocument(c *gin.Context) {
 		Suspicious bool `json:"suspicious"`
 	}
 	if err := json.Unmarshal(reply, &raw); err != nil || len(raw.Fields) != len(fields) {
-		middleware.RefundQuota(c)
-		c.JSON(http.StatusBadGateway, gin.H{"error": "The AI service returned an unreadable result."})
-		return
+		return nil, &apiError{http.StatusBadGateway, "The AI service returned an unreadable result."}
 	}
 	results := make([]extractResult, 0, len(raw.Fields))
 	for i, r := range raw.Fields {
@@ -161,5 +167,5 @@ func ExtractFromDocument(c *gin.Context) {
 		r.Verified = r.Verified && r.Found
 		results = append(results, r)
 	}
-	c.JSON(http.StatusOK, gin.H{"name": document.Filename, "fields": results, "suspicious": raw.Suspicious})
+	return gin.H{"name": name, "fields": results, "suspicious": raw.Suspicious}, nil
 }

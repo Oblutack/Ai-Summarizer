@@ -65,6 +65,7 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 
 	var summary strings.Builder
 	finished := false
+	var savedID uint
 
 	reader := bufio.NewReader(resp.Body)
 	for {
@@ -90,13 +91,16 @@ func streamSummary(c *gin.Context, ar *aiRequest, save bool, label string) {
 						if label != "" {
 							title = titleFromText(source, label)
 						}
-						saveDocument(c, title, &aiSummary{Filename: filename, Summary: summary.String(), Text: source, files: ar.files})
+						savedID = saveDocument(c, title, &aiSummary{Filename: filename, Summary: summary.String(), Text: source, files: ar.files})
 					}
 
 					// The client gets the filename but never the source text.
 					out := map[string]any{"type": "done"}
 					if filename != "" {
 						out["filename"] = filename
+					}
+					if savedID != 0 {
+						out["id"] = savedID
 					}
 					writeEvent(c, out)
 					return

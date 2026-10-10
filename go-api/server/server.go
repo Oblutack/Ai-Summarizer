@@ -129,13 +129,21 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	// The API for programs: the summarizing routes, with an API key instead of a session. Nothing is saved to the
 	// owner's library. It is for servers: a browser from another site is turned away by the origin check, and a
 	// key must never be put in a web page. The owner's daily quota, the rate limits and the spending guard apply.
+	// The order matters: the owner's allowance is claimed first, then the key's own count and limit (which gives the
+	// allowance back when the key is out), then the site's budget (which gives both back when it is out).
 	v1 := r.Group("/v1", middleware.RequireAPIKey, middleware.RequireVerifiedEmail)
 	{
-		v1.POST("/summarize", summarizeUserLimit, uploadBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarize)
-		v1.POST("/summarize-multiple", summarizeUserLimit, combinedBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarizeMultiple)
-		v1.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarizeText)
-		v1.POST("/summarize-url", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarizeURL)
-		v1.GET("/usage", controllers.Usage)
+		keyDaily := middleware.APIKeyDaily()
+		summaries := middleware.Quota(middleware.QuotaSummaries)
+		compareBody := middleware.MaxBody(controllers.CompareBodyBytes)
+		extractBody := middleware.MaxBody(controllers.ExtractBodyBytes)
+		v1.POST("/summarize", summarizeUserLimit, uploadBody, summaries, keyDaily, dailyBudget, controllers.APISummarize)
+		v1.POST("/summarize-multiple", summarizeUserLimit, combinedBody, summaries, keyDaily, dailyBudget, controllers.APISummarizeMultiple)
+		v1.POST("/summarize-text", summarizeUserLimit, textBody, summaries, keyDaily, dailyBudget, controllers.APISummarizeText)
+		v1.POST("/summarize-url", summarizeUserLimit, smallBody, summaries, keyDaily, dailyBudget, controllers.APISummarizeURL)
+		v1.POST("/compare", summarizeUserLimit, compareBody, summaries, keyDaily, dailyBudget, controllers.APICompare)
+		v1.POST("/extract", summarizeUserLimit, extractBody, summaries, keyDaily, dailyBudget, controllers.APIExtract)
+		v1.GET("/usage", controllers.APIUsage)
 	}
 
 	// Public: a summary its owner chose to share. Anyone with the link can read it.

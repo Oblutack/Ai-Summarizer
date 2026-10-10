@@ -168,22 +168,28 @@ func CompareDocuments(c *gin.Context) {
 		sides[i] = document
 	}
 
-	payload := gin.H{
-		"old":      gin.H{"name": sides[0].Filename, "text": sides[0].Content},
-		"new":      gin.H{"name": sides[1].Filename, "text": sides[1].Content},
-		"language": body.Language,
-	}
-	reply, apiErr := postToAI(c, "/compare", payload)
+	result, apiErr := postComparison(c, sides[0].Filename, sides[0].Content, sides[1].Filename, sides[1].Content, body.Language)
 	if apiErr != nil {
 		middleware.RefundQuota(c)
 		apiErr.send(c)
 		return
 	}
+	c.JSON(http.StatusOK, result)
+}
+
+// postComparison asks the AI service to compare two texts and returns the result in the shape that may be sent on.
+func postComparison(c *gin.Context, oldName, oldText, newName, newText, language string) (compareResult, *apiError) {
+	reply, apiErr := postToAI(c, "/compare", gin.H{
+		"old":      gin.H{"name": oldName, "text": oldText},
+		"new":      gin.H{"name": newName, "text": newText},
+		"language": language,
+	})
+	if apiErr != nil {
+		return compareResult{}, apiErr
+	}
 	var raw compareResult
 	if err := json.Unmarshal(reply, &raw); err != nil {
-		middleware.RefundQuota(c)
-		c.JSON(http.StatusBadGateway, gin.H{"error": "The AI service returned an unreadable comparison."})
-		return
+		return compareResult{}, &apiError{http.StatusBadGateway, "The AI service returned an unreadable comparison."}
 	}
-	c.JSON(http.StatusOK, tidyComparison(raw))
+	return tidyComparison(raw), nil
 }
