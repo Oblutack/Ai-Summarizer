@@ -70,6 +70,72 @@ test.describe("API keys", () => {
     await expect(page.getByTestId("api-key-row")).toContainText("API key"); // the default name
   });
 
+  test("a key can be made to expire and to have a daily limit, and its use is shown", async ({ page }) => {
+    await newSignedInUser(page);
+    const section = await openKeys(page);
+    await section.getByLabel("Key name (optional)").fill("capped");
+    await section.getByLabel("Expires").selectOption("30");
+    await section.getByLabel("Daily limit (optional)").fill("2");
+    await section.getByRole("button", { name: "Create key" }).click();
+    const key = (await page.getByTestId("new-api-key-value").innerText()).trim();
+    await section.getByRole("button", { name: "I have copied it" }).click();
+
+    const row = section.getByTestId("api-key-row");
+    await expect(row).toContainText("Expires");
+    await expect(row.getByTestId("api-key-usage")).toHaveText("Today: 0 of 2 · In all: 0");
+
+    // two requests are served, the third is refused for this key
+    const call = () =>
+      page.context().request.post(`${API}/v1/summarize-text`, {
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        data: { text: "Heat pumps are efficient. Sales rose in 2024." },
+      });
+    expect((await call()).status()).toBe(200);
+    expect((await call()).status()).toBe(200);
+    const refused = await call();
+    expect(refused.status()).toBe(429);
+    expect((await refused.json()).code).toBe("api_key_limit");
+
+    await page.reload();
+    await expect(page.getByTestId("api-key-row").getByTestId("api-key-usage")).toHaveText("Today: 2 of 2 · In all: 2");
+  });
+
+  test("a key without a limit shows only what it has done", async ({ page }) => {
+    await newSignedInUser(page);
+    const section = await openKeys(page);
+    const key = await makeKey(page, "free");
+    await expect(section.getByTestId("api-key-usage")).toHaveText("Today: 0 · In all: 0");
+    expect((await summarizeWith(page, key)).status()).toBe(200);
+    await page.reload();
+    await expect(page.getByTestId("api-key-usage")).toHaveText("Today: 1 · In all: 1");
+    await expect(page.getByTestId("api-keys")).toContainText("?save=true");
+  });
+
+  test("the daily limit is checked before anything is made", async ({ page }) => {
+    await newSignedInUser(page);
+    const section = await openKeys(page);
+    const limit = section.getByLabel("Daily limit (optional)");
+    await expect(limit).toHaveAttribute("min", "1");
+    await expect(limit).toHaveAttribute("max", "1000000");
+    await limit.fill("0");
+    await section.getByRole("button", { name: "Create key" }).click();
+    await expect(page.getByTestId("new-api-key")).toHaveCount(0); // the browser refuses a 0
+  });
+
+  test("a result saved through the API appears in the library", async ({ page }) => {
+    await newSignedInUser(page);
+    await openKeys(page);
+    const key = await makeKey(page, "saver");
+    const response = await page.context().request.post(`${API}/v1/summarize-text?save=true`, {
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      data: { text: "Kept through the programming interface and nothing else." },
+    });
+    expect(response.status()).toBe(200);
+    expect((await response.json()).id).toBeGreaterThan(0);
+    await page.goto("/dashboard");
+    await expect(page.getByTestId("document-card").filter({ hasText: "Kept through the programming interface" })).toHaveCount(1);
+  });
+
   test("revoking asks first, and a revoked key stops working at once", async ({ page }) => {
     await newSignedInUser(page);
     const section = await openKeys(page);
