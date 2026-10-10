@@ -104,6 +104,9 @@ type fakeAI struct {
 	// of a normal comparison (to see how the gateway treats a strange reply).
 	lastCompare  atomic.Value
 	compareReply atomic.Value
+	// lastExtract is the most recent /extract request body; extractReply, when set, replaces the normal answer.
+	lastExtract  atomic.Value
+	extractReply atomic.Value
 	// streamError makes streamed summaries end with an error event.
 	streamError atomic.Bool
 	// embedOn makes /embed work (off, it answers 503 like a service with embeddings switched off).
@@ -271,6 +274,25 @@ func (f *fakeAI) handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_, _ = w.Write([]byte(`{"kind":"flashcards","cards":[{"front":"Front one","back":"Back one"},{"front":"Front two","back":"Back two"},{"front":"Front three","back":"Back three"}]}`))
+	case "/extract":
+		raw, _ := io.ReadAll(r.Body)
+		f.lastExtract.Store(raw)
+		if override, _ := f.extractReply.Load().(string); override != "" {
+			_, _ = w.Write([]byte(override))
+			return
+		}
+		var in struct {
+			Fields []struct{ Name, Type string } `json:"fields"`
+		}
+		_ = json.Unmarshal(raw, &in)
+		results := []map[string]any{}
+		for _, field := range in.Fields {
+			results = append(results, map[string]any{
+				"name": field.Name, "type": field.Type, "value": "Value of " + field.Name, "quote": "Quote of " + field.Name,
+				"page": 1, "found": true, "verified": true, "reason": "",
+			})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"name": "doc", "fields": results, "suspicious": false})
 	case "/compare":
 		raw, _ := io.ReadAll(r.Body)
 		f.lastCompare.Store(raw)
