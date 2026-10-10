@@ -18,6 +18,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
 from pypdf import PdfReader
 
+import compare
 import embeddings
 import ocr
 import photos
@@ -1022,6 +1023,51 @@ async def study_material(payload: StudyPayload):
         questions = await generate_until_usable(prompt, parse_quiz, "The language model failed to write a quiz.")
         return {"kind": "quiz", "questions": questions}
     raise HTTPException(422, "kind must be 'flashcards' or 'quiz'")
+
+
+class CompareSide(BaseModel):
+    name: str = ""
+    text: str
+
+
+class ComparePayload(BaseModel):
+    old: CompareSide
+    new: CompareSide
+    language: Optional[str] = None
+
+
+# Each text of a comparison may be this long (a little more than a long contract).
+MAX_COMPARE_CHARS = 300_000
+
+
+@app.post("/compare")
+async def compare_versions(payload: ComparePayload):
+    """What changed between two versions of a document, and how much it matters (see compare.py)."""
+    if payload.language and not is_valid_language(payload.language):
+        raise HTTPException(422, "Unsupported language")
+    for side in (payload.old, payload.new):
+        if not side.text.strip():
+            raise HTTPException(422, "Both documents need some text to compare")
+        if len(side.text) > MAX_COMPARE_CHARS:
+            raise HTTPException(413, f"A document is too long to compare (max {MAX_COMPARE_CHARS} characters)")
+
+    async def ask(prompt: str) -> str:
+        try:
+            return await call_llm(prompt)
+        except Exception as exc:
+            raise to_http_error(exc, "The language model failed to compare the documents.") from exc
+
+    try:
+        return await compare.compare_documents(
+            payload.old.name.strip()[:200] or "Older version",
+            payload.old.text,
+            payload.new.name.strip()[:200] or "Newer version",
+            payload.new.text,
+            payload.language,
+            ask,
+        )
+    except compare.TooLong as exc:
+        raise HTTPException(413, "A document has too many sentences to compare") from exc
 
 
 @app.post("/proof")
