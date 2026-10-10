@@ -482,7 +482,10 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 │   ├── internal_auth.py      Shared-secret check for the AI service
 │   └── error_reporting.py    Opt-in Sentry
 ├── observability/            Prometheus config and the Grafana dashboard
-├── docs/                     DEPLOYMENT.md and the demo GIF
+├── docs/                     DEPLOYMENT.md, openapi.yaml (the API for programs) and the demo GIF
+├── scripts/                  Hook installer and tests, changelog generator, OpenAPI check
+├── .githooks/                pre-commit and commit-msg checks (see Contributing)
+├── CHANGELOG.md              What changed, generated from the commit history
 ├── render.yaml               Render Blueprint
 ├── docker-compose.observability.yml   Prometheus + Grafana add-on
 └── docker-compose.yml
@@ -493,6 +496,8 @@ Schema changes are SQL migrations in [`go-api/migrations/`](go-api/migrations), 
 ## Contributing
 
 Issues and pull requests are welcome. Before opening a PR, please make sure the suites for the parts you touched pass (see [Testing](#testing)); CI runs all of them. Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
+
+Turn on the project's git hooks once with `sh scripts/install-hooks.sh`. Before each commit they check what is about to be committed (Go and Python formatting, frontend lint, a stray secret or huge file, a migration without its undo) and the message (Conventional Commits, and no `Co-authored-by` lines or AI-assistant mentions in the history). CI runs the same tools, so the hooks are only quicker feedback; `sh scripts/test-hooks.sh` tests them. `CHANGELOG.md` is generated from the commit history: `python scripts/changelog.py -o CHANGELOG.md`. `python scripts/validate_openapi.py` checks that `docs/openapi.yaml` is valid and matches the real API routes.
 
 ## License
 
