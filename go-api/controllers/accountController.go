@@ -65,6 +65,13 @@ func ExportAccount(c *gin.Context) {
 	var usage []usageRow
 	initializers.DB.Raw(`SELECT day::text AS day, summaries, chats FROM daily_usage WHERE user_id = ? ORDER BY day`, user.ID).Scan(&usage)
 
+	// The keys themselves are never kept, so the export lists what is: their names, when they were made and last used.
+	keyRecords, _ := auth.APIKeysOf(user.ID)
+	keys := make([]gin.H, 0, len(keyRecords))
+	for _, k := range keyRecords {
+		keys = append(keys, apiKeyJSON(k))
+	}
+
 	securityEvent(c, "account_exported", user.ID)
 	c.Header("Content-Disposition", `attachment; filename="inkling-export.json"`)
 	c.JSON(http.StatusOK, gin.H{
@@ -73,6 +80,7 @@ func ExportAccount(c *gin.Context) {
 			"email": user.Email, "createdAt": user.CreatedAt, "emailVerified": user.EmailVerified(),
 		},
 		"documents": docs,
+		"apiKeys":   keys,
 		"usage":     usage,
 	})
 }

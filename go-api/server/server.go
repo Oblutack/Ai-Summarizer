@@ -120,6 +120,18 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 	r.POST("/auth/reset-password", authLimit, smallBody, controllers.ResetPassword)
 	r.POST("/auth/verify-email", authLimit, smallBody, controllers.VerifyEmail)
 
+	// The API for programs: the summarizing routes, with an API key instead of a session. Nothing is saved to the
+	// owner's library. It is for servers: a browser from another site is turned away by the origin check, and a
+	// key must never be put in a web page. The owner's daily quota, the rate limits and the spending guard apply.
+	v1 := r.Group("/v1", middleware.RequireAPIKey, middleware.RequireVerifiedEmail)
+	{
+		v1.POST("/summarize", summarizeUserLimit, uploadBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarize)
+		v1.POST("/summarize-multiple", summarizeUserLimit, combinedBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarizeMultiple)
+		v1.POST("/summarize-text", summarizeUserLimit, textBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarizeText)
+		v1.POST("/summarize-url", summarizeUserLimit, smallBody, middleware.Quota(middleware.QuotaSummaries), dailyBudget, controllers.PublicSummarizeURL)
+		v1.GET("/usage", controllers.Usage)
+	}
+
 	// Public: a summary its owner chose to share. Anyone with the link can read it.
 	r.GET("/shared/:token", authLimit, controllers.SharedDocument)
 
@@ -142,6 +154,10 @@ func NewRouter(logger *slog.Logger, rates Rates) (*gin.Engine, error) {
 		authorized.POST("/auth/change-password", authLimit, smallBody, controllers.ChangePassword)
 		authorized.POST("/auth/resend-verification", authLimit, controllers.ResendVerification)
 		authorized.GET("/usage", controllers.Usage)
+		// API keys for programs (see /v1). Made and ended by a signed-in person; a key cannot make or end keys.
+		authorized.GET("/account/api-keys", controllers.ListAPIKeys)
+		authorized.POST("/account/api-keys", authLimit, smallBody, middleware.RequireVerifiedEmail, controllers.CreateAPIKey)
+		authorized.DELETE("/account/api-keys/:id", authLimit, controllers.RevokeAPIKey)
 		authorized.GET("/account/export", exportLimit, controllers.ExportAccount)
 		authorized.DELETE("/account", authLimit, smallBody, controllers.DeleteAccount)
 		authorized.PUT("/account/instructions", smallBody, controllers.SetInstructions)

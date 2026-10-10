@@ -51,3 +51,31 @@ func RequireVerifiedEmail(c *gin.Context) {
 	}
 	c.Next()
 }
+
+// APIKeyIDKey is set by RequireAPIKey.
+const APIKeyIDKey = "api_key_id"
+
+// RequireAPIKey is the sign-in for the /v1 routes: an API key in "Authorization: Bearer ink_...". Only a key is
+// accepted, never a session cookie or session token, so a browser session cannot reach these routes by accident and a
+// leaked key can reach nothing but them. Unknown and revoked keys are indistinguishable to the caller.
+func RequireAPIKey(c *gin.Context) {
+	token := ""
+	if scheme, value, ok := strings.Cut(c.GetHeader("Authorization"), " "); ok && scheme == "Bearer" {
+		token = strings.TrimSpace(value)
+	}
+	key, user, err := auth.LookupAPIKey(token)
+	if err != nil {
+		if err != auth.ErrInvalidAPIKey {
+			slog.Error("api key lookup failed", "request_id", RequestIDFrom(c), "error", err)
+		}
+		c.Header("WWW-Authenticate", `Bearer realm="Inkling API"`)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": "Missing or invalid API key. Send it as: Authorization: Bearer ink_...",
+			"code":  "invalid_api_key",
+		})
+		return
+	}
+	c.Set(UserKey, *user)
+	c.Set(APIKeyIDKey, key.ID)
+	c.Next()
+}
