@@ -3,6 +3,7 @@
 //   GET  /healthz
 //   POST /summarize-text[?stream=true]   JSON {text}
 //   POST /overview[?stream=true]         JSON {name, documents}: a briefing that lists them
+//   POST /extract                        JSON {name, text, fields}: a value and a quote for every field
 //   POST /compare                        JSON {old, new, language}: sentence i against sentence i, as a comparison
 //   POST /summarize-url[?stream=true]    JSON {url}: the page is titled "Page from <host>"
 //   POST /summarize | /summarize-multiple[?stream=true]   multipart file(s); a recording's text is a transcript,
@@ -131,6 +132,39 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { summary, text });
   }
 
+  if (url.pathname === "/extract") {
+    // Every field is found and checked, except where its name says otherwise ("missing", "unverified", "instruction",
+    // "formula"). A document called "suspicious" is reported as having instructions for an AI in it.
+    // A document called "boom" makes it fail.
+    const { name = "", fields = [] } = JSON.parse(body.toString("utf8") || "{}");
+    if (String(name).toLowerCase().includes("boom")) return json(res, 502, { detail: "The language model failed to extract the fields." });
+    return json(res, 200, {
+      name,
+      fields: fields.map((field) => {
+        const lower = String(field.name).toLowerCase();
+        const found = !lower.includes("missing");
+        const formula = lower.includes("formula");
+        return {
+          name: field.name,
+          type: field.type,
+          value: found ? (formula ? "=HYPERLINK(\"http://evil.example\",\"click\")" : `Value of ${field.name}`) : "",
+          quote: found ? `The document says: ${field.name}` : "",
+          page: found ? 1 : null,
+          found,
+          verified: found && !lower.includes("unverified") && !lower.includes("instruction"),
+          reason: !found
+            ? ""
+            : lower.includes("instruction")
+              ? "The quote comes from text that reads like an instruction to an AI."
+              : lower.includes("unverified")
+                ? "The quote was not found in the document."
+                : "",
+        };
+      }),
+      suspicious: String(name).toLowerCase().includes("suspicious"),
+    });
+  }
+
   if (url.pathname === "/compare") {
     // A stand-in for the comparison: sentence number i of the old text against sentence number i of the new one.
     // A document called "boom" makes it fail; the same text twice is "no differences".
@@ -159,6 +193,7 @@ const server = http.createServer(async (req, res) => {
         summary: `Stub: sentence ${i + 1} was ${kind}.`,
         impact: "Stub: it could matter.",
         explained: true,
+        suspicious: /ignore .*instructions/i.test(`${a[i] ?? ""} ${b[i] ?? ""}`),
       });
     }
     const counts = { added: 0, removed: 0, changed: 0, moved: 0 };
@@ -170,6 +205,7 @@ const server = http.createServer(async (req, res) => {
       bottomLine: changes.length ? `Stub bottom line (${language || "same language"}): ${changes.length} changes.` : "",
       explained: true,
       omitted: 0,
+      suspicious: changes.some((change) => change.suspicious),
     });
   }
 
