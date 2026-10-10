@@ -298,3 +298,52 @@ func TestTheBudgetCannotBeSqueezedPastByRequestsArrivingTogether(t *testing.T) {
 		t.Errorf("AI calls = %d, want 5", n)
 	}
 }
+
+// ---- who is believed about their address -------------------------------------------------------------
+
+func TestWithoutTrustedProxiesNobodyCanChooseTheirOwnAddress(t *testing.T) {
+	a := newApp(t) // TRUSTED_PROXIES is not set
+	t.Setenv("ANON_SUMMARIES_PER_DAY", "2")
+	anon := a.newClient()
+
+	for i, ip := range []string{"203.0.113.1", "203.0.113.2"} {
+		if r := anonymousSummary(anon, ip); r.Status != http.StatusOK {
+			t.Fatalf("summary %d: %d %s", i+1, r.Status, r.Body)
+		}
+	}
+	// pretending to be somebody new gets a visitor nothing: the connection is what counts
+	for _, ip := range []string{"203.0.113.3", "198.51.100.9", "2001:db8::1"} {
+		if r := anonymousSummary(anon, ip); r.Status != http.StatusTooManyRequests {
+			t.Errorf("a made-up address %s was believed: %d", ip, r.Status)
+		}
+	}
+}
+
+func TestPretendingToBeAnotherAddressDoesNotDodgeTheRateLimit(t *testing.T) {
+	rates := generousRates
+	rates.SummarizeIPBurst, rates.SummarizeIPPerMinute = 2, 1
+	a := newAppWithRates(t, rates)
+	anon := a.newClient()
+
+	got := map[int]int{}
+	for i := 0; i < 6; i++ {
+		got[anonymousSummary(anon, "203.0.113."+itoa(i+1)).Status]++
+	}
+	if got[200] != 2 || got[429] != 4 {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestOnlyTheListedProxiesAreBelieved(t *testing.T) {
+	// the test's own connection comes from 127.0.0.1, which is not in this list
+	t.Setenv("TRUSTED_PROXIES", "10.0.0.0/8")
+	a := newApp(t)
+	t.Setenv("ANON_SUMMARIES_PER_DAY", "1")
+	anon := a.newClient()
+	if r := anonymousSummary(anon, "203.0.113.1"); r.Status != http.StatusOK {
+		t.Fatalf("first: %d", r.Status)
+	}
+	if r := anonymousSummary(anon, "203.0.113.2"); r.Status != http.StatusTooManyRequests {
+		t.Errorf("a header from an address that is not a trusted proxy was believed: %d", r.Status)
+	}
+}
