@@ -23,6 +23,7 @@ from difflib import SequenceMatcher
 from typing import Any, Optional
 
 from attribution import numbers
+from injection import reads_like_instruction
 from retrieval import PAGE_BREAK
 
 # The most sentences one text may have: matching is quadratic in the worst case.
@@ -124,6 +125,8 @@ class Change:
     summary: str = ""
     impact: str = ""
     explained: bool = False
+    # The text of the change reads like an instruction to an AI: shown with a warning and always important.
+    suspicious: bool = False
 
 
 def _count(items: list[str]) -> dict[str, int]:
@@ -517,12 +520,16 @@ async def compare_documents(
         change.id = number
         change.summary = plain_description(change)
         change.importance = "medium" if (change.removed_numbers or change.added_numbers) else "low"
+        change.suspicious = reads_like_instruction(change.before) or reads_like_instruction(change.after)
     if all(c.kind == "moved" for c in changes):
         explainable: list[Change] = []
     else:
         explainable = [c for c in changes if c.kind != "moved"]
     if explainable:
         await explain(explainable, old_name, new_name, language, ask)
+    for change in changes:
+        if change.suspicious:
+            change.importance = "high"  # whatever the model made of it
     explained = all(c.explained for c in explainable)
 
     bottom = plain_bottom_line(changes, old_name, new_name)
@@ -554,10 +561,12 @@ async def compare_documents(
                 "summary": c.summary,
                 "impact": c.impact,
                 "explained": c.explained,
+                "suspicious": c.suspicious,
             }
             for c in ranked
         ],
         "bottomLine": bottom,
         "explained": explained,
         "omitted": omitted,
+        "suspicious": any(c.suspicious for c in changes),
     }
