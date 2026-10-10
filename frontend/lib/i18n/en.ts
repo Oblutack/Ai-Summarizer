@@ -551,6 +551,19 @@ export const en = {
   "extract.suspicious": "This document contains text that reads like instructions to an AI ({names}). The values were still checked against the document, but read them carefully.",
   "compare.suspiciousChange": "This text reads like an instruction to an AI, not like part of the document's content. It is always shown as important.",
   "compare.suspiciousBanner": "Some of the changes read like instructions to an AI. The differences shown are exact, but treat the explanations with care.",
+  "apiKeys.expiresLabel": "Expires",
+  "apiKeys.expiresNever": "Never",
+  "apiKeys.expires30": "In 30 days",
+  "apiKeys.expires90": "In 90 days",
+  "apiKeys.expires365": "In a year",
+  "apiKeys.limitLabel": "Daily limit (optional)",
+  "apiKeys.limitHint": "The most requests this key may make in a day. Leave empty for no limit of its own.",
+  "apiKeys.expiresOn": "Expires {when}",
+  "apiKeys.expiredChip": "Expired",
+  "apiKeys.usageToday": "Today: {n}",
+  "apiKeys.usageTodayOf": "Today: {n} of {limit}",
+  "apiKeys.usageTotal": "In all: {n}",
+  "apiKeys.saveTip": "Add ?save=true to a summarize call to keep the result in your library.",
 } as const;
 
 export type MessageKey = keyof typeof en;
