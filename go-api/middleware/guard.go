@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"net"
 	"net/http"
@@ -38,6 +39,7 @@ const (
 const (
 	anonymousClaimKey = "anonymous_claim"
 	budgetClaimKey    = "budget_claim"
+	apiKeyClaimKey    = "api_key_claim"
 )
 
 func limitFromEnv(name string, fallback int) int {
@@ -68,6 +70,10 @@ const (
 	claimBudgetSQL = `INSERT INTO global_usage (day, requests) VALUES (CURRENT_DATE, 1)
 		ON CONFLICT (day) DO UPDATE SET requests = global_usage.requests + 1
 		WHERE global_usage.requests < ? RETURNING requests, day::text`
+	claimAPIKeySQL = `INSERT INTO api_key_usage (key_id, day, requests) VALUES (?, CURRENT_DATE, 1)
+		ON CONFLICT (key_id, day) DO UPDATE SET requests = api_key_usage.requests + 1
+		WHERE api_key_usage.requests < ? RETURNING requests, day::text`
+	refundAPIKeySQL    = `UPDATE api_key_usage SET requests = GREATEST(requests - 1, 0) WHERE key_id = ? AND day = ?::date`
 	refundAnonymousSQL = `UPDATE anonymous_usage SET summaries = GREATEST(summaries - 1, 0) WHERE ip_hash = ? AND day = ?::date`
 	refundBudgetSQL    = `UPDATE global_usage SET requests = GREATEST(requests - 1, 0) WHERE day = ?::date`
 	// Old rows are of no use: visitors are counted per day.
@@ -141,6 +147,7 @@ func DailyBudget() gin.HandlerFunc {
 		}
 		if used == -1 {
 			metrics.QuotaRejected("budget")
+			RefundQuota(c) // what this request claimed before reaching the budget (the person's allowance, a key's count)
 			c.Header("Retry-After", strconv.Itoa(secondsUntilUTCMidnight()))
 			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
 				"error": "Inkling has reached its limit for AI work today and will be back after midnight UTC. Thank you for your patience.",
@@ -152,6 +159,40 @@ func DailyBudget() gin.HandlerFunc {
 			slog.Warn("daily AI budget used up: further AI work is paused until midnight UTC", "limit", limit)
 		}
 		c.Set(budgetClaimKey, guardClaim{table: "global_usage", day: day})
+		c.Next()
+	}
+}
+
+// APIKeyDaily counts a request against the API key making it, and refuses it once the key has used the daily limit it
+// was given (a key without one is only counted). It runs after the owner's allowance has been claimed, and gives that
+// back when it refuses, so a key that is out of requests costs its owner nothing.
+func APIKeyDaily() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, ok := c.Get(APIKeyIDKey)
+		if !ok {
+			c.Next()
+			return
+		}
+		keyID, _ := id.(uint)
+		limit := math.MaxInt32
+		if v, ok := c.Get(apiKeyLimitKey); ok {
+			limit, _ = v.(int)
+		}
+		used, day, ok := claim(c, claimAPIKeySQL, keyID, limit)
+		if !ok {
+			return
+		}
+		if used == -1 {
+			metrics.QuotaRejected("api_key")
+			RefundQuota(c)
+			c.Header("Retry-After", strconv.Itoa(secondsUntilUTCMidnight()))
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "This API key has used its daily limit of " + strconv.Itoa(limit) + " requests. It resets at midnight UTC.",
+				"code":  "api_key_limit",
+			})
+			return
+		}
+		c.Set(apiKeyClaimKey, guardClaim{table: "api_key_usage", key: strconv.FormatUint(uint64(keyID), 10), day: day})
 		c.Next()
 	}
 }
@@ -177,7 +218,7 @@ func claim(c *gin.Context, query string, visitor any, limit int) (used int, day 
 
 // refundGuards gives back what AnonymousDaily and DailyBudget claimed for this request, at most once.
 func refundGuards(c *gin.Context) {
-	for _, name := range []string{anonymousClaimKey, budgetClaimKey} {
+	for _, name := range []string{anonymousClaimKey, budgetClaimKey, apiKeyClaimKey} {
 		v, _ := c.Get(name)
 		g, ok := v.(guardClaim)
 		if !ok {
@@ -185,9 +226,12 @@ func refundGuards(c *gin.Context) {
 		}
 		c.Set(name, nil)
 		var err error
-		if g.table == "anonymous_usage" {
+		switch g.table {
+		case "anonymous_usage":
 			err = initializers.DB.Exec(refundAnonymousSQL, g.key, g.day).Error
-		} else {
+		case "api_key_usage":
+			err = initializers.DB.Exec(refundAPIKeySQL, g.key, g.day).Error
+		default:
 			err = initializers.DB.Exec(refundBudgetSQL, g.day).Error
 		}
 		if err != nil {

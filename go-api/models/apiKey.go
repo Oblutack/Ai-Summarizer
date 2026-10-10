@@ -12,4 +12,8 @@ type APIKey struct {
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
 	RevokedAt  *time.Time
+	// ExpiresAt: after this moment the key no longer works (nil: it does not expire).
+	ExpiresAt *time.Time
+	// DailyLimit: the most requests the key may make in a day, whatever its owner's allowance (nil: only the owner's).
+	DailyLimit *int
 }

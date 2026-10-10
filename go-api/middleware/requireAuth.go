@@ -52,8 +52,11 @@ func RequireVerifiedEmail(c *gin.Context) {
 	c.Next()
 }
 
-// APIKeyIDKey is set by RequireAPIKey.
-const APIKeyIDKey = "api_key_id"
+// APIKeyIDKey (and the key's own daily limit, when it has one) are set by RequireAPIKey.
+const (
+	APIKeyIDKey    = "api_key_id"
+	apiKeyLimitKey = "api_key_limit"
+)
 
 // RequireAPIKey is the sign-in for the /v1 routes: an API key in "Authorization: Bearer ink_...". Only a key is
 // accepted, never a session cookie or session token, so a browser session cannot reach these routes by accident and a
@@ -64,6 +67,14 @@ func RequireAPIKey(c *gin.Context) {
 		token = strings.TrimSpace(value)
 	}
 	key, user, err := auth.LookupAPIKey(token)
+	if err == auth.ErrExpiredAPIKey {
+		c.Header("WWW-Authenticate", `Bearer realm="Inkling API", error="invalid_token"`)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": "This API key has expired. Make a new one on the account page.",
+			"code":  "api_key_expired",
+		})
+		return
+	}
 	if err != nil {
 		if err != auth.ErrInvalidAPIKey {
 			slog.Error("api key lookup failed", "request_id", RequestIDFrom(c), "error", err)
@@ -77,5 +88,8 @@ func RequireAPIKey(c *gin.Context) {
 	}
 	c.Set(UserKey, *user)
 	c.Set(APIKeyIDKey, key.ID)
+	if key.DailyLimit != nil {
+		c.Set(apiKeyLimitKey, *key.DailyLimit)
+	}
 	c.Next()
 }

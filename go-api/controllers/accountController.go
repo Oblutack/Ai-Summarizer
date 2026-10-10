@@ -67,10 +67,7 @@ func ExportAccount(c *gin.Context) {
 
 	// The keys themselves are never kept, so the export lists what is: their names, when they were made and last used.
 	keyRecords, _ := auth.APIKeysOf(user.ID)
-	keys := make([]gin.H, 0, len(keyRecords))
-	for _, k := range keyRecords {
-		keys = append(keys, apiKeyJSON(k))
-	}
+	keys := apiKeysJSON(keyRecords)
 
 	securityEvent(c, "account_exported", user.ID)
 	c.Header("Content-Disposition", `attachment; filename="inkling-export.json"`)
